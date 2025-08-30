@@ -20,16 +20,18 @@ import (
 type AIService struct {
 	config             *config.AIConfig
 	chatSessionService *ChatSessionService
+	knowledgeService   *KnowledgeService
 	httpClient         *http.Client
 }
 
 // NewAIService creates a new AI service instance
-func NewAIService(cfg *config.AIConfig, chatSessionService *ChatSessionService) *AIService {
+func NewAIService(cfg *config.AIConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService) *AIService {
 	fmt.Println("Creating AI Service")
 	fmt.Println("AI API Key:", cfg.APIKey)
 	return &AIService{
 		config:             cfg,
 		chatSessionService: chatSessionService,
+		knowledgeService:   knowledgeService,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -123,8 +125,8 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 		}
 	}
 
-	// Generate AI response
-	response, err := s.generateResponse(ctx, recentMessages)
+	// Generate AI response with knowledge context
+	response, err := s.generateResponseWithContext(ctx, session, recentMessages, message.Content)
 	if err != nil {
 		fmt.Println("Error generating AI response:", err.Error())
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
@@ -220,15 +222,33 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 	return err
 }
 
-// generateResponse generates AI response based on conversation history
-func (s *AIService) generateResponse(ctx context.Context, messages []models.ChatMessage) (string, error) {
-	// Build conversation context
-	chatMessages := []ChatCompletionMessage{
-		{
-			Role:    "system",
-			Content: s.config.SystemPrompt,
-		},
+// generateResponseWithContext generates AI response with knowledge context
+func (s *AIService) generateResponseWithContext(ctx context.Context, session *models.ChatSession, messages []models.ChatMessage, userMessage string) (string, error) {
+	// Get relevant knowledge context if knowledge service is available
+	var knowledgeContext string
+	if s.knowledgeService != nil {
+		contextResults, err := s.knowledgeService.GetRelevantContext(ctx, session.TenantID, session.ProjectID, userMessage)
+		if err != nil {
+			// Log error but don't fail - continue without knowledge context
+			fmt.Printf("Error getting knowledge context: %v\n", err)
+		} else if len(contextResults) > 0 {
+			knowledgeContext = s.knowledgeService.FormatContextForAI(contextResults)
+		}
 	}
+
+	// Build conversation context with knowledge
+	chatMessages := []ChatCompletionMessage{}
+
+	// Enhanced system prompt with knowledge context
+	systemPrompt := s.config.SystemPrompt
+	if knowledgeContext != "" {
+		systemPrompt = fmt.Sprintf("%s\n\n%s", systemPrompt, knowledgeContext)
+	}
+
+	chatMessages = append(chatMessages, ChatCompletionMessage{
+		Role:    "system",
+		Content: systemPrompt,
+	})
 
 	// Add recent conversation history
 	for _, msg := range messages {

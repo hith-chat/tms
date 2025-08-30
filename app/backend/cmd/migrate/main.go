@@ -86,6 +86,11 @@ func runMigrations(database *db.DB) error {
 		"migrations/019_enhanced_chat_widgets.sql",
 		"migrations/020_ai_status_widget.sql",
 		"migrations/021_chat_widget_background_color.sql",
+		"migrations/022_knowledge_management_system.sql",
+		"migrations/023_nullable_embeddings.sql",
+		"migrations/024_prevent_duplicate_pages.sql",
+		"migrations/025_project_level_deduplication.sql",
+		"migrations/026_add_content_hash.sql",
 	}
 
 	for _, migration := range migrations {

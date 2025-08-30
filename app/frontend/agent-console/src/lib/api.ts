@@ -156,6 +156,54 @@ export interface AutomationSettings {
   auto_reply_template: string
 }
 
+// Knowledge Management Types
+export interface KnowledgeDocument {
+  id: string
+  tenant_id: string
+  project_id: string
+  filename: string
+  content_type: string
+  file_size: number
+  file_path: string
+  status: 'processing' | 'ready' | 'error'
+  error_message?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeScrapingJob {
+  id: string
+  tenant_id: string
+  project_id: string
+  url: string
+  max_depth: number
+  status: 'pending' | 'running' | 'completed' | 'error'
+  pages_scraped: number
+  total_pages: number
+  error_message?: string
+  started_at?: string
+  completed_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateScrapingJobRequest {
+  url: string
+  max_depth: number
+}
+
+export interface KnowledgeSearchResult {
+  documents: KnowledgeDocument[]
+  scraped_pages: {
+    id: string
+    url: string
+    title?: string
+    content: string
+    scraped_at: string
+  }[]
+  total_results: number
+}
+
 export interface UpdateTicketRequest {
   subject?: string
   description?: string
@@ -461,7 +509,8 @@ class APIClient {
           config.url.startsWith('/settings') ||
           config.url.startsWith('/analytics') ||
           config.url.startsWith('/chat') ||
-          config.url.startsWith('/notifications')
+          config.url.startsWith('/notifications') ||
+          config.url.startsWith('/knowledge')
         ) && !config.url.includes('/tenants/')) {
           config.url = `/tenants/${tenantId}/projects/${projectId}${config.url}`
         }
@@ -1137,6 +1186,56 @@ class APIClient {
 
   async getAIMetrics(): Promise<AIMetrics> {
     const response: AxiosResponse<AIMetrics> = await this.client.get('/chat/ai/metrics')
+    return response.data
+  }
+
+  // Knowledge Management endpoints
+  async uploadDocument(_projectId: string, file: File): Promise<KnowledgeDocument> {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response: AxiosResponse<KnowledgeDocument> = await this.client.post(
+      `/knowledge/documents`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return response.data
+  }
+
+  async getDocuments(_projectId: string): Promise<KnowledgeDocument[]> {
+    const response: AxiosResponse<{ documents: KnowledgeDocument[] }> = await this.client.get(
+      `/knowledge/documents`
+    )
+    return response.data.documents
+  }
+
+  async deleteDocument(_projectId: string, documentId: string): Promise<void> {
+    await this.client.delete(`/knowledge/documents/${documentId}`)
+  }
+
+  async createScrapingJob(_projectId: string, data: CreateScrapingJobRequest): Promise<KnowledgeScrapingJob> {
+    const response: AxiosResponse<KnowledgeScrapingJob> = await this.client.post(
+      `/knowledge/scrape`,
+      data
+    )
+    return response.data
+  }
+
+  async getScrapingJobs(_projectId: string): Promise<KnowledgeScrapingJob[]> {
+    const response: AxiosResponse<{ jobs: KnowledgeScrapingJob[] }> = await this.client.get(
+      `/knowledge/scraping-jobs`
+    )
+    return response.data.jobs
+  }
+
+  async searchKnowledge(_projectId: string, query: string): Promise<KnowledgeSearchResult> {
+    const response: AxiosResponse<KnowledgeSearchResult> = await this.client.get(
+      `/knowledge/search?q=${encodeURIComponent(query)}`
+    )
     return response.data
   }
 

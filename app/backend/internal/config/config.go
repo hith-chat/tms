@@ -21,6 +21,7 @@ type Config struct {
 	Email         EmailConfig         `mapstructure:"email"`
 	Observability ObservabilityConfig `mapstructure:"observability"`
 	AI            AIConfig            `mapstructure:"ai"`
+	Knowledge     KnowledgeConfig     `mapstructure:"knowledge"`
 	Resend        ResendConfig        `mapstructure:"resend"`
 }
 
@@ -131,6 +132,23 @@ type AIConfig struct {
 	AutoHandoffTime time.Duration `mapstructure:"auto_handoff_time"`
 }
 
+// KnowledgeConfig represents knowledge management configuration
+type KnowledgeConfig struct {
+	Enabled              bool          `mapstructure:"enabled"`
+	MaxFileSize          int64         `mapstructure:"max_file_size"`
+	MaxFilesPerProject   int           `mapstructure:"max_files_per_project"`
+	EmbeddingService     string        `mapstructure:"embedding_service"`
+	OpenAIEmbeddingModel string        `mapstructure:"openai_embedding_model"`
+	OpenAIAPIKey         string        `mapstructure:"openai_api_key"`
+	ChunkSize            int           `mapstructure:"chunk_size"`
+	ChunkOverlap         int           `mapstructure:"chunk_overlap"`
+	ScrapeMaxDepth       int           `mapstructure:"scrape_max_depth"`
+	ScrapeRateLimit      time.Duration `mapstructure:"scrape_rate_limit"`
+	ScrapeUserAgent      string        `mapstructure:"scrape_user_agent"`
+	ScrapeTimeout        time.Duration `mapstructure:"scrape_timeout"`
+	EmbeddingTimeout     time.Duration `mapstructure:"embedding_timeout"`
+}
+
 // Load loads configuration from environment variables and config files
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
@@ -173,6 +191,21 @@ func Load() (*Config, error) {
 	viper.BindEnv("ai.temperature", "AI_TEMPERATURE")
 	viper.BindEnv("ai.system_prompt", "AI_SYSTEM_PROMPT")
 	viper.BindEnv("ai.auto_handoff_time", "AI_AUTO_HANDOFF_TIME")
+
+	// Knowledge management configuration bindings
+	viper.BindEnv("knowledge.enabled", "KNOWLEDGE_ENABLED")
+	viper.BindEnv("knowledge.max_file_size", "KNOWLEDGE_MAX_FILE_SIZE")
+	viper.BindEnv("knowledge.max_files_per_project", "KNOWLEDGE_MAX_FILES_PER_PROJECT")
+	viper.BindEnv("knowledge.embedding_service", "KNOWLEDGE_EMBEDDING_SERVICE")
+	viper.BindEnv("knowledge.openai_embedding_model", "KNOWLEDGE_OPENAI_EMBEDDING_MODEL")
+	viper.BindEnv("knowledge.openai_api_key", "AI_API_KEY")
+	viper.BindEnv("knowledge.chunk_size", "KNOWLEDGE_CHUNK_SIZE")
+	viper.BindEnv("knowledge.chunk_overlap", "KNOWLEDGE_CHUNK_OVERLAP")
+	viper.BindEnv("knowledge.scrape_max_depth", "KNOWLEDGE_SCRAPE_MAX_DEPTH")
+	viper.BindEnv("knowledge.scrape_rate_limit", "KNOWLEDGE_SCRAPE_RATE_LIMIT")
+	viper.BindEnv("knowledge.scrape_user_agent", "KNOWLEDGE_SCRAPE_USER_AGENT")
+	viper.BindEnv("knowledge.scrape_timeout", "KNOWLEDGE_SCRAPE_TIMEOUT")
+	viper.BindEnv("knowledge.embedding_timeout", "KNOWLEDGE_EMBEDDING_TIMEOUT")
 
 	// Resend configuration bindings
 	viper.BindEnv("resend.api_key", "RESEND_API_KEY")
@@ -272,6 +305,20 @@ func setDefaults() {
 	viper.SetDefault("ai.temperature", 0.7)
 	viper.SetDefault("ai.system_prompt", "You are a helpful customer support assistant. Be concise, professional, and friendly. If you cannot help with a request, suggest that a human agent will take over.")
 	viper.SetDefault("ai.auto_handoff_time", "10m")
+
+	// Knowledge management defaults
+	viper.SetDefault("knowledge.enabled", true)
+	viper.SetDefault("knowledge.max_file_size", 10485760) // 10MB
+	viper.SetDefault("knowledge.max_files_per_project", 100)
+	viper.SetDefault("knowledge.embedding_service", "openai")
+	viper.SetDefault("knowledge.openai_embedding_model", "text-embedding-ada-002")
+	viper.SetDefault("knowledge.chunk_size", 1000)
+	viper.SetDefault("knowledge.chunk_overlap", 200)
+	viper.SetDefault("knowledge.scrape_max_depth", 5)
+	viper.SetDefault("knowledge.scrape_rate_limit", "1s")
+	viper.SetDefault("knowledge.scrape_user_agent", "TMS Knowledge Bot 1.0")
+	viper.SetDefault("knowledge.scrape_timeout", "30s")
+	viper.SetDefault("knowledge.embedding_timeout", "120s")
 
 	// CORS defaults
 	viper.SetDefault("cors.allowed_origins", []string{"*"})

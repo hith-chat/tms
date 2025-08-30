@@ -15,8 +15,7 @@ Thumbs.db
 *.swo
 *~
 **/.pnpm-store/**
-
-
+app/backend/config.yaml
 # Environment files
 .env
 .env.local

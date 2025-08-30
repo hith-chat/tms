@@ -72,6 +72,9 @@ func main() {
 	chatSessionRepo := repo.NewChatSessionRepo(database.DB)
 	chatMessageRepo := repo.NewChatMessageRepo(database.DB)
 
+	// Knowledge management repositories
+	knowledgeRepo := repo.NewKnowledgeRepository(database.DB)
+
 	// Initialize mail service
 	mailLogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 	mailService := mail.NewService(mailLogger)
@@ -109,8 +112,14 @@ func main() {
 	chatWidgetService := service.NewChatWidgetService(chatWidgetRepo, domainValidationRepo)
 	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService)
 
-	// AI service
-	aiService := service.NewAIService(&cfg.AI, chatSessionService)
+	// Knowledge management services
+	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
+	documentProcessorService := service.NewDocumentProcessorService(knowledgeRepo, embeddingService, "./uploads", cfg.Knowledge.MaxFileSize)
+	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
+	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
+
+	// AI service (needs knowledge service for RAG)
+	aiService := service.NewAIService(&cfg.AI, chatSessionService, knowledgeService)
 
 	// Integration services
 	integrationService := service.NewIntegrationService(integrationRepo)
@@ -134,6 +143,9 @@ func main() {
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
 	aiHandler := handlers.NewAIHandler(aiService)
 
+	// Knowledge management handlers
+	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
+
 	// Initialize enterprise connection manager
 	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
 	defer connectionManager.Shutdown()
@@ -150,7 +162,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, aiHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, aiHandler, knowledgeHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -188,7 +200,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, aiHandler *handlers.AIHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, aiHandler *handlers.AIHandler, knowledgeHandler *handlers.KnowledgeHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -446,6 +458,33 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/ai/capabilities", aiHandler.GetAICapabilities)
 				chat.GET("/ai/metrics", aiHandler.GetAIMetrics)
 
+			}
+
+			// Knowledge management endpoints
+			knowledge := projects.Group("/knowledge")
+			{
+				// Document management
+				knowledge.POST("/documents", knowledgeHandler.UploadDocument)
+				knowledge.GET("/documents", knowledgeHandler.ListDocuments)
+				knowledge.GET("/documents/:document_id", knowledgeHandler.GetDocument)
+				knowledge.DELETE("/documents/:document_id", knowledgeHandler.DeleteDocument)
+
+				// Web scraping
+				knowledge.POST("/scrape", knowledgeHandler.CreateScrapingJob)
+				knowledge.GET("/scraping-jobs", knowledgeHandler.ListScrapingJobs)
+				knowledge.GET("/scraping-jobs/:job_id", knowledgeHandler.GetScrapingJob)
+				knowledge.GET("/scraping-jobs/:job_id/pages", knowledgeHandler.GetJobPages)
+
+				// Knowledge search
+				knowledge.POST("/search", knowledgeHandler.SearchKnowledgeBase)
+				knowledge.GET("/search", knowledgeHandler.SearchKnowledgeBaseGET)
+
+				// Settings
+				knowledge.GET("/settings", knowledgeHandler.GetKnowledgeSettings)
+				knowledge.PUT("/settings", knowledgeHandler.UpdateKnowledgeSettings)
+
+				// Statistics
+				knowledge.GET("/stats", knowledgeHandler.GetKnowledgeStats)
 			}
 		}
 

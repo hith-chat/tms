@@ -12,12 +12,15 @@ import {
   Copy,
   Check,
   X,
+  Brain,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
+import { KnowledgeManagement } from '../components/KnowledgeManagement'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 
 // Tab types for settings navigation
-type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys'
+type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge'
 
 interface ApiKey {
   id: string
@@ -110,6 +113,7 @@ export function SettingsPage() {
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
     { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
+    { id: 'knowledge' as SettingsTab, name: 'Knowledge Base', icon: Brain },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
     { id: 'api-keys' as SettingsTab, name: 'API Keys', icon: Key },
   ]
@@ -1636,6 +1640,24 @@ export function SettingsPage() {
     </div>
   )
 
+  const renderKnowledgeTab = () => {
+    const currentProjectId = localStorage.getItem('project_id')
+    
+    if (!currentProjectId) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Please select a project to manage knowledge base.</p>
+        </div>
+      )
+    }
+
+    return (
+      <ErrorBoundary>
+        <KnowledgeManagement projectId={currentProjectId} />
+      </ErrorBoundary>
+    )
+  }
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'projects':
@@ -1646,6 +1668,8 @@ export function SettingsPage() {
         return renderDomainsTab()
       case 'branding':
         return renderBrandingTab()
+      case 'knowledge':
+        return renderKnowledgeTab()
       case 'automations':
         return renderAutomationsTab()
       case 'api-keys':
