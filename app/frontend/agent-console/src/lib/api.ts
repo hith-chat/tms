@@ -135,6 +135,7 @@ export interface DomainValidation {
 
 export interface BrandingSettings {
   company_name: string
+  about: string
   logo_url: string
   support_url: string
   primary_color: string
