@@ -24,6 +24,7 @@ func NewSettingsHandler(settingsRepo *repo.SettingsRepository) *SettingsHandler 
 // BrandingSettings represents branding configuration
 type BrandingSettings struct {
 	CompanyName          string `json:"company_name"`
+	About                string `json:"about"`
 	LogoURL              string `json:"logo_url"`
 	SupportURL           string `json:"support_url"`
 	PrimaryColor         string `json:"primary_color"`

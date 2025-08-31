@@ -72,6 +72,12 @@ func main() {
 	chatSessionRepo := repo.NewChatSessionRepo(database.DB)
 	chatMessageRepo := repo.NewChatMessageRepo(database.DB)
 
+	// Knowledge management repositories
+	knowledgeRepo := repo.NewKnowledgeRepository(database.DB)
+
+	// Alarm repository
+	alarmRepo := repo.NewAlarmRepository(database.DB)
+
 	// Initialize mail service
 	mailLogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 	mailService := mail.NewService(mailLogger)
@@ -109,8 +115,18 @@ func main() {
 	chatWidgetService := service.NewChatWidgetService(chatWidgetRepo, domainValidationRepo)
 	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService)
 
-	// AI service
-	aiService := service.NewAIService(&cfg.AI, chatSessionService)
+	// Knowledge management services
+	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
+	documentProcessorService := service.NewDocumentProcessorService(knowledgeRepo, embeddingService, "./uploads", cfg.Knowledge.MaxFileSize)
+	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
+	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
+
+	// Greeting services for agentic behavior
+	greetingDetectionService := service.NewGreetingDetectionService(&cfg.Agentic)
+	brandGreetingService := service.NewBrandGreetingService(settingsRepo)
+
+	// AI service (needs knowledge service for RAG and greeting services for agentic behavior)
+	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService)
 
 	// Integration services
 	integrationService := service.NewIntegrationService(integrationRepo)
@@ -134,6 +150,9 @@ func main() {
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
 	aiHandler := handlers.NewAIHandler(aiService)
 
+	// Knowledge management handlers
+	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
+
 	// Initialize enterprise connection manager
 	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
 	defer connectionManager.Shutdown()
@@ -141,6 +160,11 @@ func main() {
 	// Notification service (needs connection manager for WebSocket delivery)
 	notificationService := service.NewNotificationService(notificationRepo, connectionManager)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
+
+	// Alarm services (Phase 4 implementation)
+	howlingAlarmService := service.NewHowlingAlarmService(cfg, connectionManager, alarmRepo)
+	// enhancedNotificationService can be added later for advanced notification features
+	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
 	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, jwtAuth)
 	agentWebSocketHandler := handlers.NewAgentWebSocketHandler(chatSessionService, connectionManager, agentService)
@@ -150,7 +174,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, aiHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, aiHandler, knowledgeHandler, alarmHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -188,7 +212,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, aiHandler *handlers.AIHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, aiHandler *handlers.AIHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -285,6 +309,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 			api.POST("/agents/:agent_id/projects/:project_id", middleware.TenantAdminMiddleware(), agentHandler.AssignToProject)
 			api.DELETE("/agents/:agent_id/projects/:project_id", middleware.TenantAdminMiddleware(), agentHandler.RemoveFromProject)
 			api.GET("/agents/:agent_id/projects", agentHandler.GetAgentProjects)
+			// Agent notification preferences (Phase 4)
+			api.GET("/agents/:agent_id/notification-preferences", alarmHandler.GetNotificationPreferences)
+			api.PUT("/agents/:agent_id/notification-preferences", alarmHandler.UpdateNotificationPreferences)
 		}
 
 		// API Key management endpoints
@@ -344,6 +371,14 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				notifications.GET("/count", notificationHandler.GetNotificationCount)
 				notifications.PUT("/:notification_id/read", notificationHandler.MarkNotificationAsRead)
 				notifications.PUT("/mark-all-read", notificationHandler.MarkAllNotificationsAsRead)
+			}
+
+			// Alarms endpoints (Phase 4 implementation)
+			alarms := projects.Group("/alarms")
+			{
+				alarms.GET("/active", alarmHandler.GetActiveAlarms)
+				alarms.GET("/stats", alarmHandler.GetAlarmStats)
+				alarms.POST("/:alarmId/acknowledge", alarmHandler.AcknowledgeAlarm)
 			}
 
 			// Integrations - using the available methods
@@ -446,6 +481,33 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/ai/capabilities", aiHandler.GetAICapabilities)
 				chat.GET("/ai/metrics", aiHandler.GetAIMetrics)
 
+			}
+
+			// Knowledge management endpoints
+			knowledge := projects.Group("/knowledge")
+			{
+				// Document management
+				knowledge.POST("/documents", knowledgeHandler.UploadDocument)
+				knowledge.GET("/documents", knowledgeHandler.ListDocuments)
+				knowledge.GET("/documents/:document_id", knowledgeHandler.GetDocument)
+				knowledge.DELETE("/documents/:document_id", knowledgeHandler.DeleteDocument)
+
+				// Web scraping
+				knowledge.POST("/scrape", knowledgeHandler.CreateScrapingJob)
+				knowledge.GET("/scraping-jobs", knowledgeHandler.ListScrapingJobs)
+				knowledge.GET("/scraping-jobs/:job_id", knowledgeHandler.GetScrapingJob)
+				knowledge.GET("/scraping-jobs/:job_id/pages", knowledgeHandler.GetJobPages)
+
+				// Knowledge search
+				knowledge.POST("/search", knowledgeHandler.SearchKnowledgeBase)
+				knowledge.GET("/search", knowledgeHandler.SearchKnowledgeBaseGET)
+
+				// Settings
+				knowledge.GET("/settings", knowledgeHandler.GetKnowledgeSettings)
+				knowledge.PUT("/settings", knowledgeHandler.UpdateKnowledgeSettings)
+
+				// Statistics
+				knowledge.GET("/stats", knowledgeHandler.GetKnowledgeStats)
 			}
 		}
 

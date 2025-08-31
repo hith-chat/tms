@@ -12,9 +12,9 @@ services:
     networks:
       - tms-network
 
-  # Database
+  # Database with pgvector extension
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: tms-postgres
     environment:
       POSTGRES_DB: tms

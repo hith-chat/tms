@@ -12,12 +12,17 @@ import {
   Copy,
   Check,
   X,
+  Brain,
+  Bell,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
+import { KnowledgeManagement } from '../components/KnowledgeManagement'
+import { AlertsSettings } from '../components/AlertsSettings'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 
 // Tab types for settings navigation
-type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys'
+type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge' | 'alerts'
 
 interface ApiKey {
   id: string
@@ -68,6 +73,7 @@ export function SettingsPage() {
   // Branding state
   const [brandingSettings, setBrandingSettings] = useState<BrandingSettings>({
     company_name: '',
+    about: '',
     logo_url: '',
     support_url: '',
     primary_color: '#3b82f6',
@@ -110,6 +116,8 @@ export function SettingsPage() {
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
     { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
+    { id: 'knowledge' as SettingsTab, name: 'Knowledge Base', icon: Brain },
+    { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
     { id: 'api-keys' as SettingsTab, name: 'API Keys', icon: Key },
   ]
@@ -967,101 +975,118 @@ export function SettingsPage() {
       </div>
 
       <div className="space-y-6">
-        {/* Company Information */}
+        {/* Company Information with About Section */}
         <div className="border rounded-lg p-6 bg-card">
           <h4 className="font-medium mb-4">Company Information</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Company Name</label>
-              <input
-                type="text"
-                value={brandingSettings.company_name}
-                onChange={(e) => setBrandingSettings(prev => ({ ...prev, company_name: e.target.value }))}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
-                placeholder="Your Company Name"
-              />
+          <div className="flex gap-6">
+            {/* Left side - Company Name and Support URL stacked */}
+            <div className="flex-1 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Company Name</label>
+                <input
+                  type="text"
+                  value={brandingSettings.company_name}
+                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, company_name: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  placeholder="Your Company Name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Support URL</label>
+                <input
+                  type="url"
+                  value={brandingSettings.support_url}
+                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, support_url: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  placeholder="https://support.company.com"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Support URL</label>
-              <input
-                type="url"
-                value={brandingSettings.support_url}
-                onChange={(e) => setBrandingSettings(prev => ({ ...prev, support_url: e.target.value }))}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
-                placeholder="https://support.company.com"
+            
+            {/* Right side - About section */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-1">About</label>
+              <textarea
+                value={brandingSettings.about}
+                onChange={(e) => setBrandingSettings(prev => ({ ...prev, about: e.target.value }))}
+                className="w-full h-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)] resize-none"
+                placeholder="Brief description about your company..."
+                rows={4}
               />
             </div>
           </div>
         </div>
 
-        {/* Logo */}
+        {/* Logo and Color Scheme Combined */}
         <div className="border rounded-lg p-6 bg-card">
-          <h4 className="font-medium mb-4">Logo</h4>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Logo URL</label>
-              <input
-                type="url"
-                value={brandingSettings.logo_url}
-                onChange={(e) => setBrandingSettings(prev => ({ ...prev, logo_url: e.target.value }))}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
-                placeholder="https://example.com/logo.png"
-              />
-            </div>
-            {brandingSettings.logo_url && (
-              <div className="border rounded-lg p-4 bg-muted/50">
-                <p className="text-sm text-muted-foreground mb-2">Logo Preview:</p>
-                <img 
-                  src={brandingSettings.logo_url} 
-                  alt="Logo preview"
-                  className="max-h-16 object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
+          <h4 className="font-medium mb-4">Visual Identity</h4>
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left side - Logo */}
+            <div className="space-y-4">
+              <h5 className="text-sm font-medium text-foreground">Logo</h5>
+              <div>
+                <label className="block text-sm font-medium mb-1">Logo URL</label>
+                <input
+                  type="url"
+                  value={brandingSettings.logo_url}
+                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, logo_url: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  placeholder="https://example.com/logo.png"
                 />
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Color Scheme */}
-        <div className="border rounded-lg p-6 bg-card">
-          <h4 className="font-medium mb-4">Color Scheme</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Primary Color</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="color"
-                  value={brandingSettings.primary_color}
-                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, primary_color: e.target.value }))}
-                  className="w-12 h-10 border rounded-md cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={brandingSettings.primary_color}
-                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, primary_color: e.target.value }))}
-                  className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
-                  placeholder="#3B82F6"
-                />
-              </div>
+              {brandingSettings.logo_url && (
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <p className="text-sm text-muted-foreground mb-2">Logo Preview:</p>
+                  <img 
+                    src={brandingSettings.logo_url} 
+                    alt="Logo preview"
+                    className="max-h-16 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Accent Color</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="color"
-                  value={brandingSettings.accent_color}
-                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, accent_color: e.target.value }))}
-                  className="w-12 h-10 border rounded-md cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={brandingSettings.accent_color}
-                  onChange={(e) => setBrandingSettings(prev => ({ ...prev, accent_color: e.target.value }))}
-                  className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
-                  placeholder="#10B981"
-                />
+            
+            {/* Right side - Color Scheme */}
+            <div className="space-y-4">
+              <h5 className="text-sm font-medium text-foreground">Color Scheme</h5>
+              <div>
+                <label className="block text-sm font-medium mb-1">Primary Color</label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="color"
+                    value={brandingSettings.primary_color}
+                    onChange={(e) => setBrandingSettings(prev => ({ ...prev, primary_color: e.target.value }))}
+                    className="w-12 h-10 border rounded-md cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={brandingSettings.primary_color}
+                    onChange={(e) => setBrandingSettings(prev => ({ ...prev, primary_color: e.target.value }))}
+                    className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
+                    placeholder="#3B82F6"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Accent Color</label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="color"
+                    value={brandingSettings.accent_color}
+                    onChange={(e) => setBrandingSettings(prev => ({ ...prev, accent_color: e.target.value }))}
+                    className="w-12 h-10 border rounded-md cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={brandingSettings.accent_color}
+                    onChange={(e) => setBrandingSettings(prev => ({ ...prev, accent_color: e.target.value }))}
+                    className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
+                    placeholder="#10B981"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1636,6 +1661,32 @@ export function SettingsPage() {
     </div>
   )
 
+  const renderKnowledgeTab = () => {
+    const currentProjectId = localStorage.getItem('project_id')
+    
+    if (!currentProjectId) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Please select a project to manage knowledge base.</p>
+        </div>
+      )
+    }
+
+    return (
+      <ErrorBoundary>
+        <KnowledgeManagement projectId={currentProjectId} />
+      </ErrorBoundary>
+    )
+  }
+
+  const renderAlertsTab = () => {
+    return (
+      <ErrorBoundary>
+        <AlertsSettings />
+      </ErrorBoundary>
+    )
+  }
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'projects':
@@ -1646,6 +1697,10 @@ export function SettingsPage() {
         return renderDomainsTab()
       case 'branding':
         return renderBrandingTab()
+      case 'knowledge':
+        return renderKnowledgeTab()
+      case 'alerts':
+        return renderAlertsTab()
       case 'automations':
         return renderAutomationsTab()
       case 'api-keys':
