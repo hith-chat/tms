@@ -38,6 +38,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -195,7 +196,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     }
     if (!searchQuery.trim()) return
 
-    setLoading(true)
+    setSearchLoading(true)
     try {
       const results = await apiClient.searchKnowledge(projectId, searchQuery)
       setSearchResults(results)
@@ -203,7 +204,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
       setError('Search failed')
       console.error('Search error:', err)
     } finally {
-      setLoading(false)
+      setSearchLoading(false)
     }
   }
 
@@ -524,10 +525,10 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
             />
             <button
               onClick={searchKnowledge}
-              disabled={loading}
+              disabled={searchLoading}
               className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {searchLoading ? (
                 <>
                   <Loader className="h-4 w-4 animate-spin mr-1" />
                   Searching...

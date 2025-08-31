@@ -236,7 +236,7 @@ describe('KnowledgeManagement', () => {
       render(<KnowledgeManagement projectId="test-project" />)
       
       await waitFor(() => {
-        expect(screen.getByText('Test Document 1')).toBeInTheDocument()
+        expect(screen.getByText('test1.pdf')).toBeInTheDocument()
       })
       
       const deleteButtons = screen.getAllByText('Delete')
@@ -253,7 +253,7 @@ describe('KnowledgeManagement', () => {
       render(<KnowledgeManagement projectId="test-project" />)
       
       await waitFor(() => {
-        expect(screen.getByText('Test Document 1')).toBeInTheDocument()
+        expect(screen.getByText('test1.pdf')).toBeInTheDocument()
       })
       
       const deleteButtons = screen.getAllByText('Delete')
@@ -427,7 +427,7 @@ describe('KnowledgeManagement', () => {
       render(<KnowledgeManagement projectId="test-project" />)
       
       await waitFor(() => {
-        expect(screen.getByText('Test Document 1')).toBeInTheDocument()
+        expect(screen.getByText('test1.pdf')).toBeInTheDocument()
       })
       
       const deleteButtons = screen.getAllByText('Delete')
@@ -512,7 +512,7 @@ describe('KnowledgeManagement', () => {
       render(<KnowledgeManagement projectId="test-project" />)
       
       await waitFor(() => {
-        expect(screen.getByText('Test Document 1')).toBeInTheDocument()
+        expect(screen.getByText('test1.pdf')).toBeInTheDocument()
       })
       
       const deleteButtons = screen.getAllByText('Delete')
@@ -607,8 +607,10 @@ describe('KnowledgeManagement', () => {
       
       render(<KnowledgeManagement projectId="test-project" />)
       
+      // Wait for initial loading to complete
       await waitFor(() => {
         expect(screen.getByPlaceholderText('Search knowledge base...')).toBeInTheDocument()
+        expect(screen.getByText('Search')).toBeInTheDocument()
       })
       
       const searchInput = screen.getByPlaceholderText('Search knowledge base...')
@@ -617,7 +619,9 @@ describe('KnowledgeManagement', () => {
       fireEvent.change(searchInput, { target: { value: 'test query' } })
       fireEvent.click(searchButton)
       
-      expect(screen.getByText('Searching...')).toBeInTheDocument()
+      // Use findByText to wait for the searching state to appear
+      const searchingText = await screen.findByText('Searching...')
+      expect(searchingText).toBeInTheDocument()
       
       resolveSearch(mockSearchResults)
     })
