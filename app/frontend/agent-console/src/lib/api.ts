@@ -1268,6 +1268,17 @@ class APIClient {
   async acknowledgeAlarm(_projectId: string, alarmId: string, response?: string): Promise<void> {
     await this.client.post(`/alarms/${alarmId}/acknowledge`, { response })
   }
+
+  // Notification Settings methods
+  async getNotificationSettings(agentId: string): Promise<any> {
+    const response: AxiosResponse<any> = await this.client.get(`/agents/${agentId}/notification-preferences`)
+    return response.data
+  }
+
+  async updateNotificationSettings(agentId: string, settings: any): Promise<any> {
+    const response: AxiosResponse<any> = await this.client.put(`/agents/${agentId}/notification-preferences`, settings)
+    return response.data
+  }
 }
 
 export const apiClient = new APIClient()

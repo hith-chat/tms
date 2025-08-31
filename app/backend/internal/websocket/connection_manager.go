@@ -250,6 +250,30 @@ func (cm *ConnectionManager) SendToConnection(connID string, message *Message) {
 
 }
 
+// SendToProjectAgents sends a message to all agents connected to a specific project
+func (cm *ConnectionManager) SendToProjectAgents(projectID uuid.UUID, message *Message) error {
+	// Set the message project context
+	message.ProjectID = &projectID
+	message.FromType = ConnectionTypeAgent
+	message.Timestamp = time.Now()
+
+	// Publish to the standard livechat channel - the handleRedisMessage will route it properly
+	channelKey := "pubsub:livechat"
+	msgBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Error().Err(err).Str("project_id", projectID.String()).Msg("Failed to marshal message for project")
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	if err := cm.redis.Publish(cm.ctx, channelKey, msgBytes).Err(); err != nil {
+		log.Error().Err(err).Str("project_id", projectID.String()).Msg("Failed to publish message to project")
+		return fmt.Errorf("failed to publish message: %w", err)
+	}
+
+	log.Debug().Str("project_id", projectID.String()).Msg("Message published to project agents")
+	return nil
+}
+
 // GetSessionConnections returns all connections for a session (across all servers)
 func (cm *ConnectionManager) GetSessionConnections(sessionID string) ([]*Connection, error) {
 	sessionKey := fmt.Sprintf("session:%s:connections", sessionID)
@@ -354,7 +378,12 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	var connIDs []string
 	var sessionKey string
 
-	if msgComingFrom == ConnectionTypeVisitor {
+	// Handle alarm messages specifically - they should go to all agents in the project
+	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+		if projectID != nil {
+			sessionKey = fmt.Sprintf("livechat:project:%s", *projectID)
+		}
+	} else if msgComingFrom == ConnectionTypeVisitor {
 		// Handle visitor-specific logic
 		sessionKey = fmt.Sprintf("livechat:project:%s", projectID)
 		if message.AgentID != nil {
@@ -366,7 +395,7 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 		sessionKey = fmt.Sprintf("livechat:session:%s", sessionID)
 	}
 
-	fmt.Printf("Pubsub is working -> sessionKey: %s\n", sessionKey)
+	fmt.Printf("Pubsub is working -> sessionKey: %s (message type: %s)\n", sessionKey, message.Type)
 
 	connIDs, err := cm.redis.SMembers(cm.ctx, sessionKey).Result()
 	if err != nil {
@@ -380,16 +409,29 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	cm.connMutex.RLock()
 	defer cm.connMutex.RUnlock()
 
+	deliveredCount := 0
 	for _, connID := range connIDs {
 		if conn, exists := cm.localConnections[connID]; exists {
+			// For alarm messages, only send to agent connections
+			if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+				if conn.Type != ConnectionTypeAgent {
+					continue // Skip non-agent connections for alarm messages
+				}
+			}
+
 			if err := conn.WsConnection.WriteJSON(message); err != nil {
 				log.Error().Err(err).Str("connection_id", connID).Msg("Failed to deliver session message to local connection")
 				// Remove failed connection in background
 				go cm.RemoveConnection(connID)
 			} else {
+				deliveredCount++
 				// log.Debug().Str("connection_id", connID).Str("session_id", sessionID.String()).Msg("Successfully delivered session message to local connection")
 			}
 		}
+	}
+
+	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+		log.Debug().Str("message_type", message.Type).Int("delivered_count", deliveredCount).Msg("Alarm message delivered to agents")
 	}
 }
 

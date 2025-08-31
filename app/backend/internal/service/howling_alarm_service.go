@@ -229,7 +229,7 @@ func (s *HowlingAlarmService) getAlarmConfigForPriority(priority models.Notifica
 	}
 }
 
-// sendAlarmNotification sends the alarm notification via websocket
+// sendAlarmNotification sends the alarm notification via websocket to agents assigned to the project
 func (s *HowlingAlarmService) sendAlarmNotification(alarm *models.Alarm) {
 	if s.connectionMgr == nil {
 		log.Printf("ConnectionManager is nil, cannot send alarm notification")
@@ -237,7 +237,7 @@ func (s *HowlingAlarmService) sendAlarmNotification(alarm *models.Alarm) {
 	}
 
 	notification := map[string]interface{}{
-		"type":             "howling_alarm",
+		"type":             "alarm_triggered",
 		"alarm_id":         alarm.ID,
 		"tenant_id":        alarm.TenantID,
 		"project_id":       alarm.ProjectID,
@@ -249,6 +249,7 @@ func (s *HowlingAlarmService) sendAlarmNotification(alarm *models.Alarm) {
 		"escalation_count": alarm.EscalationCount,
 		"config":           alarm.Config,
 		"metadata":         alarm.Metadata,
+		"timestamp":        time.Now(),
 	}
 
 	data, err := json.Marshal(notification)
@@ -257,23 +258,26 @@ func (s *HowlingAlarmService) sendAlarmNotification(alarm *models.Alarm) {
 		return
 	}
 
-	// Create websocket message
+	// Create websocket message for agents in the project
 	wsMessage := &ws.Message{
-		Type:      "howling_alarm",
+		Type:      "alarm_triggered",
 		Data:      data,
 		Timestamp: time.Now(),
 		TenantID:  &alarm.TenantID,
 		ProjectID: &alarm.ProjectID,
+		FromType:  ws.ConnectionTypeAgent, // This is an agent-targeted message
 	}
 
-	// Send to all connected sessions (simplified for now)
-	err = s.connectionMgr.DeliverWebSocketMessage(uuid.Nil, wsMessage)
+	// Send to all agents connected to this project via Redis pub/sub
+	// The connection manager will handle routing to the correct agent connections
+	err = s.connectionMgr.SendToProjectAgents(alarm.ProjectID, wsMessage)
 	if err != nil {
-		log.Printf("Failed to deliver alarm notification: %v", err)
+		log.Printf("Failed to publish alarm notification to project %s: %v", alarm.ProjectID, err)
 		return
 	}
 
-	log.Printf("Alarm notification sent: ID=%s, Level=%s", alarm.ID, alarm.CurrentLevel)
+	log.Printf("Alarm notification sent to project agents: ID=%s, Level=%s, Project=%s", 
+		alarm.ID, alarm.CurrentLevel, alarm.ProjectID)
 }
 
 // sendAcknowledgmentNotification sends acknowledgment notification
@@ -298,19 +302,24 @@ func (s *HowlingAlarmService) sendAcknowledgmentNotification(alarm *models.Alarm
 		return
 	}
 
-	// Create websocket message
+	// Create websocket message for agents in the project
 	wsMessage := &ws.Message{
 		Type:      "alarm_acknowledged",
 		Data:      data,
 		Timestamp: time.Now(),
 		TenantID:  &alarm.TenantID,
 		ProjectID: &alarm.ProjectID,
+		FromType:  ws.ConnectionTypeAgent,
 	}
 
-	err = s.connectionMgr.DeliverWebSocketMessage(uuid.Nil, wsMessage)
+	err = s.connectionMgr.SendToProjectAgents(alarm.ProjectID, wsMessage)
 	if err != nil {
-		log.Printf("Failed to deliver acknowledgment notification: %v", err)
+		log.Printf("Failed to deliver acknowledgment notification to project %s: %v", alarm.ProjectID, err)
+		return
 	}
+
+	log.Printf("Alarm acknowledgment notification sent to project agents: ID=%s, Project=%s", 
+		alarm.ID, alarm.ProjectID)
 }
 
 // startEscalationTicker starts the background ticker for alarm escalation

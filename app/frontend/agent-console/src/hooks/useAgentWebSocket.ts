@@ -4,7 +4,7 @@ import { apiClient } from '../lib/api'
 import type { ChatMessage, ChatSession } from '../types/chat'
 
 interface WSMessage {
-  type: 'chat_message' | 'typing_start' | 'typing_stop' | 'session_update' | 'agent_joined' | 'session_assigned' | 'notification' | 'error' | 'pong'
+  type: 'chat_message' | 'typing_start' | 'typing_stop' | 'session_update' | 'agent_joined' | 'session_assigned' | 'notification' | 'error' | 'pong' | 'alarm_triggered' | 'alarm_acknowledged' | 'alarm_escalated'
   data: any // Changed from ChatMessage to any to handle different data types
   timestamp: string
   from_type: 'visitor' | 'agent' | 'system'
@@ -20,6 +20,7 @@ interface UseAgentWebSocketOptions {
   onSessionUpdate?: (session: ChatSession) => void
   onTyping?: (data: { isTyping: boolean; agentName?: string; sessionId: string }) => void
   onNotification?: (notification: any) => void
+  onAlarm?: (alarm: any) => void
   onError?: (error: string) => void
 }
 
@@ -45,6 +46,7 @@ class AgentWebSocketManager {
     onSessionUpdate?: (session: ChatSession) => void
     onTyping?: (data: { isTyping: boolean; agentName?: string; sessionId: string }) => void
     onNotification?: (notification: any) => void
+    onAlarm?: (alarm: any) => void
     onError?: (error: string) => void
     setState: (state: WebSocketState) => void
   }>()
@@ -94,6 +96,9 @@ class AgentWebSocketManager {
           break
         case 'notification':
           sub.onNotification?.(data)
+          break
+        case 'alarm':
+          sub.onAlarm?.(data)
           break
         case 'error':
           sub.onError?.(data)
@@ -186,6 +191,14 @@ class AgentWebSocketManager {
             case 'notification':
               if (message.data) {
                 this.notifySubscribers('notification', message.data)
+              }
+              break
+            case 'alarm_triggered':
+            case 'alarm_acknowledged':
+            case 'alarm_escalated':
+              if (message.data) {
+                console.log('AgentWebSocketManager: Alarm message received', message.type, message.data)
+                this.notifySubscribers('alarm', { type: message.type, ...message.data })
               }
               break
           }
@@ -314,7 +327,7 @@ export function useAgentWebSocket(options: UseAgentWebSocketOptions = {}) {
     }
 
     return unsubscribe
-  }, [isAuthenticated, user, options.onMessage, options.onSessionUpdate, options.onTyping, options.onNotification, options.onError])
+  }, [isAuthenticated, user, options.onMessage, options.onSessionUpdate, options.onTyping, options.onNotification, options.onAlarm, options.onError])
 
   const connect = useCallback(() => {
     AgentWebSocketManager.getInstance().connect(isAuthenticated, user)

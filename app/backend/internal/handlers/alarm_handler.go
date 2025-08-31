@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/bareuptime/tms/internal/middleware"
 	"github.com/bareuptime/tms/internal/service"
 )
 
@@ -24,25 +25,10 @@ func NewAlarmHandler(howlingAlarmService *service.HowlingAlarmService) *AlarmHan
 // GetActiveAlarms retrieves active alarms for a project
 func (h *AlarmHandler) GetActiveAlarms(c *gin.Context) {
 	// Extract tenant ID from JWT context
-	tenantIDInterface, exists := c.Get("tenantID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
-		return
-	}
-
-	tenantID, ok := tenantIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c)
 
 	// Extract project ID from URL parameters
-	projectIDParam := c.Param("projectId")
-	projectID, err := uuid.Parse(projectIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
-		return
-	}
+	projectID := middleware.GetProjectID(c)
 
 	// TODO: Validate that the project belongs to the tenant
 	// This requires a project validation service
@@ -63,25 +49,8 @@ func (h *AlarmHandler) GetActiveAlarms(c *gin.Context) {
 // GetAlarmStats retrieves alarm statistics for a project
 func (h *AlarmHandler) GetAlarmStats(c *gin.Context) {
 	// Extract tenant ID from JWT context
-	tenantIDInterface, exists := c.Get("tenantID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
-		return
-	}
-
-	tenantID, ok := tenantIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
-
-	// Extract project ID from URL parameters
-	projectIDParam := c.Param("projectId")
-	projectID, err := uuid.Parse(projectIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
 
 	// TODO: Validate that the project belongs to the tenant
 
@@ -98,38 +67,9 @@ func (h *AlarmHandler) GetAlarmStats(c *gin.Context) {
 // AcknowledgeAlarm acknowledges a specific alarm
 func (h *AlarmHandler) AcknowledgeAlarm(c *gin.Context) {
 	// Extract tenant ID from JWT context
-	tenantIDInterface, exists := c.Get("tenantID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
-		return
-	}
-
-	tenantID, ok := tenantIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
-
-	// Extract agent ID from JWT context
-	agentIDInterface, exists := c.Get("agentID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Agent ID not found"})
-		return
-	}
-
-	agentID, ok := agentIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid agent ID"})
-		return
-	}
-
-	// Extract project ID from URL parameters
-	projectIDParam := c.Param("projectId")
-	projectID, err := uuid.Parse(projectIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+	agentID := middleware.GetAgentID(c)
 
 	// Extract alarm ID from URL parameters
 	alarmIDParam := c.Param("alarmId")
@@ -186,16 +126,16 @@ func (h *AlarmHandler) GetNotificationPreferences(c *gin.Context) {
 
 	// TODO: Validate that the agent belongs to the tenant
 	// TODO: Implement notification preferences service
-	
+
 	// For now, return default preferences
 	defaultPreferences := gin.H{
-		"agent_id":                  agentID,
-		"tenant_id":                tenantID,
-		"desktop_enabled":           true,
-		"email_enabled":            true,
-		"browser_enabled":          true,
-		"sound_enabled":            true,
-		"vibration_enabled":        false,
+		"agent_id":                   agentID,
+		"tenant_id":                  tenantID,
+		"desktop_enabled":            true,
+		"email_enabled":              true,
+		"browser_enabled":            true,
+		"sound_enabled":              true,
+		"vibration_enabled":          false,
 		"escalation_timeout_minutes": 5,
 	}
 
@@ -205,33 +145,16 @@ func (h *AlarmHandler) GetNotificationPreferences(c *gin.Context) {
 // UpdateNotificationPreferences updates notification preferences for an agent
 func (h *AlarmHandler) UpdateNotificationPreferences(c *gin.Context) {
 	// Extract tenant ID from JWT context
-	tenantIDInterface, exists := c.Get("tenantID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
-		return
-	}
-
-	tenantID, ok := tenantIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
-
-	// Extract agent ID from URL parameters
-	agentIDParam := c.Param("agentId")
-	agentID, err := uuid.Parse(agentIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid agent ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c)
+	agentID := middleware.GetAgentID(c)
 
 	// Parse the request body
 	var preferences struct {
 		DesktopEnabled           *bool `json:"desktop_enabled,omitempty"`
-		EmailEnabled            *bool `json:"email_enabled,omitempty"`
-		BrowserEnabled          *bool `json:"browser_enabled,omitempty"`
-		SoundEnabled            *bool `json:"sound_enabled,omitempty"`
-		VibrationEnabled        *bool `json:"vibration_enabled,omitempty"`
+		EmailEnabled             *bool `json:"email_enabled,omitempty"`
+		BrowserEnabled           *bool `json:"browser_enabled,omitempty"`
+		SoundEnabled             *bool `json:"sound_enabled,omitempty"`
+		VibrationEnabled         *bool `json:"vibration_enabled,omitempty"`
 		EscalationTimeoutMinutes *int  `json:"escalation_timeout_minutes,omitempty"`
 	}
 
@@ -245,9 +168,9 @@ func (h *AlarmHandler) UpdateNotificationPreferences(c *gin.Context) {
 
 	// For now, just return the updated preferences
 	response := gin.H{
-		"message":   "Notification preferences updated successfully",
-		"agent_id":  agentID,
-		"tenant_id": tenantID,
+		"message":     "Notification preferences updated successfully",
+		"agent_id":    agentID,
+		"tenant_id":   tenantID,
 		"preferences": preferences,
 	}
 

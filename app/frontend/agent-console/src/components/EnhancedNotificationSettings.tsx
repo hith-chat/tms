@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Settings, Volume2, Bell, Monitor, Smartphone, Mail, MessageSquare } from 'lucide-react'
+import { apiClient } from '../lib/api'
+import { useAuth } from '../hooks/useAuth'
 import type { NotificationSettings } from '../types/notifications'
 
 interface EnhancedNotificationSettingsProps {
@@ -7,6 +9,7 @@ interface EnhancedNotificationSettingsProps {
 }
 
 export function EnhancedNotificationSettings({ className = '' }: EnhancedNotificationSettingsProps) {
+  const { user } = useAuth()
   const [settings, setSettings] = useState<NotificationSettings>({
     sound_enabled: true,
     browser_notifications: true,
@@ -48,17 +51,46 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/v1/notifications/settings', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setSettings(data.settings)
+      if (!user?.id) {
+        console.error('No user ID available for loading notification settings')
+        return
       }
+
+      const data = await apiClient.getNotificationSettings(user.id)
+      
+      // Map backend response to frontend NotificationSettings format
+      // The backend might return different field names, so we'll map them
+      const mappedSettings: NotificationSettings = {
+        sound_enabled: data.sound_enabled ?? true,
+        browser_notifications: data.browser_enabled ?? true,
+        email_notifications: data.email_enabled ?? true,
+        audio_notifications: data.desktop_enabled ?? true,
+        desktop_notifications: data.desktop_enabled ?? true,
+        overlay_notifications: true, // Default since backend might not have this
+        popup_notifications: true, // Default since backend might not have this
+        alarm_sound_enabled: data.sound_enabled ?? true,
+        alarm_escalation_sound: data.sound_enabled ?? true,
+        notification_types: {
+          ticket_assigned: true,
+          ticket_updated: true,
+          ticket_escalated: true,
+          ticket_resolved: true,
+          message_received: true,
+          mention_received: true,
+          sla_warning: true,
+          sla_breach: true,
+          system_alert: true,
+          maintenance_notice: true,
+          feature_announcement: true,
+          agent_assignment: true,
+          howling_alarm: true,
+          agent_auto_assigned: true,
+          knowledge_response: false,
+          greeting_response: false,
+        }
+      }
+      
+      setSettings(mappedSettings)
     } catch (err) {
       console.error('Failed to load notification settings:', err)
     }
@@ -69,19 +101,34 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
     setSaved(false)
 
     try {
-      const response = await fetch('/api/v1/notifications/settings', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ settings })
-      })
-
-      if (response.ok) {
-        setSaved(true)
-        setTimeout(() => setSaved(false), 3000)
+      if (!user?.id) {
+        console.error('No user ID available for saving notification settings')
+        return
       }
+
+      // Map frontend NotificationSettings to backend format
+      const backendSettings = {
+        agent_id: user.id,
+        tenant_id: user.tenant_id,
+        desktop_enabled: settings.desktop_notifications,
+        email_enabled: settings.email_notifications,
+        browser_enabled: settings.browser_notifications,
+        sound_enabled: settings.sound_enabled,
+        vibration_enabled: false, // Could be added later
+        escalation_timeout_minutes: 5, // Default value
+        // Additional settings
+        audio_notifications: settings.audio_notifications,
+        overlay_notifications: settings.overlay_notifications,
+        popup_notifications: settings.popup_notifications,
+        alarm_sound_enabled: settings.alarm_sound_enabled,
+        alarm_escalation_sound: settings.alarm_escalation_sound,
+        notification_types: settings.notification_types
+      }
+
+      await apiClient.updateNotificationSettings(user.id, backendSettings)
+      
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
     } catch (err) {
       console.error('Failed to save notification settings:', err)
     } finally {

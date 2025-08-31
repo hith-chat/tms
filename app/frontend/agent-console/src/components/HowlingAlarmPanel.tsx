@@ -160,24 +160,24 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
         <div className="p-6 bg-muted/50 border-b border-border">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">{stats.total_active}</div>
+              <div className="text-2xl font-bold text-foreground">{stats?.total_active || 0}</div>
               <div className="text-muted-foreground">Active Alerts</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {stats.average_duration.toFixed(1)}s
+                {(stats?.average_duration || 0).toFixed(1)}s
               </div>
               <div className="text-muted-foreground">Avg Duration</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">
-                {Object.values(stats.by_level).reduce((a, b) => Math.max(a, b), 0)}
+                {stats?.by_level ? Object.values(stats.by_level).reduce((a, b) => Math.max(a, b), 0) : 0}
               </div>
               <div className="text-muted-foreground">Peak Level</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
-                {stats.escalation_counts['3_escalations'] || 0}
+                {stats?.escalation_counts?.['3_escalations'] || 0}
               </div>
               <div className="text-muted-foreground">High Escalations</div>
             </div>
