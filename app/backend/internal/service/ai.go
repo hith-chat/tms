@@ -14,6 +14,7 @@ import (
 
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/models"
+	"github.com/bareuptime/tms/internal/websocket"
 )
 
 // AIService handles AI-powered chat assistance
@@ -24,11 +25,12 @@ type AIService struct {
 	knowledgeService     *KnowledgeService
 	greetingDetection    *GreetingDetectionService
 	brandGreeting        *BrandGreetingService
+	connectionManager    *websocket.ConnectionManager
 	httpClient           *http.Client
 }
 
 // NewAIService creates a new AI service instance
-func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService) *AIService {
+func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *websocket.ConnectionManager) *AIService {
 	fmt.Println("Creating AI Service")
 	fmt.Println("AI API Key:", cfg.APIKey)
 	fmt.Println("Agentic Behavior Enabled:", agenticConfig.Enabled)
@@ -39,6 +41,7 @@ func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, cha
 		knowledgeService:     knowledgeService,
 		greetingDetection:    greetingDetection,
 		brandGreeting:        brandGreeting,
+		connectionManager:    connectionManager,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -295,6 +298,67 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 		"AI Assistant",
 	)
 
+	// Send real-time handoff notification to all agents in the project
+	if s.connectionManager != nil {
+		fmt.Printf("🤝 Sending handoff notification for session %s to project %s\n", session.ID, session.ProjectID)
+		
+		// Get customer info from session
+		customerName := "Anonymous Customer"
+		customerEmail := ""
+		if session.VisitorInfo != nil {
+			if name, ok := session.VisitorInfo["name"].(string); ok && name != "" {
+				customerName = name
+			}
+			if email, ok := session.VisitorInfo["email"].(string); ok && email != "" {
+				customerEmail = email
+			}
+		}
+
+		// Calculate session duration
+		sessionDuration := time.Since(session.CreatedAt).Seconds()
+
+		// Create handoff notification data
+		handoffData := map[string]interface{}{
+			"session_id":     session.ID,
+			"customer_name":  customerName,
+			"customer_email": customerEmail,
+			"handoff_reason": reason,
+			"urgency_level":  "high", // Default to high priority
+			"requested_at":   time.Now().Format(time.RFC3339),
+			"session_metadata": map[string]interface{}{
+				"messages_count":    0, // TODO: Get actual message count
+				"session_duration":  sessionDuration,
+				"last_ai_response":  "AI requested handoff",
+			},
+		}
+
+		// Marshal the data
+		handoffDataBytes, marshalErr := json.Marshal(handoffData)
+		if marshalErr != nil {
+			fmt.Printf("❌ Failed to marshal handoff data: %v\n", marshalErr)
+		} else {
+			// Create WebSocket message
+			wsMessage := &websocket.Message{
+				Type:      "agent_handoff_request",
+				Data:      json.RawMessage(handoffDataBytes),
+				TenantID:  &session.TenantID,
+				ProjectID: &session.ProjectID,
+				FromType:  websocket.ConnectionTypeAgent,
+				Timestamp: time.Now(),
+			}
+
+			// Send to all agents in the project
+			deliveryErr := s.connectionManager.SendToProjectAgents(session.ProjectID, wsMessage)
+			if deliveryErr != nil {
+				fmt.Printf("❌ Failed to send handoff notification: %v\n", deliveryErr)
+			} else {
+				fmt.Printf("✅ Handoff notification sent successfully to project agents\n")
+			}
+		}
+	} else {
+		fmt.Println("⚠️ ConnectionManager not available, skipping real-time handoff notification")
+	}
+
 	// Update session status to indicate human agent needed
 	// This could trigger notifications to available agents
 
@@ -499,4 +563,29 @@ func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatComplet
 	}
 
 	return chatResp.Choices[0].Message.Content, nil
+}
+
+// AcceptHandoff handles agent accepting a handoff request
+func (s *AIService) AcceptHandoff(ctx context.Context, tenantID, projectID, sessionID, agentID uuid.UUID) error {
+	// Assign the agent to the session
+	err := s.chatSessionService.AssignAgent(ctx, tenantID, projectID, sessionID, agentID)
+	if err != nil {
+		return fmt.Errorf("failed to assign agent to session: %w", err)
+	}
+
+	// TODO: Send notification to other agents that this handoff was accepted
+	// TODO: Update any handoff tracking state
+	// TODO: Notify the customer that an agent has joined
+
+	return nil
+}
+
+// DeclineHandoff handles agent declining a handoff request
+func (s *AIService) DeclineHandoff(ctx context.Context, tenantID, projectID, sessionID, agentID uuid.UUID) error {
+	// TODO: Mark that this agent declined the handoff
+	// TODO: Potentially notify other agents or escalate
+	// TODO: Log the decline for metrics
+	
+	// For now, just return success since there's no explicit tracking yet
+	return nil
 }

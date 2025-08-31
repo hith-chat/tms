@@ -211,15 +211,15 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     switch (status) {
       case 'ready':
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="h-4 w-4 text-green-500" data-testid="check-circle-icon" />
       case 'processing':
       case 'running':
       case 'pending':
-        return <Loader className="h-4 w-4 text-blue-500 animate-spin" />
+        return <Loader className="h-4 w-4 text-blue-500 animate-spin" data-testid="loader-icon" />
       case 'error':
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-4 w-4 text-red-500" data-testid="x-circle-icon" />
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />
+        return <AlertCircle className="h-4 w-4 text-gray-500" data-testid="alert-circle-icon" />
     }
   }
 
@@ -240,9 +240,9 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     )
   }
 
-  if (loading && !documents.length && !scrapingJobs.length) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64" data-testid="knowledge-loading">
         <Loader className="h-8 w-8 animate-spin text-blue-500" />
       </div>
     )
@@ -295,7 +295,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
             <div>
               <label htmlFor="file-upload" className="cursor-pointer">
                 <span className="text-sm font-medium">
-                  Drop PDF files here or click to browse
+                  Drag and drop PDF files here or click to browse
                 </span>
                 <input
                   id="file-upload"
@@ -314,7 +314,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
           {uploading && (
             <div className="flex items-center justify-center py-4">
               <Loader className="h-5 w-5 animate-spin text-primary mr-2" />
-              <span className="text-sm text-muted-foreground">Uploading and processing documents...</span>
+              <span className="text-sm text-muted-foreground">Uploading...</span>
             </div>
           )}
         </div>
@@ -333,7 +333,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
               className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4 mr-1" />
-              Add Website
+              Add Web Source
             </button>
           </div>
 
@@ -341,8 +341,9 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
             <div className="border rounded-lg p-4 bg-muted/50">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Website URL</label>
+                  <label htmlFor="website-url" className="block text-sm font-medium mb-2">Website URL</label>
                   <input
+                    id="website-url"
                     type="url"
                     value={scrapingUrl}
                     onChange={(e) => setScrapingUrl(e.target.value)}
@@ -351,8 +352,9 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Max Depth</label>
+                  <label htmlFor="max-depth" className="block text-sm font-medium mb-2">Max Depth</label>
                   <select
+                    id="max-depth"
                     value={scrapingDepth}
                     onChange={(e) => setScrapingDepth(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -371,11 +373,16 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
                     className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {scrapingInProgress ? (
-                      <Loader className="h-4 w-4 animate-spin mr-2" />
+                      <>
+                        <Loader className="h-4 w-4 animate-spin mr-2" />
+                        Creating scraping job...
+                      </>
                     ) : (
-                      <Globe className="h-4 w-4 mr-2" />
+                      <>
+                        <Globe className="h-4 w-4 mr-2" />
+                        Start Scraping
+                      </>
                     )}
-                    Start Scraping
                   </button>
                   <button
                     onClick={() => setShowScrapingForm(false)}
@@ -433,9 +440,11 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
                       </div>
                       <button
                         onClick={() => deleteDocument(doc.id)}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-muted-foreground hover:text-destructive"
+                        aria-label="Delete document"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -509,24 +518,44 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search your knowledge base..."
+              placeholder="Search knowledge base..."
               className="flex-1 px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               onKeyPress={(e) => e.key === 'Enter' && searchKnowledge()}
             />
             <button
               onClick={searchKnowledge}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Search className="h-4 w-4" />
+              {loading ? (
+                <>
+                  <Loader className="h-4 w-4 animate-spin mr-1" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="h-4 w-4 mr-1" />
+                  Search
+                </>
+              )}
             </button>
           </div>
 
           {searchResults && (
             <div className="border rounded-lg p-4 bg-muted/30">
-              <p className="text-sm text-muted-foreground mb-2">
+              <h4 className="font-medium mb-3">Search Results</h4>
+              <p className="text-sm text-muted-foreground mb-4">
                 Found {searchResults.total_results} results
               </p>
-              {/* Add search results display here */}
+              {searchResults.chunks && searchResults.chunks.map((chunk: any, index: number) => (
+                <div key={index} className="border-b border-border pb-3 mb-3 last:border-b-0">
+                  <p className="text-sm mb-2">{chunk.content}</p>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>From: {chunk.document_title || 'Unknown document'}</span>
+                    <span>Similarity: {Math.round(chunk.similarity * 100)}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

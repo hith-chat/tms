@@ -125,8 +125,12 @@ func main() {
 	greetingDetectionService := service.NewGreetingDetectionService(&cfg.Agentic)
 	brandGreetingService := service.NewBrandGreetingService(settingsRepo)
 
-	// AI service (needs knowledge service for RAG and greeting services for agentic behavior)
-	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService)
+	// Initialize enterprise connection manager (needed for AI service)
+	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
+	defer connectionManager.Shutdown()
+
+	// AI service (needs knowledge service for RAG, greeting services for agentic behavior, and connection manager for handoff notifications)
+	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService, connectionManager)
 
 	// Integration services
 	integrationService := service.NewIntegrationService(integrationRepo)
@@ -152,10 +156,6 @@ func main() {
 
 	// Knowledge management handlers
 	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
-
-	// Initialize enterprise connection manager
-	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
-	defer connectionManager.Shutdown()
 
 	// Notification service (needs connection manager for WebSocket delivery)
 	notificationService := service.NewNotificationService(notificationRepo, connectionManager)
@@ -480,6 +480,10 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/ai/status", aiHandler.GetAIStatus)
 				chat.GET("/ai/capabilities", aiHandler.GetAICapabilities)
 				chat.GET("/ai/metrics", aiHandler.GetAIMetrics)
+
+				// AI handoff endpoints
+				chat.POST("/handoff/:sessionId/accept", aiHandler.AcceptHandoff)
+				chat.POST("/handoff/:sessionId/decline", aiHandler.DeclineHandoff)
 
 			}
 

@@ -19,23 +19,27 @@ vi.mock('../../lib/api', () => ({
 const mockDocuments = [
   {
     id: '1',
-    title: 'Test Document 1',
-    file_name: 'test1.pdf',
+    tenant_id: 'tenant-1',
+    project_id: 'project-1',
+    filename: 'test1.pdf',
+    content_type: 'application/pdf',
     file_size: 1024,
-    file_type: 'application/pdf',
+    file_path: '/path/to/test1.pdf',
     status: 'ready',
-    uploaded_at: '2023-01-01T00:00:00Z',
-    chunk_count: 5,
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-01-01T00:00:00Z',
   },
   {
     id: '2',
-    title: 'Test Document 2',
-    file_name: 'test2.pdf',
+    tenant_id: 'tenant-1',
+    project_id: 'project-1',
+    filename: 'test2.pdf',
+    content_type: 'application/pdf',
     file_size: 2048,
-    file_type: 'application/pdf',
+    file_path: '/path/to/test2.pdf',
     status: 'processing',
-    uploaded_at: '2023-01-02T00:00:00Z',
-    chunk_count: 0,
+    created_at: '2023-01-02T00:00:00Z',
+    updated_at: '2023-01-02T00:00:00Z',
   },
 ]
 
@@ -70,6 +74,7 @@ const mockSearchResults = {
       document_id: '1',
       content: 'This is a test chunk from document 1',
       similarity: 0.85,
+      document_title: 'Test Document 1',
     },
   ],
   query: 'test',
@@ -87,7 +92,7 @@ describe('KnowledgeManagement', () => {
   describe('Component Rendering', () => {
     it('should render loading state initially', () => {
       render(<KnowledgeManagement projectId="test-project" />)
-      expect(screen.getByRole('generic')).toBeInTheDocument()
+      expect(screen.getByTestId('knowledge-loading')).toBeInTheDocument()
     })
 
     it('should render "no project selected" message when projectId is null', () => {
@@ -99,12 +104,10 @@ describe('KnowledgeManagement', () => {
       render(<KnowledgeManagement projectId="test-project" />)
       
       await waitFor(() => {
-        expect(screen.getByText('Knowledge Base Management')).toBeInTheDocument()
+        expect(screen.getByText('Document Upload')).toBeInTheDocument()
+        expect(screen.getByText('Web Scraping')).toBeInTheDocument()
+        expect(screen.getByText('Uploaded Documents')).toBeInTheDocument()
       })
-      
-      expect(screen.getByText('Documents')).toBeInTheDocument()
-      expect(screen.getByText('Web Scraping Jobs')).toBeInTheDocument()
-      expect(screen.getByText('Search Knowledge Base')).toBeInTheDocument()
     })
   })
 
@@ -149,8 +152,6 @@ describe('KnowledgeManagement', () => {
       render(<KnowledgeManagement projectId="test-project" />)
       
       await waitFor(() => {
-        expect(screen.getByText('Test Document 1')).toBeInTheDocument()
-        expect(screen.getByText('Test Document 2')).toBeInTheDocument()
         expect(screen.getByText('test1.pdf')).toBeInTheDocument()
         expect(screen.getByText('test2.pdf')).toBeInTheDocument()
       })
@@ -197,7 +198,7 @@ describe('KnowledgeManagement', () => {
         expect(screen.getByText('Documents')).toBeInTheDocument()
       })
       
-      const fileInput = screen.getByDisplayValue('')
+      const fileInput = screen.getByLabelText('Drag and drop PDF files here or click to browse')
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
       
       fireEvent.change(fileInput, { target: { files: [file] } })
@@ -269,8 +270,12 @@ describe('KnowledgeManagement', () => {
       await waitFor(() => {
         expect(screen.getByText('https://example.com')).toBeInTheDocument()
         expect(screen.getByText('https://test.com')).toBeInTheDocument()
-        expect(screen.getByText('10/10 pages')).toBeInTheDocument()
-        expect(screen.getByText('5/8 pages')).toBeInTheDocument()
+        expect(screen.getByText((content) => {
+          return content.includes('Pages: 10/10')
+        })).toBeInTheDocument()
+        expect(screen.getByText((content) => {
+          return content.includes('Pages: 5/8')
+        })).toBeInTheDocument()
       })
     })
 
@@ -284,7 +289,7 @@ describe('KnowledgeManagement', () => {
       fireEvent.click(screen.getByText('Add Web Source'))
       
       expect(screen.getByLabelText('Website URL')).toBeInTheDocument()
-      expect(screen.getByLabelText('Max Crawl Depth')).toBeInTheDocument()
+      expect(screen.getByLabelText('Max Depth')).toBeInTheDocument()
     })
 
     it('should create scraping job with valid URL', async () => {
@@ -299,7 +304,7 @@ describe('KnowledgeManagement', () => {
       fireEvent.click(screen.getByText('Add Web Source'))
       
       const urlInput = screen.getByLabelText('Website URL')
-      const depthInput = screen.getByLabelText('Max Crawl Depth')
+      const depthInput = screen.getByLabelText('Max Depth')
       const startButton = screen.getByText('Start Scraping')
       
       fireEvent.change(urlInput, { target: { value: 'https://example.com' } })

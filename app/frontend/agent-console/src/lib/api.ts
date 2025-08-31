@@ -15,6 +15,26 @@ import type { Notification, NotificationCount, HowlingAlarm, AlarmStats } from '
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
 
+// Handoff-related interfaces
+export interface HandoffResponse {
+  success: boolean
+  session_id: string
+  agent_id: string
+  tenant_id: string
+  accepted_at?: string
+  declined_at?: string
+  message: string
+}
+
+export interface HandoffStatus {
+  session_id: string
+  status: 'pending' | 'accepted' | 'declined' | 'expired'
+  assigned_agent_id?: string
+  handoff_reason: string
+  requested_at: string
+  expires_at?: string
+}
+
 export interface User {
   id: string
   email: string
@@ -1159,6 +1179,22 @@ class APIClient {
 
   async markChatMessagesAsRead(sessionId: string, messageId: string): Promise<void> {
     await this.client.post(`/chat/sessions/${sessionId}/messages/${messageId}/read`, )
+  }
+
+  // Handoff methods
+  async acceptHandoff(sessionId: string): Promise<HandoffResponse> {
+    const response: AxiosResponse<HandoffResponse> = await this.client.post(`/chat/handoff/${sessionId}/accept`)
+    return response.data
+  }
+
+  async declineHandoff(sessionId: string): Promise<HandoffResponse> {
+    const response: AxiosResponse<HandoffResponse> = await this.client.post(`/chat/handoff/${sessionId}/decline`)
+    return response.data
+  }
+
+  async getHandoffStatus(sessionId: string): Promise<HandoffStatus> {
+    const response: AxiosResponse<HandoffStatus> = await this.client.get(`/chat/handoff/${sessionId}/status`)
+    return response.data
   }
 
   // Notification methods

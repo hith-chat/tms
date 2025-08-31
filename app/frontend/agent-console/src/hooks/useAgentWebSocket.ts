@@ -2,9 +2,10 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { useAuth } from './useAuth'
 import { apiClient } from '../lib/api'
 import type { ChatMessage, ChatSession } from '../types/chat'
+import type { HandoffRequestData } from '../types/handoff'
 
 interface WSMessage {
-  type: 'chat_message' | 'typing_start' | 'typing_stop' | 'session_update' | 'agent_joined' | 'session_assigned' | 'notification' | 'error' | 'pong' | 'alarm_triggered' | 'alarm_acknowledged' | 'alarm_escalated'
+  type: 'chat_message' | 'typing_start' | 'typing_stop' | 'session_update' | 'agent_joined' | 'session_assigned' | 'notification' | 'error' | 'pong' | 'alarm_triggered' | 'alarm_acknowledged' | 'alarm_escalated' | 'agent_handoff_request' | 'handoff_notification'
   data: any // Changed from ChatMessage to any to handle different data types
   timestamp: string
   from_type: 'visitor' | 'agent' | 'system'
@@ -21,6 +22,7 @@ interface UseAgentWebSocketOptions {
   onTyping?: (data: { isTyping: boolean; agentName?: string; sessionId: string }) => void
   onNotification?: (notification: any) => void
   onAlarm?: (alarm: any) => void
+  onHandoffRequest?: (handoff: HandoffRequestData) => void
   onError?: (error: string) => void
 }
 
@@ -191,6 +193,12 @@ class AgentWebSocketManager {
             case 'notification':
               if (message.data) {
                 this.notifySubscribers('notification', message.data)
+              }
+              break
+            case 'agent_handoff_request':
+              if (message.data) {
+                console.log('AgentWebSocketManager: Handoff request received', message.data)
+                this.notifySubscribers('handoffRequest', message.data)
               }
               break
             case 'alarm_triggered':

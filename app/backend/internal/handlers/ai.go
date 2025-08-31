@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/bareuptime/tms/internal/middleware"
 	"github.com/bareuptime/tms/internal/service"
@@ -84,4 +87,78 @@ func (h *AIHandler) GetAIMetrics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, metrics)
+}
+
+// AcceptHandoff handles an agent accepting a handoff request
+func (h *AIHandler) AcceptHandoff(c *gin.Context) {
+	sessionIDStr := c.Param("sessionId")
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
+		return
+	}
+
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+	agentID := middleware.GetAgentID(c)
+	
+	// Use the AI service to handle the handoff acceptance
+	err = h.aiService.AcceptHandoff(c.Request.Context(), tenantID, projectID, sessionID, agentID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+		if strings.Contains(err.Error(), "already assigned") {
+			c.JSON(http.StatusConflict, gin.H{"error": "Session already assigned to an agent"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to accept handoff"})
+		return
+	}
+
+	response := map[string]interface{}{
+		"success":     true,
+		"session_id":  sessionID,
+		"agent_id":    agentID,
+		"tenant_id":   tenantID,
+		"project_id":  projectID,
+		"accepted_at": time.Now().UTC().Format(time.RFC3339),
+		"message":     "Handoff accepted successfully",
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// DeclineHandoff handles an agent declining a handoff request
+func (h *AIHandler) DeclineHandoff(c *gin.Context) {
+	sessionIDStr := c.Param("sessionId")
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
+		return
+	}
+
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+	agentID := middleware.GetAgentID(c)
+	
+	// Use the AI service to handle the handoff decline
+	err = h.aiService.DeclineHandoff(c.Request.Context(), tenantID, projectID, sessionID, agentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decline handoff"})
+		return
+	}
+
+	response := map[string]interface{}{
+		"success":     true,
+		"session_id":  sessionID,
+		"agent_id":    agentID,
+		"tenant_id":   tenantID,
+		"project_id":  projectID,
+		"declined_at": time.Now().UTC().Format(time.RFC3339),
+		"message":     "Handoff declined successfully",
+	}
+
+	c.JSON(http.StatusOK, response)
 }
