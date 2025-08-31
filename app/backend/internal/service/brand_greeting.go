@@ -66,15 +66,15 @@ func (b *BrandGreetingService) getBrandInfo(ctx context.Context, tenantID, proje
 	}
 
 	brandInfo := &BrandInfo{}
-	
+
 	if companyName, ok := settings["company_name"].(string); ok {
 		brandInfo.CompanyName = companyName
 	}
-	
+
 	if about, ok := settings["about"].(string); ok {
 		brandInfo.About = about
 	}
-	
+
 	if supportURL, ok := settings["support_url"].(string); ok {
 		brandInfo.SupportURL = supportURL
 	}
@@ -85,10 +85,10 @@ func (b *BrandGreetingService) getBrandInfo(ctx context.Context, tenantID, proje
 // createBrandedGreeting generates a greeting response using brand information
 func (b *BrandGreetingService) createBrandedGreeting(brandInfo *BrandInfo, customerMessage string) string {
 	timeOfDay := b.getTimeOfDay()
-	
+
 	// Choose greeting based on available brand information
 	var greeting string
-	
+
 	if brandInfo.CompanyName != "" && brandInfo.About != "" {
 		// Full brand info available
 		greeting = b.generateFullBrandGreeting(brandInfo, timeOfDay)
@@ -109,16 +109,16 @@ func (b *BrandGreetingService) createBrandedGreeting(brandInfo *BrandInfo, custo
 // generateFullBrandGreeting creates a greeting with company name and about information
 func (b *BrandGreetingService) generateFullBrandGreeting(brandInfo *BrandInfo, timeOfDay string) string {
 	templates := []string{
-		fmt.Sprintf("%s! Welcome to %s. %s How can we help you today?", 
+		fmt.Sprintf("%s! Welcome to %s. %s How can we help you today?",
 			timeOfDay, brandInfo.CompanyName, strings.TrimSpace(brandInfo.About)),
-		
-		fmt.Sprintf("Hello! Thanks for reaching out to %s. %s What can we assist you with?", 
+
+		fmt.Sprintf("Hello! Thanks for reaching out to %s. %s - What can we assist you with?",
 			brandInfo.CompanyName, strings.TrimSpace(brandInfo.About)),
-		
-		fmt.Sprintf("Hi there! You've reached %s support. %s How may we help you?", 
+
+		fmt.Sprintf("Hi there! You've reached %s support. %s How may we help you?",
 			brandInfo.CompanyName, strings.TrimSpace(brandInfo.About)),
 	}
-	
+
 	// Use a simple hash to consistently pick the same template for the same company
 	index := len(brandInfo.CompanyName) % len(templates)
 	return templates[index]
@@ -131,7 +131,7 @@ func (b *BrandGreetingService) generateCompanyNameGreeting(companyName, timeOfDa
 		fmt.Sprintf("Hello! You've reached %s support. What can we help you with?", companyName),
 		fmt.Sprintf("Hi there! Thanks for contacting %s. How may we help you?", companyName),
 	}
-	
+
 	index := len(companyName) % len(templates)
 	return templates[index]
 }
@@ -143,7 +143,7 @@ func (b *BrandGreetingService) generateAboutBasedGreeting(about, timeOfDay strin
 		fmt.Sprintf("Hello! %s What can we assist you with?", strings.TrimSpace(about)),
 		fmt.Sprintf("Hi there! %s How may we help you?", strings.TrimSpace(about)),
 	}
-	
+
 	index := len(about) % len(templates)
 	return templates[index]
 }
@@ -155,7 +155,7 @@ func (b *BrandGreetingService) generateGenericGreeting(timeOfDay string) string 
 		"Hello! Thanks for reaching out. What can we assist you with?",
 		"Hi there! How may we help you today?",
 	}
-	
+
 	index := int(time.Now().Unix()) % len(templates)
 	return templates[index]
 }
@@ -164,7 +164,7 @@ func (b *BrandGreetingService) generateGenericGreeting(timeOfDay string) string 
 func (b *BrandGreetingService) generateDefaultGreeting(customerMessage string) *GreetingResponse {
 	timeOfDay := b.getTimeOfDay()
 	greeting := fmt.Sprintf("%s! Thanks for reaching out. How can we help you today?", timeOfDay)
-	
+
 	return &GreetingResponse{
 		Message: greeting,
 		BrandInfo: BrandInfo{
@@ -181,7 +181,7 @@ func (b *BrandGreetingService) generateDefaultGreeting(customerMessage string) *
 func (b *BrandGreetingService) getTimeOfDay() string {
 	now := time.Now()
 	hour := now.Hour()
-	
+
 	switch {
 	case hour >= 5 && hour < 12:
 		return "Good morning"

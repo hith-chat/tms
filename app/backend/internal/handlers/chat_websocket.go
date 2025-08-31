@@ -143,9 +143,6 @@ func (h *ChatWebSocketHandler) HandleWebSocketPublic(c *gin.Context) {
 			}
 			break
 		}
-
-		fmt.Println("Received WebSocket message:", msg)
-
 		h.handleVisitorMessage(c.Request.Context(), session, msg, connectionID)
 	}
 }

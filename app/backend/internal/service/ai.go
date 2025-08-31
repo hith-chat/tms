@@ -19,14 +19,14 @@ import (
 
 // AIService handles AI-powered chat assistance
 type AIService struct {
-	config               *config.AIConfig
-	agenticConfig        *config.AgenticConfig
-	chatSessionService   *ChatSessionService
-	knowledgeService     *KnowledgeService
-	greetingDetection    *GreetingDetectionService
-	brandGreeting        *BrandGreetingService
-	connectionManager    *websocket.ConnectionManager
-	httpClient           *http.Client
+	config             *config.AIConfig
+	agenticConfig      *config.AgenticConfig
+	chatSessionService *ChatSessionService
+	knowledgeService   *KnowledgeService
+	greetingDetection  *GreetingDetectionService
+	brandGreeting      *BrandGreetingService
+	connectionManager  *websocket.ConnectionManager
+	httpClient         *http.Client
 }
 
 // NewAIService creates a new AI service instance
@@ -35,13 +35,13 @@ func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, cha
 	fmt.Println("AI API Key:", cfg.APIKey)
 	fmt.Println("Agentic Behavior Enabled:", agenticConfig.Enabled)
 	return &AIService{
-		config:               cfg,
-		agenticConfig:        agenticConfig,
-		chatSessionService:   chatSessionService,
-		knowledgeService:     knowledgeService,
-		greetingDetection:    greetingDetection,
-		brandGreeting:        brandGreeting,
-		connectionManager:    connectionManager,
+		config:             cfg,
+		agenticConfig:      agenticConfig,
+		chatSessionService: chatSessionService,
+		knowledgeService:   knowledgeService,
+		greetingDetection:  greetingDetection,
+		brandGreeting:      brandGreeting,
+		connectionManager:  connectionManager,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -134,14 +134,14 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 	// Check if this is a greeting message (only if agentic behavior is enabled)
 	if s.IsGreetingDetectionEnabled() && s.greetingDetection != nil {
 		greetingResult := s.greetingDetection.DetectGreeting(ctx, message.Content)
-		
+
 		// If it's a simple greeting, respond with brand-aware greeting
 		if greetingResult.IsGreeting && greetingResult.MessageType == "simple_greeting" {
 			return s.handleGreetingMessage(ctx, session, message)
 		}
-		
+
 		// Log greeting detection for debugging
-		fmt.Printf("Greeting detection result: IsGreeting=%t, Type=%s, Confidence=%.2f\n", 
+		fmt.Printf("Greeting detection result: IsGreeting=%t, Type=%s, Confidence=%.2f\n",
 			greetingResult.IsGreeting, greetingResult.MessageType, greetingResult.Confidence)
 	}
 
@@ -152,7 +152,7 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 // handleGreetingMessage processes simple greeting messages with brand-aware responses
 func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.ChatSession, message *models.ChatMessage) (*models.ChatMessage, error) {
 	var response string
-	
+
 	// Try to generate brand-aware greeting
 	if s.brandGreeting != nil {
 		greetingResponse, err := s.brandGreeting.GenerateGreetingResponse(ctx, session.TenantID, session.ProjectID, message.Content)
@@ -170,9 +170,9 @@ func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.C
 
 	// Send the greeting response
 	return s.sendAIResponse(ctx, session, response, map[string]interface{}{
-		"ai_generated": true,
+		"ai_generated":  true,
 		"response_type": "greeting",
-		"brand_aware": s.brandGreeting != nil,
+		"brand_aware":   s.brandGreeting != nil,
 	})
 }
 
@@ -209,7 +209,7 @@ func (s *AIService) processComplexMessage(ctx context.Context, session *models.C
 
 	// Send the AI response
 	return s.sendAIResponse(ctx, session, response, map[string]interface{}{
-		"ai_generated": true,
+		"ai_generated":  true,
 		"response_type": "knowledge_based",
 	})
 }
@@ -301,7 +301,7 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 	// Send real-time handoff notification to all agents in the project
 	if s.connectionManager != nil {
 		fmt.Printf("🤝 Sending handoff notification for session %s to project %s\n", session.ID, session.ProjectID)
-		
+
 		// Get customer info from session
 		customerName := "Anonymous Customer"
 		customerEmail := ""
@@ -326,9 +326,9 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 			"urgency_level":  "high", // Default to high priority
 			"requested_at":   time.Now().Format(time.RFC3339),
 			"session_metadata": map[string]interface{}{
-				"messages_count":    0, // TODO: Get actual message count
-				"session_duration":  sessionDuration,
-				"last_ai_response":  "AI requested handoff",
+				"messages_count":   0, // TODO: Get actual message count
+				"session_duration": sessionDuration,
+				"last_ai_response": "AI requested handoff",
 			},
 		}
 
@@ -341,11 +341,16 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 			wsMessage := &websocket.Message{
 				Type:      "agent_handoff_request",
 				Data:      json.RawMessage(handoffDataBytes),
+				SessionID: session.ID,
 				TenantID:  &session.TenantID,
 				ProjectID: &session.ProjectID,
 				FromType:  websocket.ConnectionTypeAgent,
 				Timestamp: time.Now(),
 			}
+
+			fmt.Println("Sending handoff notification:", handoffData)
+			fmt.Println("Handoff notification sent to tenant:", session.TenantID)
+			fmt.Println("Handoff notification sent to project:", session.ProjectID)
 
 			// Send to all agents in the project
 			deliveryErr := s.connectionManager.SendToProjectAgents(session.ProjectID, wsMessage)
@@ -585,7 +590,7 @@ func (s *AIService) DeclineHandoff(ctx context.Context, tenantID, projectID, ses
 	// TODO: Mark that this agent declined the handoff
 	// TODO: Potentially notify other agents or escalate
 	// TODO: Log the decline for metrics
-	
+
 	// For now, just return success since there's no explicit tracking yet
 	return nil
 }

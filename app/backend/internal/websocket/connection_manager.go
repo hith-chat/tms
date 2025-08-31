@@ -378,6 +378,10 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	var connIDs []string
 	var sessionKey string
 
+	fmt.Println("Received message. from tenant:", message.TenantID)
+	fmt.Println("Received message. from project:", message.ProjectID)
+	fmt.Println("Received message. from session:", message.SessionID)
+
 	// Handle alarm messages specifically - they should go to all agents in the project
 	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
 		if projectID != nil {
