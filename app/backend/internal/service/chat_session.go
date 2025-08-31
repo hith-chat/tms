@@ -89,6 +89,7 @@ func (s *ChatSessionService) InitiateChat(ctx context.Context, widgetID uuid.UUI
 		LastActivityAt:  time.Now(),
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
+		UseAI:           widget.UseAI,
 	}
 
 	err = s.chatSessionRepo.CreateChatSession(ctx, session)
