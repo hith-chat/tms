@@ -77,9 +77,20 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
       case 'system_alert':
         return '🔔'
       case 'maintenance_notice':
-        return '�'
+        return '🔧'
       case 'feature_announcement':
         return '🎉'
+      // Phase 4: New notification types
+      case 'agent_assignment':
+        return '👤'
+      case 'howling_alarm':
+        return '🚨'
+      case 'agent_auto_assigned':
+        return '🤖'
+      case 'knowledge_response':
+        return '📚'
+      case 'greeting_response':
+        return '👋'
       default:
         return '📌'
     }

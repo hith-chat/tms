@@ -1,7 +1,9 @@
 import { FC, useEffect, useState } from 'react'
-import { Ticket, AlertCircle, Clock, CheckCircle, Inbox } from 'lucide-react'
+import { Ticket, AlertCircle, Clock, CheckCircle, Inbox, AlertTriangle } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { apiClient } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import { useHowlingAlarms } from '../hooks/useHowlingAlarms'
 
 interface DashboardStats {
   openTickets: number
@@ -14,6 +16,7 @@ interface DashboardStats {
 
 export const DashboardPage: FC = () => {
   const { user } = useAuth()
+  const { alarms, stats: alarmStats } = useHowlingAlarms()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentTickets, setRecentTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,6 +129,15 @@ export const DashboardPage: FC = () => {
       icon: AlertCircle,
       color: 'bg-red-500',
     },
+    // Phase 4: Alarm Statistics
+    {
+      title: 'Active Alarms',
+      value: alarms.length.toString(),
+      change: alarmStats ? `${alarmStats.total_active - alarms.length} resolved` : '0',
+      changeType: alarms.length > 0 ? 'decrease' as const : 'neutral' as const,
+      icon: AlertTriangle,
+      color: alarms.length > 0 ? 'bg-red-600' : 'bg-gray-500',
+    },
   ]
 
   return (
@@ -190,6 +202,33 @@ export const DashboardPage: FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Phase 4: Active Alarms Alert */}
+      {alarms.length > 0 && (
+        <div className="mb-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">
+                    {alarms.length} Active Howling Alarm{alarms.length !== 1 ? 's' : ''}
+                  </h3>
+                  <p className="text-sm text-red-600">
+                    Critical issues require immediate attention
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/alarms"
+                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Manage Alarms
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

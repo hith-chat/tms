@@ -791,16 +791,27 @@ const (
 	NotificationTypeSystemAlert         NotificationType = "system_alert"
 	NotificationTypeMaintenanceNotice   NotificationType = "maintenance_notice"
 	NotificationTypeFeatureAnnouncement NotificationType = "feature_announcement"
+	// Phase 4: Enhanced Notification Types
+	NotificationTypeAgentAssignment     NotificationType = "agent_assignment"
+	NotificationTypeHowlingAlarm        NotificationType = "howling_alarm"
+	NotificationTypeAlarmEscalation     NotificationType = "alarm_escalation"
+	NotificationTypeAlarmAcknowledged   NotificationType = "alarm_acknowledged"
+	NotificationTypeUrgentRequest       NotificationType = "urgent_request"
 )
 
 type NotificationChannel string
 
 const (
-	NotificationChannelWeb   NotificationChannel = "web"
-	NotificationChannelEmail NotificationChannel = "email"
-	NotificationChannelSlack NotificationChannel = "slack"
-	NotificationChannelSMS   NotificationChannel = "sms"
-	NotificationChannelPush  NotificationChannel = "push"
+	NotificationChannelWeb      NotificationChannel = "web"
+	NotificationChannelEmail    NotificationChannel = "email"
+	NotificationChannelSlack    NotificationChannel = "slack"
+	NotificationChannelSMS      NotificationChannel = "sms"
+	NotificationChannelPush     NotificationChannel = "push"
+	// Phase 4: Enhanced Notification Channels
+	NotificationChannelAudio    NotificationChannel = "audio"
+	NotificationChannelDesktop  NotificationChannel = "desktop"
+	NotificationChannelOverlay  NotificationChannel = "overlay"
+	NotificationChannelPopup    NotificationChannel = "popup"
 )
 
 // Scan implements sql.Scanner interface for NotificationChannel
@@ -861,10 +872,11 @@ func (nc NotificationChannels) Value() (driver.Value, error) {
 type NotificationPriority string
 
 const (
-	NotificationPriorityLow    NotificationPriority = "low"
-	NotificationPriorityNormal NotificationPriority = "normal"
-	NotificationPriorityHigh   NotificationPriority = "high"
-	NotificationPriorityUrgent NotificationPriority = "urgent"
+	NotificationPriorityLow      NotificationPriority = "low"
+	NotificationPriorityNormal   NotificationPriority = "normal"
+	NotificationPriorityHigh     NotificationPriority = "high"
+	NotificationPriorityUrgent   NotificationPriority = "urgent"
+	NotificationPriorityCritical NotificationPriority = "critical"
 )
 
 // Notification represents a system notification

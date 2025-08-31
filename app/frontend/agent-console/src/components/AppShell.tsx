@@ -13,12 +13,15 @@ import {
   Home,
   Ticket,
   LogOut,
-  MessageCircle
+  MessageCircle,
+  AlertTriangle
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
 import { useAuth } from '../hooks/useAuth'
 import { useAgentWebSocket } from '../hooks/useAgentWebSocket'
+import { useHowlingAlarms } from '../hooks/useHowlingAlarms'
 import { NotificationBell } from './NotificationBell'
+import { FloatingAlarmWidget } from './FloatingAlarmWidget'
 import { CommandPalette } from './CommandPalette'
 import { ProjectSelector } from './ProjectSelector'
 import { apiClient } from '../lib/api'
@@ -40,6 +43,14 @@ export function AppShell({ children }: AppShellProps) {
   
   // WebSocket connection for real-time chat updates
   const { isConnected: wsConnected, isConnecting: wsConnecting, error: wsError } = useAgentWebSocket()
+  
+  // Phase 4: Howling Alarms integration
+  const { 
+    alarms, 
+    acknowledgeAlarm, 
+    soundEnabled, 
+    setSoundEnabled 
+  } = useHowlingAlarms()
   
   // Determine if we're on a chat session page and extract session ID
   const isChatSessionPage = location.pathname.startsWith('/chat/sessions/')
@@ -70,6 +81,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: 'Inbox', icon: Mail, href: '/inbox' },
     { name: 'Tickets', icon: Ticket, href: '/tickets' },
     { name: 'Chat', icon: MessageCircle, href: '/chat/sessions' },
+    { name: 'Alarms', icon: AlertTriangle, href: '/alarms' },
     // { name: 'Analytics', icon: BarChart3, href: '/analytics' },
     // { name: 'Integrations', icon: Zap, href: '/integrations' },
     { name: 'Settings', icon: Settings, href: '/settings' },
@@ -243,6 +255,14 @@ export function AppShell({ children }: AppShellProps) {
       <CommandPalette 
         isOpen={commandPaletteOpen} 
         onClose={() => setCommandPaletteOpen(false)} 
+      />
+      
+      {/* Phase 4: Floating Howling Alarm Widget */}
+      <FloatingAlarmWidget
+        alarms={alarms}
+        onAcknowledge={acknowledgeAlarm}
+        soundEnabled={soundEnabled}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
       />
     </div>
   )

@@ -18,24 +18,46 @@ import (
 
 // AIService handles AI-powered chat assistance
 type AIService struct {
-	config             *config.AIConfig
-	chatSessionService *ChatSessionService
-	knowledgeService   *KnowledgeService
-	httpClient         *http.Client
+	config               *config.AIConfig
+	agenticConfig        *config.AgenticConfig
+	chatSessionService   *ChatSessionService
+	knowledgeService     *KnowledgeService
+	greetingDetection    *GreetingDetectionService
+	brandGreeting        *BrandGreetingService
+	httpClient           *http.Client
 }
 
 // NewAIService creates a new AI service instance
-func NewAIService(cfg *config.AIConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService) *AIService {
+func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService) *AIService {
 	fmt.Println("Creating AI Service")
 	fmt.Println("AI API Key:", cfg.APIKey)
+	fmt.Println("Agentic Behavior Enabled:", agenticConfig.Enabled)
 	return &AIService{
-		config:             cfg,
-		chatSessionService: chatSessionService,
-		knowledgeService:   knowledgeService,
+		config:               cfg,
+		agenticConfig:        agenticConfig,
+		chatSessionService:   chatSessionService,
+		knowledgeService:     knowledgeService,
+		greetingDetection:    greetingDetection,
+		brandGreeting:        brandGreeting,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// IsAgenticBehaviorEnabled checks if agentic behavior is enabled
+func (ai *AIService) IsAgenticBehaviorEnabled() bool {
+	return ai.agenticConfig != nil && ai.agenticConfig.Enabled
+}
+
+// IsGreetingDetectionEnabled checks if greeting detection is enabled
+func (ai *AIService) IsGreetingDetectionEnabled() bool {
+	return ai.IsAgenticBehaviorEnabled() && ai.agenticConfig.GreetingDetection
+}
+
+// IsKnowledgeResponsesEnabled checks if knowledge-based responses are enabled
+func (ai *AIService) IsKnowledgeResponsesEnabled() bool {
+	return ai.IsAgenticBehaviorEnabled() && ai.agenticConfig.KnowledgeResponses
 }
 
 // AIProvider represents different AI providers
@@ -99,12 +121,60 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 	if !s.ShouldHandleSession(ctx, session) {
 		return nil, nil
 	}
-	// Check for handoff keywords
+
+	// Check for handoff keywords first
 	if s.shouldHandoffToAgent(message.Content) {
 		s.requestHumanAgent(ctx, session, "Customer requested human assistance")
 		return nil, nil
 	}
 
+	// Check if this is a greeting message (only if agentic behavior is enabled)
+	if s.IsGreetingDetectionEnabled() && s.greetingDetection != nil {
+		greetingResult := s.greetingDetection.DetectGreeting(ctx, message.Content)
+		
+		// If it's a simple greeting, respond with brand-aware greeting
+		if greetingResult.IsGreeting && greetingResult.MessageType == "simple_greeting" {
+			return s.handleGreetingMessage(ctx, session, message)
+		}
+		
+		// Log greeting detection for debugging
+		fmt.Printf("Greeting detection result: IsGreeting=%t, Type=%s, Confidence=%.2f\n", 
+			greetingResult.IsGreeting, greetingResult.MessageType, greetingResult.Confidence)
+	}
+
+	// For complex messages, use the existing AI processing flow
+	return s.processComplexMessage(ctx, session, message)
+}
+
+// handleGreetingMessage processes simple greeting messages with brand-aware responses
+func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.ChatSession, message *models.ChatMessage) (*models.ChatMessage, error) {
+	var response string
+	
+	// Try to generate brand-aware greeting
+	if s.brandGreeting != nil {
+		greetingResponse, err := s.brandGreeting.GenerateGreetingResponse(ctx, session.TenantID, session.ProjectID, message.Content)
+		if err != nil {
+			fmt.Printf("Error generating brand greeting: %v, falling back to default\n", err)
+			response = "Hello! Thanks for reaching out. How can we help you today?"
+		} else {
+			response = greetingResponse.Message
+			fmt.Printf("Generated brand-aware greeting: %s\n", response)
+		}
+	} else {
+		// Fallback to simple greeting
+		response = "Hello! Thanks for reaching out. How can we help you today?"
+	}
+
+	// Send the greeting response
+	return s.sendAIResponse(ctx, session, response, map[string]interface{}{
+		"ai_generated": true,
+		"response_type": "greeting",
+		"brand_aware": s.brandGreeting != nil,
+	})
+}
+
+// processComplexMessage handles non-greeting messages using AI and knowledge base
+func (s *AIService) processComplexMessage(ctx context.Context, session *models.ChatSession, message *models.ChatMessage) (*models.ChatMessage, error) {
 	// Get conversation history
 	messages, err := s.chatSessionService.GetChatMessages(ctx, session.TenantID, session.ProjectID, session.ID, false)
 	if err != nil {
@@ -134,12 +204,21 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 
 	fmt.Println("Response from ai -", response)
 
+	// Send the AI response
+	return s.sendAIResponse(ctx, session, response, map[string]interface{}{
+		"ai_generated": true,
+		"response_type": "knowledge_based",
+	})
+}
+
+// sendAIResponse is a helper method to send AI responses
+func (s *AIService) sendAIResponse(ctx context.Context, session *models.ChatSession, content string, metadata map[string]interface{}) (*models.ChatMessage, error) {
 	// Send AI response
 	aiMessageReq := &models.SendChatMessageRequest{
-		Content:     response,
+		Content:     content,
 		MessageType: "text",
 		IsPrivate:   false,
-		Metadata:    map[string]interface{}{"ai_generated": true},
+		Metadata:    metadata,
 	}
 
 	// Create AI agent UUID (deterministic based on session)
@@ -156,7 +235,7 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 		"AI Assistant",
 	)
 
-	return messageAI, nil
+	return messageAI, err
 }
 
 // generateAIAgentID creates a deterministic UUID for AI agent

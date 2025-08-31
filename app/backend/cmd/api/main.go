@@ -118,8 +118,12 @@ func main() {
 	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
 	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
 
-	// AI service (needs knowledge service for RAG)
-	aiService := service.NewAIService(&cfg.AI, chatSessionService, knowledgeService)
+	// Greeting services for agentic behavior
+	greetingDetectionService := service.NewGreetingDetectionService(&cfg.Agentic)
+	brandGreetingService := service.NewBrandGreetingService(settingsRepo)
+
+	// AI service (needs knowledge service for RAG and greeting services for agentic behavior)
+	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService)
 
 	// Integration services
 	integrationService := service.NewIntegrationService(integrationRepo)

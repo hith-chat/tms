@@ -55,6 +55,51 @@ features:
   enable_magic_links: true
   require_corporate_email: true  # Set to false to allow personal email domains
 
+agentic:
+  enabled: true
+  greeting_detection: true
+  knowledge_responses: true
+  agent_assignment: false  # Enable when Phase 3 is complete
+  agent_request_detection: true  # Phase 3: Agent request detection
+  notification_alerts: false  # Enable when Phase 4 is complete
+  greeting_confidence: 0.4  # 40% minimum confidence for greeting detection
+  knowledge_confidence: 0.6  # 60% minimum confidence for knowledge responses
+  domain_relevance_confidence: 0.5  # 50% minimum for domain relevance
+  agent_request_confidence: 0.7  # 70% minimum for agent request detection
+  agent_request_threshold: 0.7  # 70% threshold for triggering agent request
+  greeting_keywords:
+    - "hello"
+    - "hi"
+    - "hey"
+    - "greetings"
+    - "good morning"
+    - "good afternoon"
+    - "good evening"
+    - "howdy"
+    - "hiya"
+  agent_request_keywords:
+    - "agent"
+    - "human"
+    - "speak to someone"
+    - "talk to agent"
+    - "connect me"
+    - "customer service"
+  negative_keywords:
+    - "help"
+    - "support"
+    - "problem"
+    - "issue"
+    - "error"
+    - "bug"
+    - "pricing"
+    - "cost"
+    - "payment"
+    - "refund"
+    - "technical"
+    - "api"
+  response_timeout_ms: 2000  # 2 seconds max for AI responses
+  max_concurrent_sessions: 100  # Maximum concurrent chat sessions
+
 resend:
   api_key: ""  # Set this to your Resend API key
   from_email: "noreply@bareuptime.co"  # Configure with your verified domain
