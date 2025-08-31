@@ -904,3 +904,85 @@ type NotificationCount struct {
 	Total  int `json:"total"`
 	Unread int `json:"unread"`
 }
+
+// AlarmLevel represents the intensity level of a howling alarm
+type AlarmLevel string
+
+const (
+	AlarmLevelSoft     AlarmLevel = "soft"
+	AlarmLevelMedium   AlarmLevel = "medium"
+	AlarmLevelLoud     AlarmLevel = "loud"
+	AlarmLevelUrgent   AlarmLevel = "urgent"
+	AlarmLevelCritical AlarmLevel = "critical"
+)
+
+// Alarm represents a howling alarm stored in the database
+type Alarm struct {
+	ID               uuid.UUID                  `db:"id" json:"id"`
+	TenantID         uuid.UUID                  `db:"tenant_id" json:"tenant_id"`
+	ProjectID        uuid.UUID                  `db:"project_id" json:"project_id"`
+	AssignmentID     *uuid.UUID                 `db:"assignment_id" json:"assignment_id,omitempty"`
+	AgentID          *uuid.UUID                 `db:"agent_id" json:"agent_id,omitempty"`
+	Title            string                     `db:"title" json:"title"`
+	Message          string                     `db:"message" json:"message"`
+	Priority         NotificationPriority       `db:"priority" json:"priority"`
+	CurrentLevel     AlarmLevel                 `db:"current_level" json:"current_level"`
+	StartTime        time.Time                  `db:"start_time" json:"start_time"`
+	LastEscalation   time.Time                  `db:"last_escalation" json:"last_escalation"`
+	EscalationCount  int                        `db:"escalation_count" json:"escalation_count"`
+	IsAcknowledged   bool                       `db:"is_acknowledged" json:"is_acknowledged"`
+	AcknowledgedAt   *time.Time                 `db:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	AcknowledgedBy   *uuid.UUID                 `db:"acknowledged_by" json:"acknowledged_by,omitempty"`
+	Config           AlarmEscalationConfig      `db:"config" json:"config"`
+	Metadata         map[string]interface{}     `db:"metadata" json:"metadata"`
+	CreatedAt        time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time                  `db:"updated_at" json:"updated_at"`
+}
+
+// AlarmEscalationConfig defines how alarms escalate over time
+type AlarmEscalationConfig struct {
+	InitialLevel          AlarmLevel    `json:"initial_level"`
+	EscalationInterval    time.Duration `json:"escalation_interval"`
+	MaxLevel              AlarmLevel    `json:"max_level"`
+	PersistUntilAcknowled bool          `json:"persist_until_acknowledged"`
+	AudioEnabled          bool          `json:"audio_enabled"`
+	VisualEnabled         bool          `json:"visual_enabled"`
+	BroadcastToAll        bool          `json:"broadcast_to_all"`
+}
+
+// Value implements the driver.Valuer interface for AlarmEscalationConfig
+func (aec AlarmEscalationConfig) Value() (driver.Value, error) {
+	return json.Marshal(aec)
+}
+
+// Scan implements the sql.Scanner interface for AlarmEscalationConfig
+func (aec *AlarmEscalationConfig) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan %T into AlarmEscalationConfig", value)
+	}
+	
+	return json.Unmarshal(bytes, aec)
+}
+
+// AlarmAcknowledgment represents an alarm acknowledgment record
+type AlarmAcknowledgment struct {
+	ID             uuid.UUID  `db:"id" json:"id"`
+	AlarmID        uuid.UUID  `db:"alarm_id" json:"alarm_id"`
+	AgentID        uuid.UUID  `db:"agent_id" json:"agent_id"`
+	Response       string     `db:"response" json:"response"`
+	AcknowledgedAt time.Time  `db:"acknowledged_at" json:"acknowledged_at"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
+}
+
+// AlarmStats represents alarm statistics
+type AlarmStats struct {
+	ActiveCount      int `json:"active_count"`
+	CriticalCount    int `json:"critical_count"`
+	UnacknowledgedCount int `json:"unacknowledged_count"`
+	TotalToday       int `json:"total_today"`
+}

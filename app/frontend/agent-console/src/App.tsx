@@ -20,7 +20,6 @@ import { AnalyticsPage } from './pages/AnalyticsPage'
 import { IntegrationsPage } from './pages/IntegrationsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
-import { AlarmsPage } from './pages/AlarmsPage'
 import { ChatPage } from './pages/ChatPage'
 import './index.css'
 
@@ -74,7 +73,6 @@ function AppContent() {
                 <Route path="/inbox/mailboxes/create" element={<CreateEmailMailboxPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/tickets/:id" element={<TicketDetailPage />} />
-                <Route path="/alarms" element={<AlarmsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/integrations" element={<IntegrationsPage />} />

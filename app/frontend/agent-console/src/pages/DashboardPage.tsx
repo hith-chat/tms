@@ -220,10 +220,10 @@ export const DashboardPage: FC = () => {
                 </div>
               </div>
               <Link
-                to="/alarms"
+                to="/settings?tab=alerts"
                 className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
               >
-                Manage Alarms
+                Manage Alerts
               </Link>
             </div>
           </div>

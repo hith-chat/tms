@@ -14,7 +14,6 @@ import {
   Ticket,
   LogOut,
   MessageCircle,
-  AlertTriangle
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
 import { useAuth } from '../hooks/useAuth'
@@ -81,7 +80,6 @@ export function AppShell({ children }: AppShellProps) {
     { name: 'Inbox', icon: Mail, href: '/inbox' },
     { name: 'Tickets', icon: Ticket, href: '/tickets' },
     { name: 'Chat', icon: MessageCircle, href: '/chat/sessions' },
-    { name: 'Alarms', icon: AlertTriangle, href: '/alarms' },
     // { name: 'Analytics', icon: BarChart3, href: '/analytics' },
     // { name: 'Integrations', icon: Zap, href: '/integrations' },
     { name: 'Settings', icon: Settings, href: '/settings' },

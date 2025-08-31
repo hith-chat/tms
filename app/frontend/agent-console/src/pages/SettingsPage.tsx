@@ -13,14 +13,16 @@ import {
   Check,
   X,
   Brain,
+  Bell,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
 import { KnowledgeManagement } from '../components/KnowledgeManagement'
+import { AlertsSettings } from '../components/AlertsSettings'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 
 // Tab types for settings navigation
-type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge'
+type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge' | 'alerts'
 
 interface ApiKey {
   id: string
@@ -115,6 +117,7 @@ export function SettingsPage() {
     { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
     { id: 'knowledge' as SettingsTab, name: 'Knowledge Base', icon: Brain },
+    { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
     { id: 'api-keys' as SettingsTab, name: 'API Keys', icon: Key },
   ]
@@ -1676,6 +1679,14 @@ export function SettingsPage() {
     )
   }
 
+  const renderAlertsTab = () => {
+    return (
+      <ErrorBoundary>
+        <AlertsSettings />
+      </ErrorBoundary>
+    )
+  }
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'projects':
@@ -1688,6 +1699,8 @@ export function SettingsPage() {
         return renderBrandingTab()
       case 'knowledge':
         return renderKnowledgeTab()
+      case 'alerts':
+        return renderAlertsTab()
       case 'automations':
         return renderAutomationsTab()
       case 'api-keys':

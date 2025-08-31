@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { AlertTriangle, Volume2, VolumeX, Check, Clock, TrendingUp, X } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { apiClient } from '../lib/api'
 import type { HowlingAlarm, AlarmStats } from '../types/notifications'
 
 interface HowlingAlarmPanelProps {
@@ -13,8 +14,8 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [selectedAlarm, setSelectedAlarm] = useState<HowlingAlarm | null>(null)
   const [acknowledgmentText, setAcknowledgmentText] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [_loading, _setLoading] = useState(false)
+  const [_error, _setError] = useState<string | null>(null)
   
   const audioRef = useRef<HTMLAudioElement>(null)
   const escalationSoundRef = useRef<HTMLAudioElement>(null)
@@ -50,17 +51,14 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
 
   const loadAlarms = async () => {
     try {
-      const response = await fetch('/api/v1/howling-alarms/active', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setAlarms(data.alarms || [])
+      const projectId = localStorage.getItem('project_id')
+      if (!projectId) {
+        console.error('No project selected')
+        return
       }
+
+      const alarms = await apiClient.getActiveAlarms(projectId)
+      setAlarms(alarms || [])
     } catch (err) {
       console.error('Failed to load alarms:', err)
     }
@@ -68,57 +66,34 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('/api/v1/howling-alarms/stats', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data.stats)
+      const projectId = localStorage.getItem('project_id')
+      if (!projectId) {
+        console.error('No project selected')
+        return
       }
+
+      const stats = await apiClient.getAlarmStats(projectId)
+      setStats(stats)
     } catch (err) {
       console.error('Failed to load alarm stats:', err)
     }
   }
 
-  const acknowledgeAlarm = async (alarm: HowlingAlarm) => {
-    if (!acknowledgmentText.trim()) {
-      setError('Please provide an acknowledgment response')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
+  const acknowledgeAlarm = async (alarmId: string) => {
     try {
-      const response = await fetch(`/api/v1/howling-alarms/${alarm.id}/acknowledge`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          response: acknowledgmentText
-        })
-      })
-
-      if (response.ok) {
-        setSelectedAlarm(null)
-        setAcknowledgmentText('')
-        loadAlarms() // Refresh the alarm list
-        loadStats() // Refresh stats
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to acknowledge alarm')
+      const projectId = localStorage.getItem('project_id')
+      if (!projectId) {
+        console.error('No project selected')
+        return
       }
+
+      await apiClient.acknowledgeAlarm(projectId, alarmId, acknowledgmentText)
+      await loadAlarms()
+      await loadStats()
+      setSelectedAlarm(null)
+      setAcknowledgmentText('')
     } catch (err) {
-      setError('Network error occurred')
-      console.error('Acknowledgment error:', err)
-    } finally {
-      setLoading(false)
+      console.error('Failed to acknowledge alarm:', err)
     }
   }
 
@@ -144,7 +119,7 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow-lg border ${className}`}>
+    <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>
       {/* Audio elements for alarm sounds */}
       <audio ref={audioRef} preload="auto">
         <source src="/sounds/alarm-soft.mp3" type="audio/mpeg" />
@@ -154,20 +129,18 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
       </audio>
 
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+      <div className="p-6 border-b border-border flex items-center justify-between bg-card/50">
         <div className="flex items-center space-x-2">
           <AlertTriangle className="w-5 h-5 text-red-500" />
-          <h2 className="text-lg font-semibold text-gray-900">
-            Howling Alarms
+          <h2 className="text-lg font-semibold text-foreground">
+            Active Alerts
             {alarms.length > 0 && (
-              <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 text-sm rounded-full">
+              <span className="ml-2 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 text-sm rounded-full">
                 {alarms.length} Active
               </span>
             )}
           </h2>
-        </div>
-        
-        <div className="flex items-center space-x-2">
+        </div>        <div className="flex items-center space-x-2">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={`p-2 rounded-lg transition-colors ${
@@ -182,42 +155,42 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
         </div>
       </div>
 
-      {/* Alarm Statistics */}
+      {/* Alert Statistics */}
       {stats && (
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
+        <div className="p-6 bg-muted/50 border-b border-border">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{stats.total_active}</div>
-              <div className="text-gray-600">Active Alarms</div>
+              <div className="text-2xl font-bold text-foreground">{stats.total_active}</div>
+              <div className="text-muted-foreground">Active Alerts</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {stats.average_duration.toFixed(1)}s
               </div>
-              <div className="text-gray-600">Avg Duration</div>
+              <div className="text-muted-foreground">Avg Duration</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">
                 {Object.values(stats.by_level).reduce((a, b) => Math.max(a, b), 0)}
               </div>
-              <div className="text-gray-600">Peak Level</div>
+              <div className="text-muted-foreground">Peak Level</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
                 {stats.escalation_counts['3_escalations'] || 0}
               </div>
-              <div className="text-gray-600">High Escalations</div>
+              <div className="text-muted-foreground">High Escalations</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Active Alarms List */}
-      <div className="max-h-96 overflow-y-auto">
+      {/* Active Alerts List */}
+      <div className="max-h-[32rem] overflow-y-auto">
         {alarms.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-lg font-medium">No Active Alarms</p>
+          <div className="p-8 text-center text-muted-foreground">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+            <p className="text-lg font-medium">No Active Alerts</p>
             <p className="text-sm">All systems are operating normally</p>
           </div>
         ) : (
@@ -308,20 +281,20 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
                 />
               </div>
               
-              {error && (
+              {_error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{error}</p>
+                  <p className="text-sm text-red-600">{_error}</p>
                 </div>
               )}
               
               <div className="flex space-x-3">
                 <button
-                  onClick={() => acknowledgeAlarm(selectedAlarm)}
-                  disabled={loading || !acknowledgmentText.trim()}
+                  onClick={() => acknowledgeAlarm(selectedAlarm.id)}
+                  disabled={_loading || !acknowledgmentText.trim()}
                   className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{loading ? 'Acknowledging...' : 'Acknowledge'}</span>
+                  <span>{_loading ? 'Acknowledging...' : 'Acknowledge'}</span>
                 </button>
                 
                 <button

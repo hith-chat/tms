@@ -11,7 +11,7 @@ import type {
   AICapabilities,
   AIMetrics
 } from '../types/chat'
-import type { Notification, NotificationCount } from '../types/notifications'
+import type { Notification, NotificationCount, HowlingAlarm, AlarmStats } from '../types/notifications'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
 
@@ -511,7 +511,8 @@ class APIClient {
           config.url.startsWith('/analytics') ||
           config.url.startsWith('/chat') ||
           config.url.startsWith('/notifications') ||
-          config.url.startsWith('/knowledge')
+          config.url.startsWith('/knowledge') ||
+          config.url.startsWith('/alarms')
         ) && !config.url.includes('/tenants/')) {
           config.url = `/tenants/${tenantId}/projects/${projectId}${config.url}`
         }
@@ -1251,6 +1252,21 @@ class APIClient {
     
     const wsUrl = this.client.defaults.baseURL?.replace('http', 'ws') || 'ws://localhost:8080/v1'
     return `${wsUrl}/tenants/${tenantId}/projects/${projectId}/chat/ws`
+  }
+
+  // Alarm methods
+  async getActiveAlarms(_projectId: string): Promise<HowlingAlarm[]> {
+    const response: AxiosResponse<{ alarms: HowlingAlarm[] }> = await this.client.get('/alarms/active')
+    return response.data.alarms
+  }
+
+  async getAlarmStats(_projectId: string): Promise<AlarmStats> {
+    const response: AxiosResponse<AlarmStats> = await this.client.get('/alarms/stats')
+    return response.data
+  }
+
+  async acknowledgeAlarm(_projectId: string, alarmId: string, response?: string): Promise<void> {
+    await this.client.post(`/alarms/${alarmId}/acknowledge`, { response })
   }
 }
 

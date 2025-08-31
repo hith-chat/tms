@@ -123,23 +123,22 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow-lg border ${className}`}>
-      <div className="p-6 border-b border-gray-200">
+    <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>
+      <div className="p-6 border-b border-border bg-card/50">
         <div className="flex items-center space-x-2">
-          <Settings className="w-5 h-5 text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
-            Enhanced Notification Settings
+          <Settings className="w-5 h-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold text-foreground">
+            Alert Preferences
           </h2>
         </div>
-        <p className="text-sm text-gray-600 mt-1">
-          Configure how you receive notifications and alarms
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure how you receive notifications and alerts
         </p>
       </div>
 
-      <div className="p-6 space-y-6">
-        {/* Delivery Channels */}
+      <div className="p-6 space-y-6">{/* Delivery Channels */}
         <div>
-          <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+          <h3 className="text-md font-semibold text-foreground mb-4 flex items-center space-x-2">
             <Bell className="w-4 h-4" />
             <span>Delivery Channels</span>
           </h3>
@@ -147,21 +146,21 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Traditional Channels */}
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-700">Standard Channels</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Standard Channels</h4>
               
               <label className="flex items-center space-x-3">
                 <input
                   type="checkbox"
                   checked={settings.browser_notifications}
                   onChange={(e) => updateChannelSetting('browser_notifications', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
-                <Monitor className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-700">Browser Notifications</span>
+                <Monitor className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-foreground">Browser Notifications</span>
                 {!('Notification' in window) || Notification.permission === 'denied' ? (
                   <button
                     onClick={requestBrowserPermission}
-                    className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                    className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20"
                   >
                     Enable
                   </button>
@@ -173,10 +172,10 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   type="checkbox"
                   checked={settings.email_notifications}
                   onChange={(e) => updateChannelSetting('email_notifications', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
-                <Mail className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-700">Email Notifications</span>
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-foreground">Email Notifications</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -184,26 +183,26 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   type="checkbox"
                   checked={settings.sound_enabled}
                   onChange={(e) => updateChannelSetting('sound_enabled', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
-                <Volume2 className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-700">Sound Notifications</span>
+                <Volume2 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-foreground">Sound Notifications</span>
               </label>
             </div>
 
             {/* Phase 4: Enhanced Channels */}
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-700">Enhanced Channels (Phase 4)</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Enhanced Channels (Phase 4)</h4>
               
               <label className="flex items-center space-x-3">
                 <input
                   type="checkbox"
                   checked={settings.audio_notifications}
                   onChange={(e) => updateChannelSetting('audio_notifications', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
                 <Volume2 className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-gray-700">Audio Alerts</span>
+                <span className="text-sm text-foreground">Audio Alerts</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -211,10 +210,10 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   type="checkbox"
                   checked={settings.desktop_notifications}
                   onChange={(e) => updateChannelSetting('desktop_notifications', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
                 <Monitor className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-gray-700">Desktop Notifications</span>
+                <span className="text-sm text-foreground">Desktop Notifications</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -222,10 +221,10 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   type="checkbox"
                   checked={settings.overlay_notifications}
                   onChange={(e) => updateChannelSetting('overlay_notifications', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
                 <Smartphone className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-gray-700">Overlay Notifications</span>
+                <span className="text-sm text-foreground">Overlay Notifications</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -233,18 +232,18 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   type="checkbox"
                   checked={settings.popup_notifications}
                   onChange={(e) => updateChannelSetting('popup_notifications', e.target.checked)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-primary"
                 />
                 <MessageSquare className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-gray-700">Popup Notifications</span>
+                <span className="text-sm text-foreground">Popup Notifications</span>
               </label>
             </div>
           </div>
         </div>
 
         {/* Howling Alarm Settings */}
-        <div className="border-t pt-6">
-          <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+        <div className="border-t border-border pt-6">
+          <h3 className="text-md font-semibold text-foreground mb-4 flex items-center space-x-2">
             <Volume2 className="w-4 h-4 text-red-500" />
             <span>Howling Alarm Settings</span>
           </h3>
@@ -257,7 +256,7 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                 onChange={(e) => updateChannelSetting('alarm_sound_enabled', e.target.checked)}
                 className="w-4 h-4 text-red-600"
               />
-              <span className="text-sm text-gray-700">Enable Alarm Sounds</span>
+              <span className="text-sm text-foreground">Enable Alarm Sounds</span>
             </label>
 
             <label className="flex items-center space-x-3">
@@ -267,19 +266,19 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                 onChange={(e) => updateChannelSetting('alarm_escalation_sound', e.target.checked)}
                 className="w-4 h-4 text-red-600"
               />
-              <span className="text-sm text-gray-700">Escalation Sound Effects</span>
+              <span className="text-sm text-foreground">Escalation Sound Effects</span>
             </label>
           </div>
         </div>
 
         {/* Notification Types */}
-        <div className="border-t pt-6">
-          <h3 className="text-md font-semibold text-gray-900 mb-4">Notification Types</h3>
+        <div className="border-t border-border pt-6">
+          <h3 className="text-md font-semibold text-foreground mb-4">Notification Types</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Standard Types */}
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-700">Standard Types</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Standard Types</h4>
               
               {Object.entries(settings.notification_types)
                 .filter(([key]) => !['agent_assignment', 'howling_alarm', 'agent_auto_assigned', 'knowledge_response', 'greeting_response'].includes(key))
@@ -289,9 +288,9 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                     type="checkbox"
                     checked={enabled}
                     onChange={(e) => updateNotificationType(key as keyof NotificationSettings['notification_types'], e.target.checked)}
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-primary"
                   />
-                  <span className="text-sm text-gray-700 capitalize">
+                  <span className="text-sm text-foreground capitalize">
                     {key.replace(/_/g, ' ')}
                   </span>
                 </label>
@@ -300,7 +299,7 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
 
             {/* Phase 4 Types */}
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-700">Agentic Types (Phase 4)</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Agentic Types (Phase 4)</h4>
               
               <label className="flex items-center space-x-3">
                 <input
@@ -309,7 +308,7 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   onChange={(e) => updateNotificationType('agent_assignment', e.target.checked)}
                   className="w-4 h-4 text-orange-600"
                 />
-                <span className="text-sm text-gray-700">Agent Assignments</span>
+                <span className="text-sm text-foreground">Agent Assignments</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -319,7 +318,7 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   onChange={(e) => updateNotificationType('howling_alarm', e.target.checked)}
                   className="w-4 h-4 text-red-600"
                 />
-                <span className="text-sm text-gray-700">Howling Alarms</span>
+                <span className="text-sm text-foreground">Howling Alarms</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -329,7 +328,7 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   onChange={(e) => updateNotificationType('agent_auto_assigned', e.target.checked)}
                   className="w-4 h-4 text-orange-600"
                 />
-                <span className="text-sm text-gray-700">Auto Assignments</span>
+                <span className="text-sm text-foreground">Auto Assignments</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -339,7 +338,7 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   onChange={(e) => updateNotificationType('knowledge_response', e.target.checked)}
                   className="w-4 h-4 text-green-600"
                 />
-                <span className="text-sm text-gray-700">Knowledge Responses</span>
+                <span className="text-sm text-foreground">Knowledge Responses</span>
               </label>
 
               <label className="flex items-center space-x-3">
@@ -349,25 +348,25 @@ export function EnhancedNotificationSettings({ className = '' }: EnhancedNotific
                   onChange={(e) => updateNotificationType('greeting_response', e.target.checked)}
                   className="w-4 h-4 text-green-600"
                 />
-                <span className="text-sm text-gray-700">Greeting Responses</span>
+                <span className="text-sm text-foreground">Greeting Responses</span>
               </label>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex space-x-3 pt-6 border-t">
+        <div className="flex space-x-3 pt-6 border-t border-border">
           <button
             onClick={saveSettings}
             disabled={saving}
-            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
           
           <button
             onClick={testNotification}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 border border-border text-foreground rounded-lg hover:bg-accent"
           >
             Test Notification
           </button>
