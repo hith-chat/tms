@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,15 +11,17 @@ import (
 	"github.com/bareuptime/tms/internal/db"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
+	"github.com/bareuptime/tms/internal/websocket"
 )
 
 type ChatSessionService struct {
-	chatSessionRepo *repo.ChatSessionRepo
-	chatMessageRepo *repo.ChatMessageRepo
-	chatWidgetRepo  *repo.ChatWidgetRepo
-	customerRepo    repo.CustomerRepository
-	ticketService   *TicketService
-	agentService    *AgentService
+	chatSessionRepo   *repo.ChatSessionRepo
+	chatMessageRepo   *repo.ChatMessageRepo
+	chatWidgetRepo    *repo.ChatWidgetRepo
+	customerRepo      repo.CustomerRepository
+	ticketService     *TicketService
+	agentService      *AgentService
+	connectionManager *websocket.ConnectionManager
 }
 
 func NewChatSessionService(
@@ -28,14 +31,16 @@ func NewChatSessionService(
 	customerRepo repo.CustomerRepository,
 	ticketService *TicketService,
 	agentService *AgentService,
+	connectionManager *websocket.ConnectionManager,
 ) *ChatSessionService {
 	return &ChatSessionService{
-		chatSessionRepo: chatSessionRepo,
-		chatMessageRepo: chatMessageRepo,
-		chatWidgetRepo:  chatWidgetRepo,
-		customerRepo:    customerRepo,
-		ticketService:   ticketService,
-		agentService:    agentService,
+		chatSessionRepo:   chatSessionRepo,
+		chatMessageRepo:   chatMessageRepo,
+		chatWidgetRepo:    chatWidgetRepo,
+		customerRepo:      customerRepo,
+		ticketService:     ticketService,
+		agentService:      agentService,
+		connectionManager: connectionManager,
 	}
 }
 
@@ -99,9 +104,9 @@ func (s *ChatSessionService) InitiateChat(ctx context.Context, widgetID uuid.UUI
 
 	// Send initial message if provided
 	if req.InitialMessage != "" {
-		_, err = s.SendMessage(ctx, widget.TenantID, widget.ProjectID, session.ID, &models.SendChatMessageRequest{
+		_, err = s.SendMessage(ctx, session, &models.SendChatMessageRequest{
 			Content: req.InitialMessage,
-		}, "visitor", nil, req.VisitorName)
+		}, "visitor", nil, req.VisitorName, "")
 		if err != nil {
 			// Log error but don't fail session creation
 			fmt.Printf("Failed to send initial message: %v\n", err)
@@ -157,9 +162,9 @@ func (s *ChatSessionService) AssignAgent(ctx context.Context, tenantID, projectI
 	}
 
 	// Send system message about agent assignment
-	_, err = s.SendMessage(ctx, tenantID, projectID, sessionID, &models.SendChatMessageRequest{
+	_, err = s.SendMessage(ctx, session, &models.SendChatMessageRequest{
 		Content: fmt.Sprintf("Our agent %s has joined the conversation", agentName),
-	}, "system", nil, "System")
+	}, "system", nil, "System", "")
 
 	return err
 }
@@ -182,7 +187,22 @@ func (s *ChatSessionService) EndSession(ctx context.Context, tenantID, projectID
 }
 
 // SendMessage sends a message in a chat session
-func (s *ChatSessionService) SendMessage(ctx context.Context, tenantID, projectID, sessionID uuid.UUID, req *models.SendChatMessageRequest, authorType string, authorID *uuid.UUID, authorName string) (*models.ChatMessage, error) {
+func (s *ChatSessionService) SendMessage(ctx context.Context, session *models.ChatSession, req *models.SendChatMessageRequest, authorType string, authorID *uuid.UUID, authorName, connID string) (*models.ChatMessage, error) {
+	// Set defaults
+	if req.MessageType == "" {
+		req.MessageType = "text"
+	}
+
+	message, err := s.SendMessageWithUuidDetails(ctx, session.TenantID, session.ProjectID, session.ID, req, authorType, authorID, authorName, connID)
+	if err != nil {
+		return nil, err
+	}
+
+	return message, nil
+}
+
+// SendMessage sends a message in a chat session
+func (s *ChatSessionService) SendMessageWithUuidDetails(ctx context.Context, tenantID, projectID, sessionID uuid.UUID, req *models.SendChatMessageRequest, authorType string, authorID *uuid.UUID, authorName, connID string) (*models.ChatMessage, error) {
 	// Set defaults
 	if req.MessageType == "" {
 		req.MessageType = "text"
@@ -209,66 +229,69 @@ func (s *ChatSessionService) SendMessage(ctx context.Context, tenantID, projectI
 		message.Metadata = make(models.JSONMap)
 	}
 
-	err := s.chatMessageRepo.CreateChatMessage(ctx, message)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create message: %w", err)
+	// Avoid dereferencing authorID when it's nil. Use uuid.Nil as a sentinel
+	// for "no author ID" (e.g., system or visitor messages).
+	var assignedAgentID uuid.UUID
+	if authorID != nil {
+		assignedAgentID = *authorID
+	} else {
+		assignedAgentID = uuid.Nil
 	}
 
+	go s.broadcastChatMessage(tenantID, projectID, assignedAgentID, sessionID, message, authorType, connID)
+
+	go s.chatMessageRepo.CreateChatMessage(ctx, message)
+
 	// Update session last activity
-	err = s.chatSessionRepo.UpdateLastActivity(ctx, sessionID)
-	if err != nil {
-		// Log error but don't fail message creation
-		fmt.Printf("Failed to update session last activity: %v\n", err)
-	}
+	go s.chatSessionRepo.UpdateLastActivity(ctx, sessionID)
 
 	return message, nil
 }
 
-// SendMessageByID sends a message in a chat session using sessionID (for contexts where session object isn't available)
-func (s *ChatSessionService) SendMessageByID(ctx context.Context, sessionID uuid.UUID, req *models.SendChatMessageRequest, authorType string, authorID *uuid.UUID, authorName string) (*models.ChatMessage, error) {
-	// This is a temporary workaround for callers that only have sessionID
-	// For now, we'll create the message directly without validating the session exists
-	// This is not ideal but allows the system to work while we fix the architecture
-
-	// Set defaults
-	if req.MessageType == "" {
-		req.MessageType = "text"
+// broadcastChatMessage builds and delivers a websocket.Message for a chat message.
+func (s *ChatSessionService) broadcastChatMessage(tenantID, projectID, assignedAgentID, sessionID uuid.UUID, message *models.ChatMessage, authorType, connID string) {
+	if s.connectionManager == nil {
+		return
 	}
 
-	message := &models.ChatMessage{
-		ID: uuid.New(),
-		// Note: TenantID and ProjectID will be nil here, which may cause issues
-		// This is a temporary fix and should be addressed properly
-		SessionID:     sessionID,
-		MessageType:   req.MessageType,
-		Content:       req.Content,
-		AuthorType:    authorType,
-		AuthorID:      authorID,
-		AuthorName:    authorName,
-		Metadata:      req.Metadata,
-		IsPrivate:     req.IsPrivate,
-		ReadByVisitor: authorType == "visitor", // Auto-mark as read by sender
-		ReadByAgent:   authorType == "agent",   // Auto-mark as read by sender
-		CreatedAt:     time.Now(),
+	messageData, _ := json.Marshal(message)
+
+	// Determine the FromType based on authorType
+	var fromType websocket.ConnectionType
+	switch authorType {
+	case "visitor":
+		fromType = websocket.ConnectionTypeVisitor
+	case "agent":
+		fromType = websocket.ConnectionTypeAgent
+	case "ai-agent":
+		fromType = websocket.ConnectionTypeAiAgent
+	default:
+		fromType = websocket.ConnectionTypeVisitor // Default to visitor for system messages
 	}
 
-	if message.Metadata == nil {
-		message.Metadata = make(models.JSONMap)
+	broadcastMsg := &websocket.Message{
+		Type:         "chat_message",
+		SessionID:    sessionID,
+		Data:         messageData,
+		FromType:     fromType,
+		ProjectID:    &projectID,
+		TenantID:     &tenantID,
+		AgentID:      &assignedAgentID,
+		DeliveryType: websocket.Direct,
+		Timestamp:    time.Now(),
 	}
 
-	err := s.chatMessageRepo.CreateChatMessage(ctx, message)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create message: %w", err)
+	// Deliver the message to all session connections
+	switch fromType {
+	case websocket.ConnectionTypeVisitor, websocket.ConnectionTypeAgent:
+		go s.connectionManager.DeliverWebSocketMessage(sessionID, broadcastMsg)
+	case websocket.ConnectionTypeAiAgent:
+		fmt.Println("AI Agent message - sending to connection:", connID)
+		s.connectionManager.SendToConnection(connID, broadcastMsg)
+		broadcastMsg.FromType = websocket.ConnectionTypeVisitor
+		go s.connectionManager.DeliverWebSocketMessage(sessionID, broadcastMsg)
 	}
 
-	// Update session last activity
-	err = s.chatSessionRepo.UpdateLastActivity(ctx, sessionID)
-	if err != nil {
-		// Log error but don't fail message creation
-		fmt.Printf("Failed to update session last activity: %v\n", err)
-	}
-
-	return message, nil
 }
 
 // GetChatMessages gets messages for a chat session

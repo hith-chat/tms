@@ -1,4 +1,5 @@
-package main
+//go:build ignore
+
 package main
 
 import (
@@ -7,12 +8,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/db"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
 	"github.com/bareuptime/tms/internal/service"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -52,7 +53,7 @@ func main() {
 	}
 
 	fmt.Printf("🚀 Creating scraping job for URL: %s\n", req.URL)
-	
+
 	// Create the job using the service
 	job, err := webScraperService.CreateScrapingJob(context.Background(), tenantID, projectID, req)
 	if err != nil {
@@ -64,7 +65,7 @@ func main() {
 
 	// Monitor job status for completion
 	fmt.Println("\n⏰ Monitoring job status for completion...")
-	
+
 	maxWait := 90 * time.Second
 	checkInterval := 3 * time.Second
 	startTime := time.Now()
@@ -80,18 +81,18 @@ func main() {
 		}
 
 		elapsed := time.Since(startTime)
-		
+
 		// Only print if status changed
 		if currentJob.Status != lastStatus {
-			fmt.Printf("📊 [%s] Status changed: %s → %s", 
-				elapsed.Round(time.Second), 
+			fmt.Printf("📊 [%s] Status changed: %s → %s",
+				elapsed.Round(time.Second),
 				lastStatus,
 				currentJob.Status)
-			
+
 			if currentJob.PagesScraped > 0 {
 				fmt.Printf(", Pages: %d", currentJob.PagesScraped)
 			}
-			
+
 			if currentJob.StartedAt != nil {
 				fmt.Printf(", Started: %s", currentJob.StartedAt.Format("15:04:05"))
 			}
@@ -102,20 +103,20 @@ func main() {
 				fmt.Printf(", Error: %s", *currentJob.ErrorMessage)
 			}
 			fmt.Println()
-			
+
 			lastStatus = currentJob.Status
 		}
 
 		// Check if job is complete
 		if currentJob.Status == "completed" {
 			fmt.Println("\n🎉 SUCCESS: Job completed successfully!")
-			
+
 			// Verify completion details
 			fmt.Printf("✅ Final status: %s\n", currentJob.Status)
 			fmt.Printf("✅ Pages scraped: %d\n", currentJob.PagesScraped)
 			fmt.Printf("✅ Started at: %v\n", currentJob.StartedAt)
 			fmt.Printf("✅ Completed at: %v\n", currentJob.CompletedAt)
-			
+
 			if currentJob.StartedAt != nil && currentJob.CompletedAt != nil {
 				duration := currentJob.CompletedAt.Sub(*currentJob.StartedAt)
 				fmt.Printf("✅ Processing time: %s\n", duration.Round(time.Millisecond))
@@ -134,7 +135,7 @@ func main() {
 					}
 				}
 			}
-			
+
 			fmt.Println("\n🔧 FIX VERIFICATION:")
 			fmt.Println("✅ Job properly transitions to 'completed' status")
 			fmt.Println("✅ CompletedAt timestamp is set")
@@ -146,7 +147,7 @@ func main() {
 			if currentJob.ErrorMessage != nil {
 				fmt.Printf("❌ Error: %s\n", *currentJob.ErrorMessage)
 			}
-			
+
 			fmt.Println("\n🔧 FIX VERIFICATION:")
 			fmt.Println("✅ Job properly transitions to failure status")
 			fmt.Println("✅ Error message is stored")
@@ -158,7 +159,7 @@ func main() {
 
 	if time.Since(startTime) >= maxWait {
 		fmt.Println("\n⏰ Test timeout reached")
-		
+
 		// Get final status
 		finalJob, err := webScraperService.GetScrapingJob(context.Background(), job.ID)
 		if err == nil {

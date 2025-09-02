@@ -189,34 +189,15 @@ func (h *ChatWebSocketHandler) processVisitorChatMessage(ctx context.Context, se
 				visitorName = *session.CustomerName
 			}
 
-			message, err := h.chatSessionService.SendMessage(
+			go h.chatSessionService.SendMessage(
 				ctx,
-				session.TenantID,
-				session.ProjectID,
-				session.ID,
+				session,
 				req,
 				"visitor",
 				nil,
 				visitorName,
+				connID,
 			)
-			if err != nil {
-				h.sendError(connID, "Failed to send message: "+err.Error())
-				return
-			}
-
-			// Broadcast to all connections in this session using enterprise manager
-			messageData, _ := json.Marshal(message)
-			broadcastMsg := &ws.Message{
-				Type:         "chat_message",
-				SessionID:    session.ID,
-				Data:         messageData,
-				FromType:     ws.ConnectionTypeVisitor,
-				ProjectID:    &session.ProjectID,
-				TenantID:     &session.TenantID,
-				AgentID:      session.AssignedAgentID,
-				DeliveryType: ws.Direct,
-			}
-			h.connectionManager.DeliverWebSocketMessage(session.ID, broadcastMsg)
 
 			// Process AI response if enabled and applicable
 			shouldRespondWithAI := h.aiService != nil && session.UseAI && session.AssignedAgentID == nil
@@ -227,55 +208,13 @@ func (h *ChatWebSocketHandler) processVisitorChatMessage(ctx context.Context, se
 
 			if shouldRespondWithAI {
 				go func() {
-					chatMessage, err := h.aiService.ProcessMessage(ctx, session, message)
+					_, err := h.aiService.ProcessMessage(ctx, session, content, connID)
 					if err != nil {
 						log.Printf("AI processing error for session %s: %v", session.ID, err)
 						return
 					}
-					messageData, _ := json.Marshal(chatMessage)
-					aiResponse := &ws.Message{
-						Type:         "chat_message",
-						SessionID:    session.ID,
-						Data:         messageData,
-						FromType:     ws.ConnectionTypeVisitor,
-						ProjectID:    &session.ProjectID,
-						TenantID:     &session.TenantID,
-						AgentID:      session.AssignedAgentID,
-						DeliveryType: ws.Direct,
-					}
-					h.connectionManager.SendToConnection(connID, aiResponse)
 				}()
 			}
-		}
-	}
-}
-
-// processAgentChatMessage processes chat messages from agents
-func (h *ChatWebSocketHandler) processAgentChatMessage(ctx context.Context, tenantID, projectID, sessionID, agentID uuid.UUID, msg models.WSMessage, connID string) {
-	if data, ok := msg.Data.(map[string]interface{}); ok {
-		content, _ := data["content"].(string)
-		agentName, _ := data["agent_name"].(string)
-
-		if content != "" {
-			req := &models.SendChatMessageRequest{
-				Content: content,
-			}
-
-			message, err := h.chatSessionService.SendMessage(ctx, tenantID, projectID, sessionID, req, "agent", &agentID, agentName)
-			if err != nil {
-				h.sendError(connID, "Failed to send message: "+err.Error())
-				return
-			}
-
-			// Broadcast to all connections in this session
-			messageData, _ := json.Marshal(message)
-			broadcastMsg := &ws.Message{
-				Type:      "chat_message",
-				SessionID: sessionID,
-				Data:      messageData,
-				FromType:  ws.ConnectionTypeAgent,
-			}
-			h.connectionManager.DeliverWebSocketMessage(sessionID, broadcastMsg)
 		}
 	}
 }
@@ -307,31 +246,6 @@ func (h *ChatWebSocketHandler) processVisitorTyping(session *models.ChatSession,
 		AgentID:   session.AssignedAgentID,
 	}
 	h.connectionManager.DeliverWebSocketMessage(session.ID, broadcastMsg)
-}
-
-// processAgentTyping handles agent typing indicators
-func (h *ChatWebSocketHandler) processAgentTyping(ctx context.Context, tenantID, projectID, sessionID, agentID uuid.UUID, msg models.WSMessage, isTyping bool) {
-	if data, ok := msg.Data.(map[string]interface{}); ok {
-		agentName, _ := data["agent_name"].(string)
-
-		msgType := "typing_stop"
-		if isTyping {
-			msgType = "typing_start"
-		}
-
-		typingData, _ := json.Marshal(map[string]interface{}{
-			"author_name": agentName,
-			"author_type": "agent",
-		})
-
-		broadcastMsg := &ws.Message{
-			Type:      msgType,
-			SessionID: sessionID,
-			Data:      typingData,
-			FromType:  ws.ConnectionTypeAgent,
-		}
-		h.connectionManager.DeliverWebSocketMessage(sessionID, broadcastMsg)
-	}
 }
 
 // processReadReceipt handles read receipt processing

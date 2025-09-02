@@ -113,7 +113,12 @@ func main() {
 
 	// Chat services
 	chatWidgetService := service.NewChatWidgetService(chatWidgetRepo, domainValidationRepo)
-	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService)
+
+	// Initialize enterprise connection manager (needed for chat session service)
+	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
+	defer connectionManager.Shutdown()
+
+	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager)
 
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
@@ -124,10 +129,6 @@ func main() {
 	// Greeting services for agentic behavior
 	greetingDetectionService := service.NewGreetingDetectionService(&cfg.Agentic)
 	brandGreetingService := service.NewBrandGreetingService(settingsRepo)
-
-	// Initialize enterprise connection manager (needed for AI service)
-	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
-	defer connectionManager.Shutdown()
 
 	// AI service (needs knowledge service for RAG, greeting services for agentic behavior, and connection manager for handoff notifications)
 	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService, connectionManager)
@@ -472,7 +473,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/sessions/:session_id", chatSessionHandler.GetChatSession)
 				chat.POST("/sessions/:session_id/assign", chatSessionHandler.AssignAgent)
 				chat.GET("/sessions/:session_id/messages", chatSessionHandler.GetChatMessages)
-				chat.POST("/sessions/:session_id/messages", chatSessionHandler.SendMessage)
 				chat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkAgentMessagesAsRead)
 				chat.GET("/sessions/:session_id/client/status", chatSessionHandler.IsCustomerOnline)
 

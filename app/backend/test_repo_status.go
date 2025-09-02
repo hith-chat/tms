@@ -1,4 +1,5 @@
-package main
+//go:build ignore
+
 package main
 
 import (
@@ -6,11 +7,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/db"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
+	"github.com/google/uuid"
 )
 
 func main() {

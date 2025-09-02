@@ -15,6 +15,7 @@ import (
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/websocket"
+	ws "github.com/bareuptime/tms/internal/websocket"
 )
 
 // AIService handles AI-powered chat assistance
@@ -101,17 +102,20 @@ func (s *AIService) IsEnabled() bool {
 // ShouldHandleSession determines if AI should handle this session
 func (s *AIService) ShouldHandleSession(ctx context.Context, session *models.ChatSession) bool {
 	if !s.IsEnabled() {
+		fmt.Println("AI Service is not enabled for session:", session.ID)
 		return false
 	}
 
 	// Don't handle if already assigned to a human agent
 	if session.AssignedAgentID != nil {
+		fmt.Println("Session already assigned to human agent:", *session.AssignedAgentID)
 		return false
 	}
 
 	// Check if session has been ongoing for too long (auto handoff)
 	if s.config.AutoHandoffTime > 0 {
 		if time.Since(session.CreatedAt) > s.config.AutoHandoffTime {
+			fmt.Println("Session exceeded auto handoff time:", session.ID)
 			return false
 		}
 	}
@@ -120,24 +124,25 @@ func (s *AIService) ShouldHandleSession(ctx context.Context, session *models.Cha
 }
 
 // ProcessMessage handles incoming visitor messages and generates AI responses
-func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSession, message *models.ChatMessage) (*models.ChatMessage, error) {
+func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSession, messageContent, connID string) (*models.ChatMessage, error) {
 	if !s.ShouldHandleSession(ctx, session) {
+		fmt.Println("AI Service not handling session:", session.ID)
 		return nil, nil
 	}
 
 	// Check for handoff keywords first
-	if s.shouldHandoffToAgent(message.Content) {
-		s.requestHumanAgent(ctx, session, "Customer requested human assistance")
+	if s.shouldHandoffToAgent(messageContent) {
+		s.requestHumanAgent(ctx, session, "Customer requested human assistance", connID)
 		return nil, nil
 	}
 
 	// Check if this is a greeting message (only if agentic behavior is enabled)
 	if s.IsGreetingDetectionEnabled() && s.greetingDetection != nil {
-		greetingResult := s.greetingDetection.DetectGreeting(ctx, message.Content)
+		greetingResult := s.greetingDetection.DetectGreeting(ctx, messageContent)
 
 		// If it's a simple greeting, respond with brand-aware greeting
 		if greetingResult.IsGreeting && greetingResult.MessageType == "simple_greeting" {
-			return s.handleGreetingMessage(ctx, session, message)
+			return s.handleGreetingMessage(ctx, session, messageContent, connID)
 		}
 
 		// Log greeting detection for debugging
@@ -146,16 +151,51 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 	}
 
 	// For complex messages, use the existing AI processing flow
-	return s.processComplexMessage(ctx, session, message)
+	go s.processAiTyping(session, models.WSMessage{}, connID, true)
+	resp, err := s.processComplexMessage(ctx, session, messageContent, connID)
+	go s.processAiTyping(session, models.WSMessage{}, connID, false)
+	return resp, err
+}
+
+// processVisitorTyping handles visitor typing indicators
+func (h *AIService) processAiTyping(session *models.ChatSession, msg models.WSMessage, connID string, isTyping bool) {
+
+	msgType := "typing_stop"
+	if isTyping {
+		msgType = "typing_start"
+	}
+
+	typingData, _ := json.Marshal(map[string]interface{}{
+		"author_name": "AI",
+		"author_type": "visitor",
+	})
+
+	broadcastMsg := &ws.Message{
+		Type:      msgType,
+		SessionID: session.ID,
+		Data:      typingData,
+		FromType:  ws.ConnectionTypeVisitor,
+		ProjectID: &session.ProjectID,
+		TenantID:  &session.TenantID,
+		AgentID:   session.AssignedAgentID,
+	}
+	h.connectionManager.DeliverWebSocketMessage(session.ID, broadcastMsg)
+	typingDataAgent, _ := json.Marshal(map[string]interface{}{
+		"author_name": "AI",
+		"author_type": "agent",
+	})
+	broadcastMsg.Data = typingDataAgent
+	broadcastMsg.FromType = ws.ConnectionTypeAgent
+	go h.connectionManager.SendToConnection(connID, broadcastMsg)
 }
 
 // handleGreetingMessage processes simple greeting messages with brand-aware responses
-func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.ChatSession, message *models.ChatMessage) (*models.ChatMessage, error) {
+func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.ChatSession, messageContent, connID string) (*models.ChatMessage, error) {
 	var response string
 
 	// Try to generate brand-aware greeting
 	if s.brandGreeting != nil {
-		greetingResponse, err := s.brandGreeting.GenerateGreetingResponse(ctx, session.TenantID, session.ProjectID, message.Content)
+		greetingResponse, err := s.brandGreeting.GenerateGreetingResponse(ctx, session.TenantID, session.ProjectID, messageContent)
 		if err != nil {
 			fmt.Printf("Error generating brand greeting: %v, falling back to default\n", err)
 			response = "Hello! Thanks for reaching out. How can we help you today?"
@@ -169,7 +209,7 @@ func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.C
 	}
 
 	// Send the greeting response
-	return s.sendAIResponse(ctx, session, response, map[string]interface{}{
+	return s.sendAIResponse(ctx, session, connID, response, map[string]interface{}{
 		"ai_generated":  true,
 		"response_type": "greeting",
 		"brand_aware":   s.brandGreeting != nil,
@@ -177,7 +217,7 @@ func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.C
 }
 
 // processComplexMessage handles non-greeting messages using AI and knowledge base
-func (s *AIService) processComplexMessage(ctx context.Context, session *models.ChatSession, message *models.ChatMessage) (*models.ChatMessage, error) {
+func (s *AIService) processComplexMessage(ctx context.Context, session *models.ChatSession, messageContent, connID string) (*models.ChatMessage, error) {
 	// Get conversation history
 	messages, err := s.chatSessionService.GetChatMessages(ctx, session.TenantID, session.ProjectID, session.ID, false)
 	if err != nil {
@@ -199,7 +239,7 @@ func (s *AIService) processComplexMessage(ctx context.Context, session *models.C
 	}
 
 	// Generate AI response with knowledge context
-	response, err := s.generateResponseWithContext(ctx, session, recentMessages, message.Content)
+	response, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
 	if err != nil {
 		fmt.Println("Error generating AI response:", err.Error())
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
@@ -208,14 +248,14 @@ func (s *AIService) processComplexMessage(ctx context.Context, session *models.C
 	fmt.Println("Response from ai -", response)
 
 	// Send the AI response
-	return s.sendAIResponse(ctx, session, response, map[string]interface{}{
+	return s.sendAIResponse(ctx, session, connID, response, map[string]interface{}{
 		"ai_generated":  true,
 		"response_type": "knowledge_based",
 	})
 }
 
 // sendAIResponse is a helper method to send AI responses
-func (s *AIService) sendAIResponse(ctx context.Context, session *models.ChatSession, content string, metadata map[string]interface{}) (*models.ChatMessage, error) {
+func (s *AIService) sendAIResponse(ctx context.Context, session *models.ChatSession, connID, content string, metadata map[string]interface{}) (*models.ChatMessage, error) {
 	// Send AI response
 	aiMessageReq := &models.SendChatMessageRequest{
 		Content:     content,
@@ -225,17 +265,15 @@ func (s *AIService) sendAIResponse(ctx context.Context, session *models.ChatSess
 	}
 
 	// Create AI agent UUID (deterministic based on session)
-	aiAgentID := s.generateAIAgentID(session.ID)
 
 	messageAI, err := s.chatSessionService.SendMessage(
 		ctx,
-		session.TenantID,
-		session.ProjectID,
-		session.ID,
+		session,
 		aiMessageReq,
 		"ai-agent",
-		&aiAgentID,
+		nil,
 		"AI Assistant",
+		connID,
 	)
 
 	return messageAI, err
@@ -273,7 +311,7 @@ func (s *AIService) shouldHandoffToAgent(content string) bool {
 }
 
 // requestHumanAgent triggers handoff to human agent
-func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatSession, reason string) error {
+func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatSession, reason, connID string) error {
 	// Send notification message about handoff
 	handoffMessage := &models.SendChatMessageRequest{
 		Content:     "I'll connect you with a human agent who can better assist you. Please wait a moment.",
@@ -287,87 +325,76 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 
 	aiAgentID := s.generateAIAgentID(session.ID)
 
-	_, err := s.chatSessionService.SendMessage(
+	go s.chatSessionService.SendMessage(
 		ctx,
-		session.TenantID,
-		session.ProjectID,
-		session.ID,
+		session,
 		handoffMessage,
 		"ai-agent",
 		&aiAgentID,
 		"AI Assistant",
+		connID,
 	)
 
 	// Send real-time handoff notification to all agents in the project
-	if s.connectionManager != nil {
-		fmt.Printf("🤝 Sending handoff notification for session %s to project %s\n", session.ID, session.ProjectID)
+	fmt.Printf("🤝 Sending handoff notification for session %s to project %s\n", session.ID, session.ProjectID)
 
-		// Get customer info from session
-		customerName := "Anonymous Customer"
-		customerEmail := ""
-		if session.VisitorInfo != nil {
-			if name, ok := session.VisitorInfo["name"].(string); ok && name != "" {
-				customerName = name
-			}
-			if email, ok := session.VisitorInfo["email"].(string); ok && email != "" {
-				customerEmail = email
-			}
+	// Get customer info from session
+	customerName := "Anonymous Customer"
+	customerEmail := ""
+	if session.VisitorInfo != nil {
+		if name, ok := session.VisitorInfo["name"].(string); ok && name != "" {
+			customerName = name
 		}
-
-		// Calculate session duration
-		sessionDuration := time.Since(session.CreatedAt).Seconds()
-
-		// Create handoff notification data
-		handoffData := map[string]interface{}{
-			"session_id":     session.ID,
-			"customer_name":  customerName,
-			"customer_email": customerEmail,
-			"handoff_reason": reason,
-			"urgency_level":  "high", // Default to high priority
-			"requested_at":   time.Now().Format(time.RFC3339),
-			"session_metadata": map[string]interface{}{
-				"messages_count":   0, // TODO: Get actual message count
-				"session_duration": sessionDuration,
-				"last_ai_response": "AI requested handoff",
-			},
+		if email, ok := session.VisitorInfo["email"].(string); ok && email != "" {
+			customerEmail = email
 		}
-
-		// Marshal the data
-		handoffDataBytes, marshalErr := json.Marshal(handoffData)
-		if marshalErr != nil {
-			fmt.Printf("❌ Failed to marshal handoff data: %v\n", marshalErr)
-		} else {
-			// Create WebSocket message
-			wsMessage := &websocket.Message{
-				Type:      "agent_handoff_request",
-				Data:      json.RawMessage(handoffDataBytes),
-				SessionID: session.ID,
-				TenantID:  &session.TenantID,
-				ProjectID: &session.ProjectID,
-				FromType:  websocket.ConnectionTypeAgent,
-				Timestamp: time.Now(),
-			}
-
-			fmt.Println("Sending handoff notification:", handoffData)
-			fmt.Println("Handoff notification sent to tenant:", session.TenantID)
-			fmt.Println("Handoff notification sent to project:", session.ProjectID)
-
-			// Send to all agents in the project
-			deliveryErr := s.connectionManager.SendToProjectAgents(session.ProjectID, wsMessage)
-			if deliveryErr != nil {
-				fmt.Printf("❌ Failed to send handoff notification: %v\n", deliveryErr)
-			} else {
-				fmt.Printf("✅ Handoff notification sent successfully to project agents\n")
-			}
-		}
-	} else {
-		fmt.Println("⚠️ ConnectionManager not available, skipping real-time handoff notification")
 	}
 
-	// Update session status to indicate human agent needed
-	// This could trigger notifications to available agents
+	// Calculate session duration
+	sessionDuration := time.Since(session.CreatedAt).Seconds()
 
-	return err
+	// Create handoff notification data
+	handoffData := map[string]interface{}{
+		"session_id":     session.ID,
+		"customer_name":  customerName,
+		"customer_email": customerEmail,
+		"handoff_reason": reason,
+		"urgency_level":  "high", // Default to high priority
+		"requested_at":   time.Now().Format(time.RFC3339),
+		"session_metadata": map[string]interface{}{
+			"messages_count":   0, // TODO: Get actual message count
+			"session_duration": sessionDuration,
+			"last_ai_response": "AI requested handoff",
+		},
+	}
+
+	// Marshal the data
+	handoffDataBytes, _ := json.Marshal(handoffData)
+
+	// Create WebSocket message
+	wsMessage := &websocket.Message{
+		Type:      "agent_handoff_request",
+		Data:      json.RawMessage(handoffDataBytes),
+		SessionID: session.ID,
+		TenantID:  &session.TenantID,
+		ProjectID: &session.ProjectID,
+		FromType:  websocket.ConnectionTypeAgent,
+		Timestamp: time.Now(),
+	}
+
+	fmt.Println("Sending handoff notification:", handoffData)
+	fmt.Println("Handoff notification sent to tenant:", session.TenantID)
+	fmt.Println("Handoff notification sent to project:", session.ProjectID)
+
+	// Send to all agents in the project
+	deliveryErr := s.connectionManager.SendToProjectAgents(session.ProjectID, wsMessage)
+	if deliveryErr != nil {
+		fmt.Printf("❌ Failed to send handoff notification: %v\n", deliveryErr)
+	} else {
+		fmt.Printf("✅ Handoff notification sent successfully to project agents\n")
+	}
+
+	return nil
 }
 
 // generateResponseWithContext generates AI response with knowledge context
