@@ -1,10 +1,10 @@
 package fixtures
 
 import (
-	"github.com/google/uuid"
-	"time"
-	"github.com/pgvector/pgvector-go"
 	"github.com/bareuptime/tms/internal/models"
+	"github.com/google/uuid"
+	"github.com/pgvector/pgvector-go"
+	"time"
 )
 
 // MockTenantID for testing
@@ -38,14 +38,17 @@ func MockKnowledgeChunk() *models.KnowledgeChunk {
 	for i := range embedding {
 		embedding[i] = 0.1 // Simple mock values
 	}
-	
+
+	// Create the vector and get its address
+	vector := pgvector.NewVector(embedding)
+
 	return &models.KnowledgeChunk{
 		ID:         uuid.New(),
 		DocumentID: MockDocumentID,
 		ChunkIndex: 0,
 		Content:    "This is a test chunk of content from a PDF document.",
 		TokenCount: 12,
-		Embedding:  pgvector.NewVector(embedding),
+		Embedding:  &vector,
 		Metadata:   models.JSONMap{},
 		CreatedAt:  time.Now(),
 	}
@@ -76,7 +79,10 @@ func MockScrapedPage() *models.KnowledgeScrapedPage {
 	for i := range embedding {
 		embedding[i] = 0.2 // Simple mock values
 	}
-	
+
+	// Create the vector and get its address
+	vector := pgvector.NewVector(embedding)
+
 	title := "Test Page Title"
 	return &models.KnowledgeScrapedPage{
 		ID:        uuid.New(),
@@ -85,7 +91,7 @@ func MockScrapedPage() *models.KnowledgeScrapedPage {
 		Title:     &title,
 		Content:   "This is test content from a scraped web page.",
 		ScrapedAt: time.Now(),
-		Embedding: pgvector.NewVector(embedding),
+		Embedding: &vector,
 		Metadata:  models.JSONMap{},
 	}
 }
@@ -229,16 +235,16 @@ func TestDatabaseConfig() *DatabaseTestConfig {
 
 // Test file paths
 const (
-	TestPDFFilePath = "sample_files/test.pdf"
+	TestPDFFilePath  = "sample_files/test.pdf"
 	TestTextFilePath = "sample_files/test.txt"
 	TestLargePDFPath = "sample_files/large_test.pdf"
 )
 
 // Error test cases
 var (
-	ErrInvalidFile = "invalid file format"
-	ErrFileTooLarge = "file size exceeds limit"
-	ErrInvalidURL = "invalid URL format"
+	ErrInvalidFile    = "invalid file format"
+	ErrFileTooLarge   = "file size exceeds limit"
+	ErrInvalidURL     = "invalid URL format"
 	ErrNetworkTimeout = "network timeout"
-	ErrUnauthorized = "unauthorized access"
+	ErrUnauthorized   = "unauthorized access"
 )
