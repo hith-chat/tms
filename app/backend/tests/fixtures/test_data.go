@@ -1,10 +1,11 @@
 package fixtures
 
 import (
+	"time"
+
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
-	"time"
 )
 
 // MockTenantID for testing
