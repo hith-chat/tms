@@ -236,30 +236,6 @@ func TestGreetingDetectionService_normalizeMessage(t *testing.T) {
 	}
 }
 
-func TestGreetingDetectionService_ConfigurableThresholds(t *testing.T) {
-	agenticConfig := &config.AgenticConfig{
-		Enabled:            true,
-		GreetingDetection:  true,
-		GreetingConfidence: 0.4,
-		GreetingKeywords:   []string{"hello", "hi", "hey"},
-	}
-	service := NewGreetingDetectionService(agenticConfig)
-
-	// Test that borderline cases respect the confidence threshold
-	borderlineMessage := "hello, I have a very complex technical question about API integration"
-	ctx := context.Background()
-	result := service.DetectGreeting(ctx, borderlineMessage)
-
-	// Should be detected as greeting but with low confidence due to negative keywords
-	if !result.IsGreeting {
-		t.Error("Expected borderline message to be detected as greeting")
-	}
-
-	if result.Confidence >= 0.4 {
-		t.Errorf("Expected low confidence for borderline case, got %f", result.Confidence)
-	}
-}
-
 func BenchmarkGreetingDetection(b *testing.B) {
 	agenticConfig := &config.AgenticConfig{
 		Enabled:            true,

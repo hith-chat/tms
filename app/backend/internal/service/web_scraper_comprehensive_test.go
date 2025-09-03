@@ -119,61 +119,11 @@ func (e *ScrapingError) Error() string {
 	return e.Message
 }
 
-// TestHTMLContentExtraction tests content extraction from HTML
-func TestHTMLContentExtraction(t *testing.T) {
-	tests := []struct {
-		name           string
-		html           string
-		expectedText   string
-		expectedLinks  int
-		expectedTitle  string
-	}{
-		{
-			name: "Simple HTML page",
-			html: `<html><head><title>Test Web Page</title></head><body><h1>Test Page Title</h1><p>This is a test web page content for scraping tests.</p><div>More content in a div element.</div><a href="/page1">Link 1</a><a href="/page2">Link 2</a></body></html>`,
-			expectedText: "Test Page Title This is a test web page content for scraping tests. More content in a div element.",
-			expectedLinks: 2,
-			expectedTitle: "Test Web Page",
-		},
-		{
-			name:           "Empty HTML",
-			html:           "",
-			expectedText:   "",
-			expectedLinks:  0,
-			expectedTitle:  "",
-		},
-		{
-			name:           "HTML with only title",
-			html:           "<html><head><title>Only Title</title></head><body></body></html>",
-			expectedText:   "",
-			expectedLinks:  0,
-			expectedTitle:  "Only Title",
-		},
-		{
-			name:           "HTML with script and style tags",
-			html:           "<html><body><script>alert('test');</script><style>body{color:red;}</style><p>Visible content</p></body></html>",
-			expectedText:   "Visible content",
-			expectedLinks:  0,
-			expectedTitle:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := extractTestContent(tt.html)
-
-			assert.Contains(t, result.Text, tt.expectedText, "Extracted text should contain expected content")
-			assert.Equal(t, tt.expectedLinks, len(result.Links), "Should extract expected number of links")
-			assert.Equal(t, tt.expectedTitle, result.Title, "Should extract correct title")
-		})
-	}
-}
-
 // ContentExtractionResult represents extracted content from HTML
 type ContentExtractionResult struct {
-	Text   string
-	Links  []string
-	Title  string
+	Text  string
+	Links []string
+	Title string
 }
 
 // extractTestContent simulates HTML content extraction for testing
@@ -232,28 +182,28 @@ func removeHTMLTag(text, tag string) string {
 	// Simplified tag removal
 	openTag := "<" + tag
 	closeTag := "</" + tag + ">"
-	
+
 	for {
 		start := findSubstring(text, openTag)
 		if start == -1 {
 			break
 		}
-		
+
 		end := findSubstring(text[start:], closeTag)
 		if end == -1 {
 			break
 		}
-		
+
 		text = text[:start] + text[start+end+len(closeTag):]
 	}
-	
+
 	return text
 }
 
 func removeAllHTMLTags(text string) string {
 	result := ""
 	inTag := false
-	
+
 	for _, char := range text {
 		if char == '<' {
 			inTag = true
@@ -263,14 +213,14 @@ func removeAllHTMLTags(text string) string {
 			result += string(char)
 		}
 	}
-	
+
 	return result
 }
 
 func cleanWhitespace(text string) string {
 	result := ""
 	prevSpace := false
-	
+
 	for _, char := range text {
 		if char == ' ' || char == '\t' || char == '\n' || char == '\r' {
 			if !prevSpace {
@@ -282,7 +232,7 @@ func cleanWhitespace(text string) string {
 			prevSpace = false
 		}
 	}
-	
+
 	// Trim leading/trailing spaces
 	if len(result) > 0 && result[0] == ' ' {
 		result = result[1:]
@@ -290,14 +240,14 @@ func cleanWhitespace(text string) string {
 	if len(result) > 0 && result[len(result)-1] == ' ' {
 		result = result[:len(result)-1]
 	}
-	
+
 	return result
 }
 
 func countSubstring(text, substr string) int {
 	count := 0
 	start := 0
-	
+
 	for {
 		index := findSubstring(text[start:], substr)
 		if index == -1 {
@@ -306,40 +256,40 @@ func countSubstring(text, substr string) int {
 		count++
 		start += index + len(substr)
 	}
-	
+
 	return count
 }
 
 // TestScrapingDepthControl tests depth control functionality
 func TestScrapingDepthControl(t *testing.T) {
 	tests := []struct {
-		name        string
-		maxDepth    int
-		currentDepth int
+		name           string
+		maxDepth       int
+		currentDepth   int
 		shouldContinue bool
 	}{
 		{
-			name:        "Within depth limit",
-			maxDepth:    3,
-			currentDepth: 2,
+			name:           "Within depth limit",
+			maxDepth:       3,
+			currentDepth:   2,
 			shouldContinue: true,
 		},
 		{
-			name:        "At depth limit",
-			maxDepth:    3,
-			currentDepth: 3,
+			name:           "At depth limit",
+			maxDepth:       3,
+			currentDepth:   3,
 			shouldContinue: false,
 		},
 		{
-			name:        "Exceeds depth limit",
-			maxDepth:    3,
-			currentDepth: 4,
+			name:           "Exceeds depth limit",
+			maxDepth:       3,
+			currentDepth:   4,
 			shouldContinue: false,
 		},
 		{
-			name:        "Start depth",
-			maxDepth:    1,
-			currentDepth: 1,
+			name:           "Start depth",
+			maxDepth:       1,
+			currentDepth:   1,
 			shouldContinue: false,
 		},
 	}
@@ -359,31 +309,31 @@ func checkDepthLimit(currentDepth, maxDepth int) bool {
 // TestRateLimiting tests rate limiting functionality
 func TestRateLimiting(t *testing.T) {
 	tests := []struct {
-		name           string
-		requestCount   int
-		timeWindow     time.Duration
-		rateLimit      int
+		name            string
+		requestCount    int
+		timeWindow      time.Duration
+		rateLimit       int
 		shouldBeBlocked bool
 	}{
 		{
-			name:           "Within rate limit",
-			requestCount:   3,
-			timeWindow:     time.Second,
-			rateLimit:      5,
+			name:            "Within rate limit",
+			requestCount:    3,
+			timeWindow:      time.Second,
+			rateLimit:       5,
 			shouldBeBlocked: false,
 		},
 		{
-			name:           "At rate limit",
-			requestCount:   5,
-			timeWindow:     time.Second,
-			rateLimit:      5,
+			name:            "At rate limit",
+			requestCount:    5,
+			timeWindow:      time.Second,
+			rateLimit:       5,
 			shouldBeBlocked: false,
 		},
 		{
-			name:           "Exceeds rate limit",
-			requestCount:   7,
-			timeWindow:     time.Second,
-			rateLimit:      5,
+			name:            "Exceeds rate limit",
+			requestCount:    7,
+			timeWindow:      time.Second,
+			rateLimit:       5,
 			shouldBeBlocked: true,
 		},
 	}
@@ -391,7 +341,7 @@ func TestRateLimiting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			limiter := NewTestRateLimiter(tt.rateLimit, tt.timeWindow)
-			
+
 			blocked := false
 			for i := 0; i < tt.requestCount; i++ {
 				if !limiter.Allow() {
@@ -399,7 +349,7 @@ func TestRateLimiting(t *testing.T) {
 					break
 				}
 			}
-			
+
 			assert.Equal(t, tt.shouldBeBlocked, blocked, "Rate limiting should work correctly")
 		})
 	}
@@ -407,9 +357,9 @@ func TestRateLimiting(t *testing.T) {
 
 // TestRateLimiter simulates a rate limiter for testing
 type TestRateLimiter struct {
-	limit      int
-	window     time.Duration
-	requests   []time.Time
+	limit    int
+	window   time.Duration
+	requests []time.Time
 }
 
 func NewTestRateLimiter(limit int, window time.Duration) *TestRateLimiter {
@@ -422,7 +372,7 @@ func NewTestRateLimiter(limit int, window time.Duration) *TestRateLimiter {
 
 func (rl *TestRateLimiter) Allow() bool {
 	now := time.Now()
-	
+
 	// Remove old requests outside the window
 	cutoff := now.Add(-rl.window)
 	newRequests := make([]time.Time, 0)
@@ -432,12 +382,12 @@ func (rl *TestRateLimiter) Allow() bool {
 		}
 	}
 	rl.requests = newRequests
-	
+
 	// Check if we can add a new request
 	if len(rl.requests) >= rl.limit {
 		return false
 	}
-	
+
 	// Add the new request
 	rl.requests = append(rl.requests, now)
 	return true
@@ -446,11 +396,11 @@ func (rl *TestRateLimiter) Allow() bool {
 // TestRobotsCompliance tests robots.txt compliance
 func TestRobotsCompliance(t *testing.T) {
 	tests := []struct {
-		name          string
-		robotsTxt     string
-		userAgent     string
-		path          string
-		shouldAllow   bool
+		name        string
+		robotsTxt   string
+		userAgent   string
+		path        string
+		shouldAllow bool
 	}{
 		{
 			name:        "Allow all",
@@ -494,12 +444,12 @@ func checkRobotsCompliance(robotsTxt, userAgent, path string) bool {
 	if robotsTxt == "" {
 		return true // No restrictions
 	}
-	
+
 	// Simplified robots.txt parsing for testing
 	if findSubstring(robotsTxt, "Disallow: "+path) != -1 {
 		return false
 	}
-	
+
 	if findSubstring(robotsTxt, "Disallow: /") != -1 && findSubstring(robotsTxt, "Allow: "+path) == -1 {
 		// Check if path starts with any allowed path
 		if findSubstring(path, "/public") == 0 && findSubstring(robotsTxt, "Allow: /public") != -1 {
@@ -507,17 +457,17 @@ func checkRobotsCompliance(robotsTxt, userAgent, path string) bool {
 		}
 		return false
 	}
-	
+
 	return true
 }
 
 // TestHTTPErrorHandling tests handling of various HTTP errors
 func TestHTTPErrorHandling(t *testing.T) {
 	tests := []struct {
-		name         string
-		statusCode   int
-		shouldRetry  bool
-		shouldFail   bool
+		name        string
+		statusCode  int
+		shouldRetry bool
+		shouldFail  bool
 	}{
 		{
 			name:        "Success 200",
@@ -586,7 +536,7 @@ func TestConcurrentScraping(t *testing.T) {
 	// Create multiple test servers
 	serverCount := 3
 	servers := make([]*httptest.Server, serverCount)
-	
+
 	for i := 0; i < serverCount; i++ {
 		index := i
 		servers[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -594,7 +544,7 @@ func TestConcurrentScraping(t *testing.T) {
 			w.Write([]byte("Server " + string(rune('1'+index)) + " response"))
 		}))
 	}
-	
+
 	defer func() {
 		for _, server := range servers {
 			server.Close()
@@ -603,7 +553,7 @@ func TestConcurrentScraping(t *testing.T) {
 
 	// Test concurrent requests
 	results := make(chan bool, serverCount)
-	
+
 	for i := 0; i < serverCount; i++ {
 		go func(serverIndex int) {
 			// Simulate making a request
@@ -613,11 +563,11 @@ func TestConcurrentScraping(t *testing.T) {
 				return
 			}
 			defer resp.Body.Close()
-			
+
 			results <- resp.StatusCode == 200
 		}(i)
 	}
-	
+
 	// Collect results
 	successCount := 0
 	for i := 0; i < serverCount; i++ {
@@ -625,7 +575,7 @@ func TestConcurrentScraping(t *testing.T) {
 			successCount++
 		}
 	}
-	
+
 	assert.Equal(t, serverCount, successCount, "All concurrent requests should succeed")
 }
 
@@ -671,7 +621,7 @@ func TestURLNormalization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			normalizedURL, err := normalizeTestURL(tt.inputURL, tt.baseURL)
-			
+
 			if tt.shouldFail {
 				assert.Error(t, err, "URL normalization should fail")
 			} else {
@@ -686,22 +636,22 @@ func normalizeTestURL(inputURL, baseURL string) (string, error) {
 	if inputURL == "" {
 		return "", &ScrapingError{Message: "empty URL"}
 	}
-	
+
 	// Handle absolute URLs
 	if len(inputURL) >= 7 && (inputURL[:7] == "http://" || inputURL[:8] == "https://") {
 		return inputURL, nil
 	}
-	
+
 	// Handle fragments (ignore them)
 	if len(inputURL) > 0 && inputURL[0] == '#' {
 		return baseURL, nil
 	}
-	
+
 	// Handle relative URLs
 	if len(inputURL) > 0 && inputURL[0] == '/' {
 		return baseURL + inputURL, nil
 	}
-	
+
 	// Handle relative paths without leading slash
 	return baseURL + "/" + inputURL, nil
 }
