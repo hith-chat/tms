@@ -198,7 +198,8 @@ class AgentWebSocketManager {
             case 'agent_handoff_request':
               if (message.data) {
                 console.log('AgentWebSocketManager: Handoff request received', message.data)
-                this.notifySubscribers('handoffRequest', message.data)
+                // this.notifySubscribers('handoffRequest', message.data)
+                this.notifySubscribers('alarm', { type: message.type, ...message.data })
               }
               break
             case 'alarm_triggered':

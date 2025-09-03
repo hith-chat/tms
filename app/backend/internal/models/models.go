@@ -792,26 +792,26 @@ const (
 	NotificationTypeMaintenanceNotice   NotificationType = "maintenance_notice"
 	NotificationTypeFeatureAnnouncement NotificationType = "feature_announcement"
 	// Phase 4: Enhanced Notification Types
-	NotificationTypeAgentAssignment     NotificationType = "agent_assignment"
-	NotificationTypeHowlingAlarm        NotificationType = "howling_alarm"
-	NotificationTypeAlarmEscalation     NotificationType = "alarm_escalation"
-	NotificationTypeAlarmAcknowledged   NotificationType = "alarm_acknowledged"
-	NotificationTypeUrgentRequest       NotificationType = "urgent_request"
+	NotificationTypeAgentAssignment   NotificationType = "agent_assignment"
+	NotificationTypeHowlingAlarm      NotificationType = "howling_alarm"
+	NotificationTypeAlarmEscalation   NotificationType = "alarm_escalation"
+	NotificationTypeAlarmAcknowledged NotificationType = "alarm_acknowledged"
+	NotificationTypeUrgentRequest     NotificationType = "urgent_request"
 )
 
 type NotificationChannel string
 
 const (
-	NotificationChannelWeb      NotificationChannel = "web"
-	NotificationChannelEmail    NotificationChannel = "email"
-	NotificationChannelSlack    NotificationChannel = "slack"
-	NotificationChannelSMS      NotificationChannel = "sms"
-	NotificationChannelPush     NotificationChannel = "push"
+	NotificationChannelWeb   NotificationChannel = "web"
+	NotificationChannelEmail NotificationChannel = "email"
+	NotificationChannelSlack NotificationChannel = "slack"
+	NotificationChannelSMS   NotificationChannel = "sms"
+	NotificationChannelPush  NotificationChannel = "push"
 	// Phase 4: Enhanced Notification Channels
-	NotificationChannelAudio    NotificationChannel = "audio"
-	NotificationChannelDesktop  NotificationChannel = "desktop"
-	NotificationChannelOverlay  NotificationChannel = "overlay"
-	NotificationChannelPopup    NotificationChannel = "popup"
+	NotificationChannelAudio   NotificationChannel = "audio"
+	NotificationChannelDesktop NotificationChannel = "desktop"
+	NotificationChannelOverlay NotificationChannel = "overlay"
+	NotificationChannelPopup   NotificationChannel = "popup"
 )
 
 // Scan implements sql.Scanner interface for NotificationChannel
@@ -918,25 +918,25 @@ const (
 
 // Alarm represents a howling alarm stored in the database
 type Alarm struct {
-	ID               uuid.UUID                  `db:"id" json:"id"`
-	TenantID         uuid.UUID                  `db:"tenant_id" json:"tenant_id"`
-	ProjectID        uuid.UUID                  `db:"project_id" json:"project_id"`
-	AssignmentID     *uuid.UUID                 `db:"assignment_id" json:"assignment_id,omitempty"`
-	AgentID          *uuid.UUID                 `db:"agent_id" json:"agent_id,omitempty"`
-	Title            string                     `db:"title" json:"title"`
-	Message          string                     `db:"message" json:"message"`
-	Priority         NotificationPriority       `db:"priority" json:"priority"`
-	CurrentLevel     AlarmLevel                 `db:"current_level" json:"current_level"`
-	StartTime        time.Time                  `db:"start_time" json:"start_time"`
-	LastEscalation   time.Time                  `db:"last_escalation" json:"last_escalation"`
-	EscalationCount  int                        `db:"escalation_count" json:"escalation_count"`
-	IsAcknowledged   bool                       `db:"is_acknowledged" json:"is_acknowledged"`
-	AcknowledgedAt   *time.Time                 `db:"acknowledged_at" json:"acknowledged_at,omitempty"`
-	AcknowledgedBy   *uuid.UUID                 `db:"acknowledged_by" json:"acknowledged_by,omitempty"`
-	Config           AlarmEscalationConfig      `db:"config" json:"config"`
-	Metadata         map[string]interface{}     `db:"metadata" json:"metadata"`
-	CreatedAt        time.Time                  `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time                  `db:"updated_at" json:"updated_at"`
+	ID              uuid.UUID             `db:"id" json:"id"`
+	TenantID        uuid.UUID             `db:"tenant_id" json:"tenant_id"`
+	ProjectID       uuid.UUID             `db:"project_id" json:"project_id"`
+	AssignmentID    *uuid.UUID            `db:"assignment_id" json:"assignment_id,omitempty"`
+	AgentID         *uuid.UUID            `db:"agent_id" json:"agent_id,omitempty"`
+	Title           string                `db:"title" json:"title"`
+	Message         string                `db:"message" json:"message"`
+	Priority        NotificationPriority  `db:"priority" json:"priority"`
+	CurrentLevel    AlarmLevel            `db:"current_level" json:"current_level"`
+	StartTime       time.Time             `db:"start_time" json:"start_time"`
+	LastEscalation  time.Time             `db:"last_escalation" json:"last_escalation"`
+	EscalationCount int                   `db:"escalation_count" json:"escalation_count"`
+	IsAcknowledged  bool                  `db:"is_acknowledged" json:"is_acknowledged"`
+	AcknowledgedAt  *time.Time            `db:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	AcknowledgedBy  *uuid.UUID            `db:"acknowledged_by" json:"acknowledged_by,omitempty"`
+	Config          AlarmEscalationConfig `db:"config" json:"config"`
+	Metadata        JSONMap               `db:"metadata" json:"metadata"`
+	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time             `db:"updated_at" json:"updated_at"`
 }
 
 // AlarmEscalationConfig defines how alarms escalate over time
@@ -960,29 +960,29 @@ func (aec *AlarmEscalationConfig) Scan(value interface{}) error {
 	if value == nil {
 		return nil
 	}
-	
+
 	bytes, ok := value.([]byte)
 	if !ok {
 		return fmt.Errorf("cannot scan %T into AlarmEscalationConfig", value)
 	}
-	
+
 	return json.Unmarshal(bytes, aec)
 }
 
 // AlarmAcknowledgment represents an alarm acknowledgment record
 type AlarmAcknowledgment struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	AlarmID        uuid.UUID  `db:"alarm_id" json:"alarm_id"`
-	AgentID        uuid.UUID  `db:"agent_id" json:"agent_id"`
-	Response       string     `db:"response" json:"response"`
-	AcknowledgedAt time.Time  `db:"acknowledged_at" json:"acknowledged_at"`
-	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	AlarmID        uuid.UUID `db:"alarm_id" json:"alarm_id"`
+	AgentID        uuid.UUID `db:"agent_id" json:"agent_id"`
+	Response       string    `db:"response" json:"response"`
+	AcknowledgedAt time.Time `db:"acknowledged_at" json:"acknowledged_at"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 // AlarmStats represents alarm statistics
 type AlarmStats struct {
-	ActiveCount      int `json:"active_count"`
-	CriticalCount    int `json:"critical_count"`
+	ActiveCount         int `json:"active_count"`
+	CriticalCount       int `json:"critical_count"`
 	UnacknowledgedCount int `json:"unacknowledged_count"`
-	TotalToday       int `json:"total_today"`
+	TotalToday          int `json:"total_today"`
 }

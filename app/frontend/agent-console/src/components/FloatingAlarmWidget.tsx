@@ -7,7 +7,7 @@ interface FloatingAlarmWidgetProps {
   alarms: HowlingAlarm[]
   onAcknowledge: (alarmId: string, response: string) => Promise<boolean>
   soundEnabled: boolean
-  onToggleSound: () => void
+  onToggleSound: () => void | Promise<void>
   className?: string
 }
 

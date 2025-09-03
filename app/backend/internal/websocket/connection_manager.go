@@ -385,7 +385,7 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	fmt.Println("Received message. for agent:", message.AgentID)
 
 	// Handle alarm messages specifically - they should go to all agents in the project
-	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" || message.Type == "agent_handoff_request" {
 		if projectID != nil {
 			sessionKey = fmt.Sprintf("livechat:project:%s", projectID.String())
 		}
@@ -409,18 +409,13 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 
 	fmt.Printf("Pubsub is working -> sessionKey: %s (message type: %s)\n", sessionKey, message.Type)
 
-	if sessionKey == "" {
-		log.Debug().Str("message_type", message.Type).Msg("No session key could be determined for message delivery; skipping")
-		return
-	}
-
 	connIDs, err := cm.redis.SMembers(cm.ctx, sessionKey).Result()
 	if err != nil {
 		log.Error().Err(err).Str("session_id", sessionID.String()).Msg("Failed to get session connections for delivery")
 		return
 	}
 
-	fmt.Printf("Pubsub is working -> connIDs: %v\n", connIDs)
+	fmt.Printf("Pubsub is working, for sessionKey: %s-> connIDs: %v\n for messageType: %s", sessionKey, connIDs, message.Type)
 
 	// Send to local connections only (this server instance)
 	cm.connMutex.RLock()
@@ -430,7 +425,7 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	for _, connID := range connIDs {
 		if conn, exists := cm.localConnections[connID]; exists {
 			// For alarm messages, only send to agent connections
-			if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+			if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" || message.Type == "agent_handoff_request" {
 				if conn.Type != ConnectionTypeAgent {
 					continue // Skip non-agent connections for alarm messages
 				}

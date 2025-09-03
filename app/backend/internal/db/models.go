@@ -30,16 +30,45 @@ type Project struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type AgentStatus string
+
+const (
+	AgentStatusOnline       AgentStatus = "online"
+	AgentStatusAway         AgentStatus = "away"
+	AgentStatusBusy         AgentStatus = "busy"
+	AgentStatusOffline      AgentStatus = "offline"
+	AgentStatusDoNotDisturb AgentStatus = "dnd"
+)
+
+// AgentSkill represents skills an agent possesses
+type AgentSkill string
+
+const (
+	SkillGeneral   AgentSkill = "general"
+	SkillTechnical AgentSkill = "technical"
+	SkillBilling   AgentSkill = "billing"
+	SkillSupport   AgentSkill = "support"
+	SkillSales     AgentSkill = "sales"
+	SkillComplaint AgentSkill = "complaint"
+)
+
 // Agent represents a user who can access the system
 type Agent struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	TenantID     uuid.UUID `db:"tenant_id" json:"tenant_id"`
-	Email        string    `db:"email" json:"email" validate:"required,email"`
-	Name         string    `db:"name" json:"name" validate:"required,min=1,max=255"`
-	Status       string    `db:"status" json:"status" validate:"oneof=active inactive suspended"`
-	PasswordHash *string   `db:"password_hash" json:"-"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID              uuid.UUID    `db:"id" json:"id"`
+	TenantID        uuid.UUID    `db:"tenant_id" json:"tenant_id"`
+	Email           string       `db:"email" json:"email" validate:"required,email"`
+	Name            string       `db:"name" json:"name" validate:"required,min=1,max=255"`
+	Status          AgentStatus  `db:"status" json:"status" validate:"oneof=active inactive suspended"`
+	PasswordHash    *string      `db:"password_hash" json:"-"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	Skills          []AgentSkill `json:"skills"`
+	ActiveChats     int          `json:"active_chats"`
+	MaxChats        int          `json:"max_chats"`
+	AvgResponseTime float64      `json:"avg_response_time_seconds"`
+	LastActivity    time.Time    `json:"last_activity"`
+	LastAssignment  time.Time    `json:"last_assignment"`
+	Workload        float64      `json:"workload"` // 0.0 to 1.0 representing capacity usage
 }
 
 // AgentProjectRole represents role binding between agents and projects

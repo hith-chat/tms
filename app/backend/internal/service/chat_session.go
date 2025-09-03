@@ -144,12 +144,16 @@ func (s *ChatSessionService) AssignAgent(ctx context.Context, tenantID, projectI
 	if session == nil {
 		return fmt.Errorf("session not found")
 	}
+	return s.AssignAgentWithSessionObj(ctx, tenantID, projectID, agentID, session)
+}
+
+func (s *ChatSessionService) AssignAgentWithSessionObj(ctx context.Context, tenantID, projectID, agentID uuid.UUID, session *models.ChatSession) error {
 
 	now := time.Now()
 	session.AssignedAgentID = &agentID
 	session.AssignedAt = &now
 
-	err = s.chatSessionRepo.UpdateChatSession(ctx, session)
+	err := s.chatSessionRepo.UpdateChatSession(ctx, session)
 	if err != nil {
 		return fmt.Errorf("failed to assign agent: %w", err)
 	}

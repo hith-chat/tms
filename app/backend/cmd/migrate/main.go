@@ -72,6 +72,7 @@ func runMigrations(database *db.DB) error {
 		"migrations/025_project_level_deduplication.sql",
 		"migrations/026_add_content_hash.sql",
 		"migrations/027_alarm_system.sql",
+		"migrations/028_agent_enhancements.sql",
 	}
 
 	for _, migration := range migrations {

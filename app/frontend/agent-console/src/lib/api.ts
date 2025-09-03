@@ -1291,18 +1291,40 @@ class APIClient {
   }
 
   // Alarm methods
-  async getActiveAlarms(_projectId: string): Promise<HowlingAlarm[]> {
-    const response: AxiosResponse<{ alarms: HowlingAlarm[] }> = await this.client.get('/alarms/active')
+  async getActiveAlarms(projectId: string): Promise<HowlingAlarm[]> {
+    const tenantId = localStorage.getItem('tenant_id')
+    if (!tenantId) {
+      throw new Error('No tenant information available')
+    }
+    
+    const response: AxiosResponse<{ alarms: HowlingAlarm[] }> = await this.client.get(
+      `/tenants/${tenantId}/projects/${projectId}/alarms/active`
+    )
     return response.data.alarms
   }
 
-  async getAlarmStats(_projectId: string): Promise<AlarmStats> {
-    const response: AxiosResponse<AlarmStats> = await this.client.get('/alarms/stats')
+  async getAlarmStats(projectId: string): Promise<AlarmStats> {
+    const tenantId = localStorage.getItem('tenant_id')
+    if (!tenantId) {
+      throw new Error('No tenant information available')
+    }
+    
+    const response: AxiosResponse<AlarmStats> = await this.client.get(
+      `/tenants/${tenantId}/projects/${projectId}/alarms/stats`
+    )
     return response.data
   }
 
-  async acknowledgeAlarm(_projectId: string, alarmId: string, response?: string): Promise<void> {
-    await this.client.post(`/alarms/${alarmId}/acknowledge`, { response })
+  async acknowledgeAlarm(projectId: string, alarmId: string, response?: string): Promise<void> {
+    const tenantId = localStorage.getItem('tenant_id')
+    if (!tenantId) {
+      throw new Error('No tenant information available')
+    }
+    
+    await this.client.post(
+      `/tenants/${tenantId}/projects/${projectId}/alarms/${alarmId}/acknowledge`, 
+      { response }
+    )
   }
 
   // Notification Settings methods

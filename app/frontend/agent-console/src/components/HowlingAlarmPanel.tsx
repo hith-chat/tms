@@ -16,9 +16,64 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
   const [acknowledgmentText, setAcknowledgmentText] = useState('')
   const [_loading, _setLoading] = useState(false)
   const [_error, _setError] = useState<string | null>(null)
+  const [audioInitialized, setAudioInitialized] = useState(false)
+  const [previousAlarmCount, setPreviousAlarmCount] = useState(0)
   
   const audioRef = useRef<HTMLAudioElement>(null)
   const escalationSoundRef = useRef<HTMLAudioElement>(null)
+
+  // Initialize audio on first user interaction
+  const initializeAudio = async () => {
+    if (audioInitialized) return
+    
+    try {
+      // Try to load and prepare audio elements
+      if (audioRef.current) {
+        audioRef.current.volume = 0.1 // Set a reasonable volume
+        await audioRef.current.load()
+      }
+      if (escalationSoundRef.current) {
+        escalationSoundRef.current.volume = 0.3 // Urgent sounds louder
+        await escalationSoundRef.current.load()
+      }
+      setAudioInitialized(true)
+      console.log('Audio initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize audio:', error)
+    }
+  }
+
+  // Fallback function to create beep using Web Audio API
+  const createBeep = (frequency: number, duration: number, volume: number = 0.1) => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
+      oscillator.type = 'square' // Square wave for more alarm-like sound
+      
+      // Create beeping pattern with envelope
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime)
+      gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01)
+      gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.1)
+      gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.2)
+      gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.3)
+      gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.4)
+      gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5)
+      gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration)
+      
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + duration)
+      
+      console.log(`Playing fallback beep at ${frequency}Hz`)
+    } catch (error) {
+      console.error('Failed to create fallback beep:', error)
+    }
+  }
 
   // Load alarms and stats
   useEffect(() => {
@@ -34,20 +89,102 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
     return () => clearInterval(interval)
   }, [])
 
-  // Play alarm sounds based on escalation level
+  // Auto-initialize audio when sound is enabled
   useEffect(() => {
-    if (soundEnabled && alarms.length > 0) {
-      const criticalAlarms = alarms.filter(alarm => 
-        alarm.current_level === 'critical' || alarm.current_level === 'urgent'
-      )
-      
-      if (criticalAlarms.length > 0) {
-        escalationSoundRef.current?.play()
-      } else if (alarms.length > 0) {
-        audioRef.current?.play()
-      }
+    if (soundEnabled && !audioInitialized) {
+      initializeAudio()
     }
-  }, [alarms, soundEnabled])
+  }, [soundEnabled, audioInitialized])
+
+  // Play alarm sounds based on escalation level and detect new alarms
+  useEffect(() => {
+    const playAlarmSound = async () => {
+      // Don't play sound if disabled or no alarms
+      if (!soundEnabled || alarms.length === 0) {
+        setPreviousAlarmCount(alarms.length)
+        return
+      }
+      
+      // Auto-initialize audio if not done yet
+      if (!audioInitialized) {
+        await initializeAudio()
+      }
+      
+      // Check if we have new alarms or if this is the first load with alarms
+      const shouldPlaySound = alarms.length > previousAlarmCount || (previousAlarmCount === 0 && alarms.length > 0)
+      
+      if (!shouldPlaySound) {
+        setPreviousAlarmCount(alarms.length)
+        return
+      }
+      
+      console.log(`Playing alarm sound for ${alarms.length} alarms (was ${previousAlarmCount})`)
+      
+      try {
+        const criticalAlarms = alarms.filter(alarm => 
+          alarm.current_level === 'critical' || alarm.current_level === 'urgent'
+        )
+        
+        let audioElement: HTMLAudioElement | null = null
+        let isCritical = false
+        
+        if (criticalAlarms.length > 0) {
+          audioElement = escalationSoundRef.current
+          isCritical = true
+        } else if (alarms.length > 0) {
+          audioElement = audioRef.current
+          isCritical = false
+        }
+        
+        if (audioElement) {
+          // Reset audio to beginning
+          audioElement.currentTime = 0
+          
+          // Try to play the audio
+          const playPromise = audioElement.play()
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                console.log('Alarm sound playing successfully')
+              })
+              .catch((error) => {
+                console.warn('Audio file failed to play, using fallback beep:', error)
+                // Use fallback beep if audio file fails
+                if (isCritical) {
+                  createBeep(1200, 1.5, 0.2) // Urgent beep: 1200Hz, 1.5s
+                } else {
+                  createBeep(800, 1.0, 0.1)  // Soft beep: 800Hz, 1s
+                }
+              })
+          }
+        } else {
+          // If no audio element, use fallback beep directly
+          console.log('No audio element found, using fallback beep')
+          if (isCritical) {
+            createBeep(1200, 1.5, 0.2)
+          } else {
+            createBeep(800, 1.0, 0.1)
+          }
+        }
+      } catch (error) {
+        console.error('Error playing alarm sound:', error)
+        // Fallback to generated beep
+        const isCritical = alarms.some(alarm => 
+          alarm.current_level === 'critical' || alarm.current_level === 'urgent'
+        )
+        if (isCritical) {
+          createBeep(1200, 1.5, 0.2)
+        } else {
+          createBeep(800, 1.0, 0.1)
+        }
+      }
+      
+      // Update the previous count
+      setPreviousAlarmCount(alarms.length)
+    }
+    
+    playAlarmSound()
+  }, [alarms, soundEnabled, audioInitialized, previousAlarmCount])
 
   const loadAlarms = async () => {
     try {
@@ -58,6 +195,7 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
       }
 
       const alarms = await apiClient.getActiveAlarms(projectId)
+      console.log('Loaded alarms:', alarms?.length || 0, 'alarms', alarms)
       setAlarms(alarms || [])
     } catch (err) {
       console.error('Failed to load alarms:', err)
@@ -121,11 +259,23 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
   return (
     <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>
       {/* Audio elements for alarm sounds */}
-      <audio ref={audioRef} preload="auto">
+      <audio 
+        ref={audioRef} 
+        preload="auto"
+        onError={(e) => console.error('Error loading alarm sound:', e)}
+        onLoadedData={() => console.log('Alarm sound loaded successfully')}
+      >
         <source src="/sounds/alarm-soft.mp3" type="audio/mpeg" />
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPoOHyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPoOHyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPoOHyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPjrDbqFsbDT6K1fHCjDAFHm7A7+OZQT+a2/PEhbQBLY/Q8tyPOgUYZrPn4KMOBQlGn+DiYhQELI/X8tOCPAYZaq3w45ZNDwlPhZv3dSIELI/X8tOCPAYZaq3w45ZNDwlPhZvs6qCTBjme3PbEgkAFGnLD7dqJOgUYZrPn4KMOBQlGn+DzAJJgkl3S8tKMPwcYZbDc6pbWET66yO7FgkIFGnLC7duJOAUYZbDc6pbWET66yO7FgkIFGnLC7duJOAUYZbDc6pbWET66yO7FgkIFGnLC7duJOAUYZbDc6pbWET66yO7FgkIFGnLC7duJOAQYA" type="audio/wav" />
       </audio>
-      <audio ref={escalationSoundRef} preload="auto">
+      <audio 
+        ref={escalationSoundRef} 
+        preload="auto"
+        onError={(e) => console.error('Error loading escalation sound:', e)}
+        onLoadedData={() => console.log('Escalation sound loaded successfully')}
+      >
         <source src="/sounds/alarm-urgent.mp3" type="audio/mpeg" />
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPoOHyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPoOHyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPoOHyvmAaBT+y2+/CdSIELI/X8tOCPAYZaq3w45ZNDwlPjrDbqFsbDT6K1fHCjDAFHm7A7+OZQT+a2/PEhbQBLY/Q8tyPOgUYZrPn4KMOBQlGn+DiYhQELI/X8tOCPAYZaq3w45ZNDwlPhZv3dSIELI/X8tOCPAYZaq3w45ZNDwlPhZvs6qCTBjme3PbEgkAFGnLD7dqJOgUYZrPn4KMOBQlGn+DzAJJgkl3S8tKMPwcYZbDc6pbWET66yO7FgkIFGnLC7duJOAUYZbDc6pbWET66yO7FgkIFGnLC7duJOAUYZbDc6pbWET66yO7FgkIFGnLC7duJOAUYZbDc6pbWET66yO7FgkIFGnLC7duJOAQYA" type="audio/wav" />
       </audio>
 
       {/* Header */}
@@ -141,8 +291,18 @@ export function HowlingAlarmPanel({ className = '' }: HowlingAlarmPanelProps) {
             )}
           </h2>
         </div>        <div className="flex items-center space-x-2">
+          {!audioInitialized && soundEnabled && (
+            <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-md">
+              Click sound button to enable audio
+            </div>
+          )}
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={async () => {
+              if (!audioInitialized) {
+                await initializeAudio()
+              }
+              setSoundEnabled(!soundEnabled)
+            }}
             className={`p-2 rounded-lg transition-colors ${
               soundEnabled 
                 ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' 

@@ -14,35 +14,36 @@ import (
 
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/models"
-	"github.com/bareuptime/tms/internal/websocket"
 	ws "github.com/bareuptime/tms/internal/websocket"
 )
 
 // AIService handles AI-powered chat assistance
 type AIService struct {
-	config             *config.AIConfig
-	agenticConfig      *config.AgenticConfig
-	chatSessionService *ChatSessionService
-	knowledgeService   *KnowledgeService
-	greetingDetection  *GreetingDetectionService
-	brandGreeting      *BrandGreetingService
-	connectionManager  *websocket.ConnectionManager
-	httpClient         *http.Client
+	config              *config.AIConfig
+	agenticConfig       *config.AgenticConfig
+	chatSessionService  *ChatSessionService
+	knowledgeService    *KnowledgeService
+	greetingDetection   *GreetingDetectionService
+	brandGreeting       *BrandGreetingService
+	connectionManager   *ws.ConnectionManager
+	howlingAlarmService *HowlingAlarmService
+	httpClient          *http.Client
 }
 
 // NewAIService creates a new AI service instance
-func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *websocket.ConnectionManager) *AIService {
+func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *ws.ConnectionManager, howlingAlarmService *HowlingAlarmService) *AIService {
 	fmt.Println("Creating AI Service")
 	fmt.Println("AI API Key:", cfg.APIKey)
 	fmt.Println("Agentic Behavior Enabled:", agenticConfig.Enabled)
 	return &AIService{
-		config:             cfg,
-		agenticConfig:      agenticConfig,
-		chatSessionService: chatSessionService,
-		knowledgeService:   knowledgeService,
-		greetingDetection:  greetingDetection,
-		brandGreeting:      brandGreeting,
-		connectionManager:  connectionManager,
+		config:              cfg,
+		agenticConfig:       agenticConfig,
+		chatSessionService:  chatSessionService,
+		knowledgeService:    knowledgeService,
+		greetingDetection:   greetingDetection,
+		brandGreeting:       brandGreeting,
+		connectionManager:   connectionManager,
+		howlingAlarmService: howlingAlarmService,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -112,14 +113,6 @@ func (s *AIService) ShouldHandleSession(ctx context.Context, session *models.Cha
 		return false
 	}
 
-	// Check if session has been ongoing for too long (auto handoff)
-	if s.config.AutoHandoffTime > 0 {
-		if time.Since(session.CreatedAt) > s.config.AutoHandoffTime {
-			fmt.Println("Session exceeded auto handoff time:", session.ID)
-			return false
-		}
-	}
-
 	return true
 }
 
@@ -131,7 +124,7 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 	}
 
 	// Check for handoff keywords first
-	if s.shouldHandoffToAgent(messageContent) {
+	if s.shouldHandoffToAgent(session, messageContent) {
 		s.requestHumanAgent(ctx, session, "Customer requested human assistance", connID)
 		return nil, nil
 	}
@@ -287,7 +280,15 @@ func (s *AIService) generateAIAgentID(sessionID uuid.UUID) uuid.UUID {
 }
 
 // shouldHandoffToAgent checks if the message contains handoff keywords
-func (s *AIService) shouldHandoffToAgent(content string) bool {
+func (s *AIService) shouldHandoffToAgent(session *models.ChatSession, content string) bool {
+
+	// Check if session has been ongoing for too long (auto handoff)
+	if s.config.AutoHandoffTime > 0 {
+		if time.Since(session.CreatedAt) > s.config.AutoHandoffTime {
+			fmt.Println("Session exceeded auto handoff time:", session.ID)
+			return true
+		}
+	}
 	content = strings.ToLower(content)
 
 	defaultKeywords := []string{
@@ -313,8 +314,16 @@ func (s *AIService) shouldHandoffToAgent(content string) bool {
 // requestHumanAgent triggers handoff to human agent
 func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatSession, reason, connID string) error {
 	// Send notification message about handoff
+	messageContent := "I'll connect you with a human agent who can better assist you. Please wait a moment."
+	if s.config.AutoHandoffTime > 0 {
+		if time.Since(session.CreatedAt) > s.config.AutoHandoffTime {
+			fmt.Println("Session exceeded auto handoff time:", session.ID)
+			messageContent = "It seems we've been chatting for a while. I'll connect you with a human agent who can better assist you. Please wait a moment."
+		}
+	}
+
 	handoffMessage := &models.SendChatMessageRequest{
-		Content:     "I'll connect you with a human agent who can better assist you. Please wait a moment.",
+		Content:     messageContent,
 		MessageType: "text",
 		IsPrivate:   false,
 		Metadata: map[string]interface{}{
@@ -338,60 +347,40 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 	// Send real-time handoff notification to all agents in the project
 	fmt.Printf("🤝 Sending handoff notification for session %s to project %s\n", session.ID, session.ProjectID)
 
-	// Get customer info from session
-	customerName := "Anonymous Customer"
-	customerEmail := ""
-	if session.VisitorInfo != nil {
-		if name, ok := session.VisitorInfo["name"].(string); ok && name != "" {
-			customerName = name
+	// Use HowlingAlarmService to alert all agents in the project
+	if s.howlingAlarmService != nil {
+		fmt.Printf("🚨 Triggering handoff alarm for session %s\n", session.ID)
+
+		// Create metadata for the handoff alarm
+		metadata := models.JSONMap{
+			"handoff_reason":     reason,
+			"session_id":         session.ID,
+			"customer_id":        session.CustomerID,
+			"widget_id":          session.WidgetID,
+			"session_created_at": session.CreatedAt,
+			"handoff_type":       "ai_to_human",
 		}
-		if email, ok := session.VisitorInfo["email"].(string); ok && email != "" {
-			customerEmail = email
+
+		// Trigger the alarm with high priority for human agent requests
+		alarm, alarmErr := s.howlingAlarmService.TriggerAlarm(
+			ctx,
+			uuid.New(), // assignment ID - generate a new one for this handoff
+			uuid.Nil,   // agent ID - no specific agent yet
+			session.TenantID,
+			session.ProjectID,
+			"Human Agent Requested",
+			fmt.Sprintf("Customer in session %s is requesting human assistance: %s", session.ID, reason),
+			models.NotificationPriorityHigh, // priority
+			metadata,
+		)
+
+		if alarmErr != nil {
+			fmt.Printf("❌ Failed to trigger handoff alarm: %v\n", alarmErr)
+		} else {
+			fmt.Printf("✅ Handoff alarm triggered successfully: %s\n", alarm.ID)
 		}
-	}
-
-	// Calculate session duration
-	sessionDuration := time.Since(session.CreatedAt).Seconds()
-
-	// Create handoff notification data
-	handoffData := map[string]interface{}{
-		"session_id":     session.ID,
-		"customer_name":  customerName,
-		"customer_email": customerEmail,
-		"handoff_reason": reason,
-		"urgency_level":  "high", // Default to high priority
-		"requested_at":   time.Now().Format(time.RFC3339),
-		"session_metadata": map[string]interface{}{
-			"messages_count":   0, // TODO: Get actual message count
-			"session_duration": sessionDuration,
-			"last_ai_response": "AI requested handoff",
-		},
-	}
-
-	// Marshal the data
-	handoffDataBytes, _ := json.Marshal(handoffData)
-
-	// Create WebSocket message
-	wsMessage := &websocket.Message{
-		Type:      "agent_handoff_request",
-		Data:      json.RawMessage(handoffDataBytes),
-		SessionID: session.ID,
-		TenantID:  &session.TenantID,
-		ProjectID: &session.ProjectID,
-		FromType:  websocket.ConnectionTypeAgent,
-		Timestamp: time.Now(),
-	}
-
-	fmt.Println("Sending handoff notification:", handoffData)
-	fmt.Println("Handoff notification sent to tenant:", session.TenantID)
-	fmt.Println("Handoff notification sent to project:", session.ProjectID)
-
-	// Send to all agents in the project
-	deliveryErr := s.connectionManager.SendToProjectAgents(session.ProjectID, wsMessage)
-	if deliveryErr != nil {
-		fmt.Printf("❌ Failed to send handoff notification: %v\n", deliveryErr)
 	} else {
-		fmt.Printf("✅ Handoff notification sent successfully to project agents\n")
+		fmt.Printf("⚠️ HowlingAlarmService not available for handoff notification\n")
 	}
 
 	return nil
