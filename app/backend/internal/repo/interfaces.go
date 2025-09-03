@@ -21,10 +21,14 @@ type TicketFilters struct {
 
 // AgentFilters represents filters for agent queries
 type AgentFilters struct {
-	Email    string
-	IsActive *bool
-	Search   string
-	AgentID  uuid.UUID
+	Email       string
+	IsActive    *bool
+	Search      string
+	AgentID     uuid.UUID
+	ProjectID   *uuid.UUID // Filter agents by project access
+	Status      []string   // Filter by agent status (online, available, busy, offline)
+	Skills      []string   // Filter by agent skills
+	MaxWorkload *int       // Filter by maximum current workload
 }
 
 // CustomerFilters represents filters for customer queries

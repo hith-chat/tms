@@ -1,4 +1,5 @@
-package main
+//go:build ignore
+
 package main
 
 import (
@@ -7,12 +8,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/db"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
 	"github.com/bareuptime/tms/internal/service"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -38,19 +39,19 @@ func main() {
 	webScraperService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
 
 	ctx := context.Background()
-	
+
 	// Test 1: Successful scraping should update job to "completed"
 	fmt.Println("🔍 Test 1: Successful Scraping → Job Status 'completed'")
 	testSuccessfulScraping(ctx, knowledgeRepo, webScraperService)
-	
+
 	fmt.Println()
-	
+
 	// Test 2: Invalid URL should update job to "failed"
 	fmt.Println("🔍 Test 2: Invalid URL → Job Status 'failed'")
 	testInvalidURLScraping(ctx, knowledgeRepo, webScraperService)
-	
+
 	fmt.Println()
-	
+
 	// Test 3: Network error should update job appropriately
 	fmt.Println("🔍 Test 3: Network Error → Job Status handling")
 	testNetworkErrorScraping(ctx, knowledgeRepo, webScraperService)

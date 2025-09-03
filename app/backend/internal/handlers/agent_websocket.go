@@ -68,7 +68,7 @@ func (h *AgentWebSocketHandler) HandleAgentWebSocket(c *gin.Context) {
 	// Register connection with the enterprise connection manager (with WebSocket)
 	connectionID, err := h.connectionManager.AddConnection(
 		ws.ConnectionTypeAgent,
-		agent.ID,
+		agentID,
 		projects,
 		&agentID,
 		conn, // Pass WebSocket connection to connection manager
@@ -85,11 +85,11 @@ func (h *AgentWebSocketHandler) HandleAgentWebSocket(c *gin.Context) {
 	// Send welcome message to agent
 	welcomeMsg := &ws.Message{
 		Type:      "agent_connected",
-		SessionID: agent.ID,
+		SessionID: agentID,
 		Data: json.RawMessage(`{
 			"type": "connected",
-			"message": "Connected to ` + agent.Name + ` console",
-			"agent_id": "` + agent.ID.String() + `"
+			"message": "Connected to console",
+			"agent_id": "` + agentID.String() + `"
 		}`),
 		FromType:     ws.ConnectionTypeAgent,
 		DeliveryType: ws.Self,
@@ -182,7 +182,7 @@ func (h *AgentWebSocketHandler) handleChatMessage(ctx context.Context, tenantID,
 	}
 
 	// Send message via service layer with correct parameters
-	chatMessage, err := h.chatSessionService.SendMessage(ctx, tenantID, projectID, sessionID, request, "agent", &agentUUID, "Agent")
+	_, err := h.chatSessionService.SendMessageWithUuidDetails(ctx, tenantID, projectID, sessionID, request, "agent", &agentUUID, "Agent", connectionID)
 	if err != nil {
 		log.Printf("Failed to send chat message: %v", err)
 		// Send error back to agent
@@ -195,16 +195,6 @@ func (h *AgentWebSocketHandler) handleChatMessage(ctx context.Context, tenantID,
 		h.connectionManager.SendToConnection(connectionID, errorMsg)
 		return
 	}
-
-	// Broadcast message to all session participants (including other agents)
-	messageBytes, _ := json.Marshal(chatMessage)
-	sessionMsg := &ws.Message{
-		Type:      "chat_message",
-		SessionID: sessionID,
-		Data:      json.RawMessage(messageBytes),
-		FromType:  ws.ConnectionTypeAgent,
-	}
-	h.connectionManager.DeliverWebSocketMessage(sessionID, sessionMsg)
 }
 
 func (h *AgentWebSocketHandler) broadcastTypingIndicator(ctx context.Context, sessionID uuid.UUID, typingType, agentName string) {

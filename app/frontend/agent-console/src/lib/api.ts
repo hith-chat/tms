@@ -15,6 +15,26 @@ import type { Notification, NotificationCount, HowlingAlarm, AlarmStats } from '
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
 
+// Handoff-related interfaces
+export interface HandoffResponse {
+  success: boolean
+  session_id: string
+  agent_id: string
+  tenant_id: string
+  accepted_at?: string
+  declined_at?: string
+  message: string
+}
+
+export interface HandoffStatus {
+  session_id: string
+  status: 'pending' | 'accepted' | 'declined' | 'expired'
+  assigned_agent_id?: string
+  handoff_reason: string
+  requested_at: string
+  expires_at?: string
+}
+
 export interface User {
   id: string
   email: string
@@ -1161,6 +1181,22 @@ class APIClient {
     await this.client.post(`/chat/sessions/${sessionId}/messages/${messageId}/read`, )
   }
 
+  // Handoff methods
+  async acceptHandoff(sessionId: string): Promise<HandoffResponse> {
+    const response: AxiosResponse<HandoffResponse> = await this.client.post(`/chat/handoff/${sessionId}/accept`)
+    return response.data
+  }
+
+  async declineHandoff(sessionId: string): Promise<HandoffResponse> {
+    const response: AxiosResponse<HandoffResponse> = await this.client.post(`/chat/handoff/${sessionId}/decline`)
+    return response.data
+  }
+
+  async getHandoffStatus(sessionId: string): Promise<HandoffStatus> {
+    const response: AxiosResponse<HandoffStatus> = await this.client.get(`/chat/handoff/${sessionId}/status`)
+    return response.data
+  }
+
   // Notification methods
   async getNotifications(limit = 20, offset = 0): Promise<{ notifications: Notification[], limit: number, offset: number }> {
     const response: AxiosResponse<{ notifications: Notification[], limit: number, offset: number }> = 
@@ -1255,18 +1291,40 @@ class APIClient {
   }
 
   // Alarm methods
-  async getActiveAlarms(_projectId: string): Promise<HowlingAlarm[]> {
-    const response: AxiosResponse<{ alarms: HowlingAlarm[] }> = await this.client.get('/alarms/active')
+  async getActiveAlarms(projectId: string): Promise<HowlingAlarm[]> {
+    const tenantId = localStorage.getItem('tenant_id')
+    if (!tenantId) {
+      throw new Error('No tenant information available')
+    }
+    
+    const response: AxiosResponse<{ alarms: HowlingAlarm[] }> = await this.client.get(
+      `/tenants/${tenantId}/projects/${projectId}/alarms/active`
+    )
     return response.data.alarms
   }
 
-  async getAlarmStats(_projectId: string): Promise<AlarmStats> {
-    const response: AxiosResponse<AlarmStats> = await this.client.get('/alarms/stats')
+  async getAlarmStats(projectId: string): Promise<AlarmStats> {
+    const tenantId = localStorage.getItem('tenant_id')
+    if (!tenantId) {
+      throw new Error('No tenant information available')
+    }
+    
+    const response: AxiosResponse<AlarmStats> = await this.client.get(
+      `/tenants/${tenantId}/projects/${projectId}/alarms/stats`
+    )
     return response.data
   }
 
-  async acknowledgeAlarm(_projectId: string, alarmId: string, response?: string): Promise<void> {
-    await this.client.post(`/alarms/${alarmId}/acknowledge`, { response })
+  async acknowledgeAlarm(projectId: string, alarmId: string, response?: string): Promise<void> {
+    const tenantId = localStorage.getItem('tenant_id')
+    if (!tenantId) {
+      throw new Error('No tenant information available')
+    }
+    
+    await this.client.post(
+      `/tenants/${tenantId}/projects/${projectId}/alarms/${alarmId}/acknowledge`, 
+      { response }
+    )
   }
 
   // Notification Settings methods

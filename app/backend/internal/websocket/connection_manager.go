@@ -21,6 +21,7 @@ type ConnectionType string
 const (
 	ConnectionTypeVisitor ConnectionType = "visitor"
 	ConnectionTypeAgent   ConnectionType = "agent"
+	ConnectionTypeAiAgent ConnectionType = "ai-agent"
 )
 
 // Connection represents a WebSocket connection with metadata
@@ -378,21 +379,32 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	var connIDs []string
 	var sessionKey string
 
+	fmt.Println("Received message. from tenant:", message.TenantID)
+	fmt.Println("Received message. from project:", message.ProjectID)
+	fmt.Println("Received message. from session:", message.SessionID)
+	fmt.Println("Received message. for agent:", message.AgentID)
+
 	// Handle alarm messages specifically - they should go to all agents in the project
-	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+	if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" || message.Type == "agent_handoff_request" {
 		if projectID != nil {
-			sessionKey = fmt.Sprintf("livechat:project:%s", *projectID)
+			sessionKey = fmt.Sprintf("livechat:project:%s", projectID.String())
 		}
 	} else if msgComingFrom == ConnectionTypeVisitor {
 		// Handle visitor-specific logic
-		sessionKey = fmt.Sprintf("livechat:project:%s", projectID)
-		if message.AgentID != nil {
-			// If the message is from an agent, include the agent ID
-			sessionKey = fmt.Sprintf("livechat:agent:%s", *message.AgentID)
+		if projectID != nil {
+			sessionKey = fmt.Sprintf("livechat:project:%s", projectID.String())
+		} else {
+			// fallback to session if project is not available
+			sessionKey = fmt.Sprintf("livechat:session:%s", sessionID.String())
+		}
+
+		// If an agent ID is present and not uuid.Nil, route to that specific agent
+		if message.AgentID != nil && *message.AgentID != uuid.Nil {
+			sessionKey = fmt.Sprintf("livechat:agent:%s", message.AgentID.String())
 		}
 	} else if msgComingFrom == ConnectionTypeAgent {
 		// Handle agent-specific logic
-		sessionKey = fmt.Sprintf("livechat:session:%s", sessionID)
+		sessionKey = fmt.Sprintf("livechat:session:%s", sessionID.String())
 	}
 
 	fmt.Printf("Pubsub is working -> sessionKey: %s (message type: %s)\n", sessionKey, message.Type)
@@ -403,7 +415,7 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 		return
 	}
 
-	fmt.Printf("Pubsub is working -> connIDs: %v\n", connIDs)
+	fmt.Printf("Pubsub is working, for sessionKey: %s-> connIDs: %v\n for messageType: %s", sessionKey, connIDs, message.Type)
 
 	// Send to local connections only (this server instance)
 	cm.connMutex.RLock()
@@ -413,7 +425,7 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 	for _, connID := range connIDs {
 		if conn, exists := cm.localConnections[connID]; exists {
 			// For alarm messages, only send to agent connections
-			if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" {
+			if message.Type == "alarm_triggered" || message.Type == "alarm_acknowledged" || message.Type == "alarm_escalated" || message.Type == "agent_handoff_request" {
 				if conn.Type != ConnectionTypeAgent {
 					continue // Skip non-agent connections for alarm messages
 				}

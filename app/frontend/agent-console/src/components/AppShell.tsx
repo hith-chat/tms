@@ -48,7 +48,7 @@ export function AppShell({ children }: AppShellProps) {
     alarms, 
     acknowledgeAlarm, 
     soundEnabled, 
-    setSoundEnabled 
+    setSoundEnabled
   } = useHowlingAlarms()
   
   // Determine if we're on a chat session page and extract session ID
@@ -260,7 +260,7 @@ export function AppShell({ children }: AppShellProps) {
         alarms={alarms}
         onAcknowledge={acknowledgeAlarm}
         soundEnabled={soundEnabled}
-        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onToggleSound={async () => await setSoundEnabled(!soundEnabled)}
       />
     </div>
   )

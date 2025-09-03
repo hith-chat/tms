@@ -24,10 +24,10 @@ type EnhancedNotificationService struct {
 }
 
 // NewEnhancedNotificationService creates a new enhanced notification service
-func NewEnhancedNotificationService(notificationRepo *repo.NotificationRepo, 
-	connectionMgr *ws.ConnectionManager, howlingAlarmSvc *HowlingAlarmService, 
+func NewEnhancedNotificationService(notificationRepo *repo.NotificationRepo,
+	connectionMgr *ws.ConnectionManager, howlingAlarmSvc *HowlingAlarmService,
 	cfg *config.Config) *EnhancedNotificationService {
-	
+
 	return &EnhancedNotificationService{
 		notificationRepo: notificationRepo,
 		connectionMgr:    connectionMgr,
@@ -71,7 +71,7 @@ func (s *EnhancedNotificationService) CreateAgentAssignmentNotification(ctx cont
 
 	// Trigger howling alarm for high/urgent/critical priority assignments
 	if s.shouldTriggerAlarm(priority, urgency) {
-		alarmMetadata := map[string]interface{}{
+		alarmMetadata := models.JSONMap{
 			"notification_id": notification.ID,
 			"urgency":         urgency,
 			"assignment_type": "agent_assignment",
@@ -119,7 +119,7 @@ func (s *EnhancedNotificationService) CreateUrgentRequestNotification(ctx contex
 
 		// Trigger alarm for urgent requests
 		assignmentID := uuid.New() // Generate temporary assignment ID
-		alarmMetadata := map[string]interface{}{
+		alarmMetadata := models.JSONMap{
 			"notification_id": notification.ID,
 			"customer_info":   customerInfo,
 			"request_type":    "urgent_support",
@@ -293,9 +293,9 @@ func (s *EnhancedNotificationService) getChannelsForPriority(priority models.Not
 // shouldTriggerAlarm determines if an alarm should be triggered
 func (s *EnhancedNotificationService) shouldTriggerAlarm(priority models.NotificationPriority, urgency string) bool {
 	// Trigger alarms for high priority or above
-	if priority == models.NotificationPriorityHigh || 
-	   priority == models.NotificationPriorityUrgent || 
-	   priority == models.NotificationPriorityCritical {
+	if priority == models.NotificationPriorityHigh ||
+		priority == models.NotificationPriorityUrgent ||
+		priority == models.NotificationPriorityCritical {
 		return true
 	}
 
@@ -354,9 +354,9 @@ func (s *EnhancedNotificationService) getAudioConfigForPriority(priority models.
 // getOverlayConfigForPriority returns overlay configuration based on priority
 func (s *EnhancedNotificationService) getOverlayConfigForPriority(priority models.NotificationPriority) map[string]interface{} {
 	return map[string]interface{}{
-		"backdrop":       true,
-		"persistent":     priority == models.NotificationPriorityCritical,
-		"auto_dismiss":   priority != models.NotificationPriorityCritical,
+		"backdrop":     true,
+		"persistent":   priority == models.NotificationPriorityCritical,
+		"auto_dismiss": priority != models.NotificationPriorityCritical,
 		"dismiss_timeout": func() int {
 			switch priority {
 			case models.NotificationPriorityUrgent:
@@ -383,8 +383,8 @@ func (s *EnhancedNotificationService) getOverlayConfigForPriority(priority model
 // getPopupConfigForPriority returns popup configuration based on priority
 func (s *EnhancedNotificationService) getPopupConfigForPriority(priority models.NotificationPriority) map[string]interface{} {
 	return map[string]interface{}{
-		"position":      "top-right",
-		"persistent":    priority == models.NotificationPriorityCritical,
+		"position":       "top-right",
+		"persistent":     priority == models.NotificationPriorityCritical,
 		"require_action": priority == models.NotificationPriorityCritical,
 		"auto_dismiss": func() bool {
 			return priority != models.NotificationPriorityCritical
@@ -400,7 +400,7 @@ func (s *EnhancedNotificationService) getPopupConfigForPriority(priority models.
 			}
 		}(),
 		"animation": "bounce",
-		"size":      func() string {
+		"size": func() string {
 			switch priority {
 			case models.NotificationPriorityCritical:
 				return "large"
@@ -434,7 +434,7 @@ func (s *EnhancedNotificationService) MarkNotificationAsRead(ctx context.Context
 	if s.notificationRepo == nil {
 		return nil // No-op for testing
 	}
-	
+
 	err := s.notificationRepo.MarkNotificationAsRead(ctx, tenantID, agentID, notificationID)
 	if err != nil {
 		return err
@@ -450,7 +450,7 @@ func (s *EnhancedNotificationService) MarkAllNotificationsAsRead(ctx context.Con
 	if s.notificationRepo == nil {
 		return nil // No-op for testing
 	}
-	
+
 	err := s.notificationRepo.MarkAllNotificationsAsRead(ctx, tenantID, agentID)
 	if err != nil {
 		return err
@@ -466,7 +466,7 @@ func (s *EnhancedNotificationService) broadcastNotificationCount(ctx context.Con
 	if s.notificationRepo == nil {
 		return // No-op for testing
 	}
-	
+
 	count, err := s.GetNotificationCount(ctx, tenantID, agentID)
 	if err != nil {
 		log.Printf("Failed to get notification count for agent %s: %v", agentID, err)

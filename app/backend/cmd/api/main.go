@@ -113,7 +113,12 @@ func main() {
 
 	// Chat services
 	chatWidgetService := service.NewChatWidgetService(chatWidgetRepo, domainValidationRepo)
-	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService)
+
+	// Initialize enterprise connection manager (needed for chat session service)
+	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
+	defer connectionManager.Shutdown()
+
+	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager)
 
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
@@ -125,11 +130,19 @@ func main() {
 	greetingDetectionService := service.NewGreetingDetectionService(&cfg.Agentic)
 	brandGreetingService := service.NewBrandGreetingService(settingsRepo)
 
-	// AI service (needs knowledge service for RAG and greeting services for agentic behavior)
-	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService)
-
 	// Integration services
 	integrationService := service.NewIntegrationService(integrationRepo)
+
+	// Notification service (needs connection manager for WebSocket delivery)
+	notificationService := service.NewNotificationService(notificationRepo, connectionManager)
+
+	// Alarm services (Phase 4 implementation)
+	howlingAlarmService := service.NewHowlingAlarmService(cfg, connectionManager, alarmRepo)
+	// Enhanced notification service for agentic behavior
+	// enhancedNotificationService := service.NewEnhancedNotificationService(notificationRepo, connectionManager, howlingAlarmService, cfg)
+
+	// AI service (needs knowledge service for RAG, greeting services for agentic behavior, connection manager for handoff notifications, and auto assignment service)
+	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService, connectionManager, howlingAlarmService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, publicService)
@@ -144,6 +157,7 @@ func main() {
 	settingsHandler := handlers.NewSettingsHandler(settingsRepo)
 	tenantHandler := handlers.NewTenantHandler(tenantService)
 	domainValidationHandler := handlers.NewDomainValidationHandler(domainValidationService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
 
 	// Chat handlers
 	chatWidgetHandler := handlers.NewChatWidgetHandler(chatWidgetService)
@@ -153,17 +167,6 @@ func main() {
 	// Knowledge management handlers
 	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
 
-	// Initialize enterprise connection manager
-	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
-	defer connectionManager.Shutdown()
-
-	// Notification service (needs connection manager for WebSocket delivery)
-	notificationService := service.NewNotificationService(notificationRepo, connectionManager)
-	notificationHandler := handlers.NewNotificationHandler(notificationService)
-
-	// Alarm services (Phase 4 implementation)
-	howlingAlarmService := service.NewHowlingAlarmService(cfg, connectionManager, alarmRepo)
-	// enhancedNotificationService can be added later for advanced notification features
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
 	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, jwtAuth)
@@ -472,7 +475,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/sessions/:session_id", chatSessionHandler.GetChatSession)
 				chat.POST("/sessions/:session_id/assign", chatSessionHandler.AssignAgent)
 				chat.GET("/sessions/:session_id/messages", chatSessionHandler.GetChatMessages)
-				chat.POST("/sessions/:session_id/messages", chatSessionHandler.SendMessage)
 				chat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkAgentMessagesAsRead)
 				chat.GET("/sessions/:session_id/client/status", chatSessionHandler.IsCustomerOnline)
 
@@ -480,6 +482,10 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/ai/status", aiHandler.GetAIStatus)
 				chat.GET("/ai/capabilities", aiHandler.GetAICapabilities)
 				chat.GET("/ai/metrics", aiHandler.GetAIMetrics)
+
+				// AI handoff endpoints
+				chat.POST("/handoff/:sessionId/accept", aiHandler.AcceptHandoff)
+				chat.POST("/handoff/:sessionId/decline", aiHandler.DeclineHandoff)
 
 			}
 

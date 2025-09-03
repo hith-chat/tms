@@ -125,34 +125,6 @@ func (h *ChatSessionHandler) AssignAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Agent assigned successfully"})
 }
 
-// SendMessage sends a message in a chat session (agent endpoint)
-func (h *ChatSessionHandler) SendMessage(c *gin.Context) {
-	agentID := middleware.GetAgentID(c)
-	tenantID := middleware.GetTenantID(c)
-	projectID := middleware.GetProjectID(c)
-
-	sessionIDStr := c.Param("session_id")
-	sessionID, err := uuid.Parse(sessionIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID format"})
-		return
-	}
-
-	var req models.SendChatMessageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	message, err := h.chatSessionService.SendMessage(c.Request.Context(), tenantID, projectID, sessionID, &req, "agent", &agentID, req.SenderName)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send message: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, message)
-}
-
 // GetChatMessages gets messages for a chat session
 func (h *ChatSessionHandler) GetChatMessages(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
