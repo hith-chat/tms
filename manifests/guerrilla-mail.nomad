@@ -3,25 +3,25 @@ job "guerrilla-mail" {
   type        = "service"
 
   group "guerrilla-mail-falkenstein" {
-    count = 1  # High availability with 2 replicas
+    count = 1
 
     constraint {
       attribute = "${attr.kernel.name}"
       value     = "linux"
     }
 
-    constraint {
-      attribute = "${meta.region}"
-      value     = "falkenstein"
-    }
+    # constraint {
+    #   attribute = "${meta.region}"
+    #   value     = "falkenstein"
+    # }
     
     network {
-      mode = "bridge"
+      mode = "host"  # Changed from bridge for static ports
       port "smtp" {
-        static = 25
+        to = 25
       }
       port "submission" {
-        static = 587
+        to = 587
       }
     }
 
@@ -35,76 +35,70 @@ job "guerrilla-mail" {
       name = "guerrilla-mail"
       port = "smtp"
       
-      # Health checks
-      check {
-        type     = "tcp"
-        port     = "smtp"
-        interval = "30s"
-        timeout  = "10s"
+      # check {
+      #   type     = "tcp"
+      #   port     = "smtp"
+      #   interval = "30s"
+      #   timeout  = "10s"
         
-        check_restart {
-          limit = 3
-          grace = "30s"
-          ignore_warnings = false
-        }
-      }
+      #   check_restart {
+      #     limit = 3
+      #     grace = "30s"
+      #     ignore_warnings = false
+      #   }
+      # }
       
-      # Additional health check for submission port
-      check {
-        name     = "submission-port"
-        type     = "tcp"
-        port     = "submission"
-        interval = "30s"
-        timeout  = "10s"
-      }
+      # check {
+      #   name     = "submission-port"
+      #   type     = "tcp"
+      #   port     = "submission"
+      #   interval = "30s"
+      #   timeout  = "10s"
+      # }
       
-      # Traefik service discovery tags for mail routing
       tags = [
         "traefik.enable=true",
         
-        # TCP router for SMTP (port 25)
+        # TCP router for SMTP (port 25) - using static port
         "traefik.tcp.routers.smtp.rule=HostSNI(`*`)",
         "traefik.tcp.routers.smtp.entrypoints=smtp",
         "traefik.tcp.routers.smtp.service=guerrilla-mail-smtp",
-        "traefik.tcp.services.guerrilla-mail-smtp.loadbalancer.server.port=${NOMAD_PORT_smtp}",
+        "traefik.tcp.services.guerrilla-mail-smtp.loadbalancer.server.port=25",
         
         # TCP router for submission port (587)
         "traefik.tcp.routers.submission.rule=HostSNI(`*`)",
         "traefik.tcp.routers.submission.entrypoints=submission",
         "traefik.tcp.routers.submission.service=guerrilla-mail-submission",
-        "traefik.tcp.services.guerrilla-mail-submission.loadbalancer.server.port=${NOMAD_PORT_submission}",
+        "traefik.tcp.services.guerrilla-mail-submission.loadbalancer.server.port=587",
         
         "region=falkenstein",
       ]
     }
     
-    # Restart policy for resilience
-    restart {
-      attempts = 5
-      interval = "2m"
-      delay    = "3s"
-      mode     = "fail"
-    }
+    # restart {
+    #   attempts = 5
+    #   interval = "2m"
+    #   delay    = "3s"
+    #   mode     = "fail"
+    # }
     
-    # Rolling update configuration
-    update {
-      max_parallel      = 1
-      min_healthy_time  = "30s"
-      healthy_deadline  = "3m"
-      progress_deadline = "10m"
-      auto_revert       = true
-      auto_promote      = true
-      canary            = 1
-      stagger           = "5s"
-    }
+    # update {
+    #   max_parallel      = 1
+    #   min_healthy_time  = "30s"
+    #   healthy_deadline  = "3m"
+    #   progress_deadline = "10m"
+    #   auto_revert       = true
+    #   auto_promote      = true
+    #   canary            = 1
+    #   stagger           = "5s"
+    # }
     
-    # Placement preferences for load distribution
-    affinity {
-      attribute = "${node.unique.id}"
-      operator  = "regexp"
-      value     = ".*"
-      weight    = 50
-    }
+    # affinity {
+    #   attribute = "${node.unique.id}"
+    #   operator  = "regexp"
+    #   value     = ".*"
+    #   weight    = 50
+    # }
     
     task "guerrilla-mail" {
       driver = "docker"
@@ -115,7 +109,6 @@ job "guerrilla-mail" {
         read_only   = false
       }
       
-      # Enable Vault workload identity
       vault {
         policies = ["nomad-cluster"]
       }
@@ -129,12 +122,11 @@ EOH
         change_mode = "restart"
       }
       
-      # Mail server configuration from Vault
       template {
         data = <<EOH
 {{- with secret "secret/data/tms/config" -}}
 MAIL_DOMAIN={{ .Data.data.MAIL_DOMAIN }}
-MAX_MESSAGE_SIZE={{ .Data.data.MAX_MESSAGE_SIZE | default "1048576" }}
+MAX_MESSAGE_SIZE={{ .Data.data.MAX_MESSAGE_SIZE | or "10485760" }}
 {{- end }}
 EOH
         destination = "secrets/mail.env"
@@ -142,7 +134,6 @@ EOH
         change_mode = "restart"
       }
       
-      # Backend API configuration from Vault
       template {
         data = <<EOH
 TICKET_API_URL=http://{{- range $i, $service := service "backend" -}}{{- if eq $i 0 }}{{ .Address }}:{{ .Port }}{{- end }}{{- end }}/v1/public/email-to-ticket
@@ -152,10 +143,9 @@ EOH
         change_mode = "restart"
       }
       
-      # GitHub configuration for Docker authentication
       template {
         data = <<EOH
-{{- with secret "secret/data/shared/githubAuth " -}}
+{{- with secret "secret/data/shared/githubAuth" -}}
 GHC_TOKEN={{ .Data.data.GHC_TOKEN }}
 GITHUB_USERNAME={{ .Data.data.GITHUB_USERNAME }}
 {{- end }}
@@ -165,13 +155,12 @@ EOH
         change_mode = "restart"
       }
       
-      # Consul service discovery configuration
       template {
         data = <<EOH
 CONSUL_HTTP_ADDR=http://{{ env "NOMAD_IP_smtp" }}:8500
 SERVICE_NAME=guerrilla-mail
 SERVICE_ID=guerrilla-mail-{{ env "NOMAD_ALLOC_ID" }}
-SERVICE_PORT={{ env "NOMAD_PORT_smtp" }}
+SERVICE_PORT=25
 EOH
         destination = "secrets/consul.env"
         env         = true
@@ -179,20 +168,17 @@ EOH
       }
       
       config {
-        image = "ghcr.io/bareuptime/guerrilla-mail:latest"
-        ports = ["smtp", "submission"]
+        image = "ghcr.io/taral-co/tms/guerrilla-mail:latest"
+        ports = ["smtp", "submission"]  # No network_mode needed for bridge
         
-        # Docker authentication for private registry
         auth {
           username = "${GITHUB_USERNAME}" 
           password = "${GHC_TOKEN}"
           server_address = "ghcr.io"
         }
         
-        # Force pull latest image
         force_pull = true
         
-        # Wait for backend service to be available
         command = "/bin/sh"
         args = [
           "-c",
@@ -209,7 +195,6 @@ EOF
         ]
       }
       
-      # Performance optimizations
       env {
         LISTEN_INTERFACE = "0.0.0.0:25"
         GOMAXPROCS = "1"
@@ -218,13 +203,11 @@ EOF
         REGION = "${meta.region}"
       }
       
-      # Resource allocation matching Docker Swarm config
       resources {
-        cpu    = 100   # 0.1 CPU (similar to 0.25 limit in compose)
-        memory = 200   # 256MB limit from compose, 128MB reservation
+        cpu    = 100
+        memory = 200
       }
       
-      # Logs configuration
       logs {
         max_files     = 10
         max_file_size = 15
