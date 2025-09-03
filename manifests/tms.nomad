@@ -222,6 +222,7 @@ EMAIL_FROM_ADDRESS={{ .Data.data.EMAIL_FROM_ADDRESS }}
 EMAIL_FROM_NAME={{ .Data.data.EMAIL_FROM_NAME }}
 EMAIL_REPLY_TO_ADDRESS={{ .Data.data.EMAIL_REPLY_TO_ADDRESS }}
 RESEND_API_KEY={{ .Data.data.RESEND_API_KEY }}
+AI_API_KEY={{ .Data.data.AI_API_KEY }}
 {{- end }}
 EOH
         destination = "secrets/config.env"
