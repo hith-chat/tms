@@ -110,7 +110,7 @@ type AgenticConfig struct {
 	DomainRelevanceConfidence float64   `mapstructure:"domain_relevance_confidence"`
 	AgentRequestConfidence    float64   `mapstructure:"agent_request_confidence"`
 	AgentRequestThreshold     float64   `mapstructure:"agent_request_threshold"`
-	GreetingKeywords          []string  `mapstructure:"greeting_keywords"`
+	Greeting	Keywords          []string  `mapstructure:"greeting_keywords"`
 	AgentRequestKeywords      []string  `mapstructure:"agent_request_keywords"`
 	NegativeKeywords          []string  `mapstructure:"negative_keywords"`
 	ResponseTimeoutMs         int       `mapstructure:"response_timeout_ms"`

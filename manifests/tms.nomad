@@ -106,7 +106,7 @@ job "tms-backend" {
         "traefik.http.middlewares.tms-cors-headers.headers.addvaryheader=true",
         
         # Client IP middleware
-        "traefik.http.middlewares.client-ip.ipwhitelist.sourcerange=0.0.0.0/0",
+        "traefik.http.middlewares.client-ip.ipallowlist.sourcerange=0.0.0.0/0",
       ]
     }
     

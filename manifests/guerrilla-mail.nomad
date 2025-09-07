@@ -18,11 +18,12 @@ job "guerrilla-mail" {
     network {
       mode = "host"  # Changed from bridge for static ports
       port "smtp" {
-        to = 25
+        static = 2525  # Use static port for simplicity
+        to = 2525        # Container listens on 25
       }
-      port "submission" {
-        to = 587
-      }
+      # port "submission" {
+      #   to = 587
+      # }
     }
 
     volume "mail_storage" {
@@ -58,19 +59,12 @@ job "guerrilla-mail" {
       
       tags = [
         "traefik.enable=true",
-        
         # TCP router for SMTP (port 25) - using static port
         "traefik.tcp.routers.smtp.rule=HostSNI(`*`)",
         "traefik.tcp.routers.smtp.entrypoints=smtp",
         "traefik.tcp.routers.smtp.service=guerrilla-mail-smtp",
-        "traefik.tcp.services.guerrilla-mail-smtp.loadbalancer.server.port=25",
-        
-        # TCP router for submission port (587)
-        "traefik.tcp.routers.submission.rule=HostSNI(`*`)",
-        "traefik.tcp.routers.submission.entrypoints=submission",
-        "traefik.tcp.routers.submission.service=guerrilla-mail-submission",
-        "traefik.tcp.services.guerrilla-mail-submission.loadbalancer.server.port=587",
-        
+        "traefik.tcp.services.guerrilla-mail-smtp.loadbalancer.server.port=2525",
+        "traefik.tcp.services.guerrilla-mail-smtp.loadbalancer.terminationdelay=100",
         "region=falkenstein",
       ]
     }
@@ -169,7 +163,7 @@ EOH
       
       config {
         image = "ghcr.io/taral-co/tms/guerrilla-mail:latest"
-        ports = ["smtp", "submission"]  # No network_mode needed for bridge
+        ports = ["smtp"]  # No network_mode needed for bridge
         
         auth {
           username = "${GITHUB_USERNAME}" 
@@ -196,7 +190,7 @@ EOF
       }
       
       env {
-        LISTEN_INTERFACE = "0.0.0.0:25"
+        LISTEN_INTERFACE = "0.0.0.0:2525"
         GOMAXPROCS = "1"
         GOGC = "100"
         GOMEMLIMIT = "200MiB"
