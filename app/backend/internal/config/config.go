@@ -99,22 +99,22 @@ type FeatureFlags struct {
 
 // AgenticConfig represents agentic behavior configuration
 type AgenticConfig struct {
-	Enabled                   bool      `mapstructure:"enabled"`
-	GreetingDetection         bool      `mapstructure:"greeting_detection"`
-	KnowledgeResponses        bool      `mapstructure:"knowledge_responses"`
-	AgentAssignment           bool      `mapstructure:"agent_assignment"`
-	AgentRequestDetection     bool      `mapstructure:"agent_request_detection"`
-	NotificationAlerts        bool      `mapstructure:"notification_alerts"`
-	GreetingConfidence        float64   `mapstructure:"greeting_confidence"`
-	KnowledgeConfidence       float64   `mapstructure:"knowledge_confidence"`
-	DomainRelevanceConfidence float64   `mapstructure:"domain_relevance_confidence"`
-	AgentRequestConfidence    float64   `mapstructure:"agent_request_confidence"`
-	AgentRequestThreshold     float64   `mapstructure:"agent_request_threshold"`
-	Greeting	Keywords          []string  `mapstructure:"greeting_keywords"`
-	AgentRequestKeywords      []string  `mapstructure:"agent_request_keywords"`
-	NegativeKeywords          []string  `mapstructure:"negative_keywords"`
-	ResponseTimeoutMs         int       `mapstructure:"response_timeout_ms"`
-	MaxConcurrentSessions     int       `mapstructure:"max_concurrent_sessions"`
+	Enabled                   bool     `mapstructure:"enabled"`
+	GreetingDetection         bool     `mapstructure:"greeting_detection"`
+	KnowledgeResponses        bool     `mapstructure:"knowledge_responses"`
+	AgentAssignment           bool     `mapstructure:"agent_assignment"`
+	AgentRequestDetection     bool     `mapstructure:"agent_request_detection"`
+	NotificationAlerts        bool     `mapstructure:"notification_alerts"`
+	GreetingConfidence        float64  `mapstructure:"greeting_confidence"`
+	KnowledgeConfidence       float64  `mapstructure:"knowledge_confidence"`
+	DomainRelevanceConfidence float64  `mapstructure:"domain_relevance_confidence"`
+	AgentRequestConfidence    float64  `mapstructure:"agent_request_confidence"`
+	AgentRequestThreshold     float64  `mapstructure:"agent_request_threshold"`
+	GreetingKeywords          []string `mapstructure:"greeting_keywords"`
+	AgentRequestKeywords      []string `mapstructure:"agent_request_keywords"`
+	NegativeKeywords          []string `mapstructure:"negative_keywords"`
+	ResponseTimeoutMs         int      `mapstructure:"response_timeout_ms"`
+	MaxConcurrentSessions     int      `mapstructure:"max_concurrent_sessions"`
 }
 
 // ResendConfig represents Resend email service configuration
