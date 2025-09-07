@@ -345,7 +345,6 @@ export class TMSChatWidget {
     
     // Visitor form elements
     const visitorForm = this.container.querySelector('#tms-visitor-form') as HTMLFormElement
-    const visitorStartButton = this.container.querySelector('#tms-visitor-start')
     const visitorCancelButton = this.container.querySelector('#tms-visitor-cancel')
     const visitorNameInput = this.container.querySelector('#tms-visitor-name') as HTMLInputElement
   // const visitorEmailInput = this.container.querySelector('#tms-visitor-email') as HTMLInputElement

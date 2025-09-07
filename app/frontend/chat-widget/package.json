@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+  "build:prod": "export MODE=production && vite build && mkdir -p ../../../deploy && cp dist/chat-widget.js ../../../deploy/tms-widget.js",
     "preview": "vite preview",
     "test": "./serve-test.sh",
     "serve": "python3 -m http.server 3001"

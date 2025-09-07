@@ -22,11 +22,11 @@ export interface WidgetStateData {
 }
 
 export class SessionStorage {
-  private widgetId: string
   private storagePrefix: string
 
   constructor(widgetId: string) {
-    this.widgetId = widgetId
+    // we only need a storage prefix derived from widgetId; the raw widgetId
+    // is not read elsewhere so we avoid keeping an unused field.
     this.storagePrefix = `tms_${widgetId}_`
   }
 
