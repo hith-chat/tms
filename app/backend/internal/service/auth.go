@@ -628,7 +628,7 @@ func (s *AuthService) VerifySignupOTP(ctx context.Context, req VerifySignupOTPRe
 	fmt.Println("let me assign roles")
 
 	// Assign default agent role (no project ID for global role)
-	err = s.rbacService.AssignRole(ctx, agent.ID, agent.TenantID, projectID, models.RoleAgent)
+	err = s.rbacService.AssignRole(ctx, agent.ID, agent.TenantID, projectID, models.RoleTenantAdmin)
 	if err != nil {
 		// Log error but don't fail - agent is created, role can be assigned later
 		fmt.Printf("Warning: failed to assign default role to agent %s: %v\n", agent.ID, err)
