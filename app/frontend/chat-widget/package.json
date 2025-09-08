@@ -1,5 +1,5 @@
 {
-  "name": "@tms/chat-widget",
+  "name": "@taral/chat",
   "version": "1.0.0",
   "description": "Embeddable chat widget for TMS",
   "main": "dist/chat-widget.js",
@@ -7,10 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-  "build:prod": "export MODE=production && vite build && mkdir -p ../../../deploy && cp dist/chat-widget.js ../../../deploy/tms-widget.js",
-    "preview": "vite preview",
-    "test": "./serve-test.sh",
-    "serve": "python3 -m http.server 3001"
+    "preview": "vite preview"
   },
   "dependencies": {
     "jose": "^5.10.0",
