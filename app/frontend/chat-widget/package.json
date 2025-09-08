@@ -1,5 +1,5 @@
 {
-  "name": "@taral/chat",
+  "name": "@taral/web-chat",
   "version": "1.0.0",
   "description": "Embeddable chat widget for TMS",
   "main": "dist/chat-widget.js",
