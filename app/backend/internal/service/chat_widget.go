@@ -215,7 +215,7 @@ func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID, domain string)
       domain: '%s'
     };
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@taral/web-chat@1.0.0/dist/chat-widget.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/@taral/web-chat/dist/chat-widget.js';
     script.async = true;
     document.head.appendChild(script);
   })();
