@@ -3,7 +3,7 @@ job "tms-backend" {
   type        = "service"
 
   group "tms-falkenstein" {
-    count = 3  # High availability with 5 replicas
+    count = 5  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
     # spread {
@@ -281,14 +281,14 @@ EOF
         GOGC = "100"
         GOMEMLIMIT = "450MiB"
         REGION = "${meta.region}"  # or "iowa"
-        CORS_ALLOW_CREDENTIALS="true"
-        CORS_ORIGINS="https://taral.bareuptime.co,https://bareuptime.co"
+        CORS_ALLOW_CREDENTIALS="false"
+        CORS_ORIGINS=""
       }
       
       # Resource allocation matching Docker Swarm config
       resources {
-        cpu    = 150   # 0.15 CPU
-        memory = 365   # 512MB
+        cpu    = 300   # 0.15 CPU
+        memory = 500   # 512MB
       }
       
       # Logs configurationp

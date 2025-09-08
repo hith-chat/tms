@@ -283,13 +283,15 @@ func CORSMiddleware(corsConfig *config.CORSConfig) gin.HandlerFunc {
 		}
 
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Session-Token")
-		c.Header("Access-Control-Expose-Headers", "Content-Length, X-Session-Token")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Session-Token, Cache-Control, Pragma")
+		c.Header("Access-Control-Expose-Headers", "Content-Length, X-Session-Token, X-Request-ID")
+		c.Header("Access-Control-Max-Age", "86400") // Cache preflight for 24 hours
 
 		if corsConfig.AllowCredentials {
 			c.Header("Access-Control-Allow-Credentials", "true")
 		}
 
+		// Handle preflight OPTIONS request
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return

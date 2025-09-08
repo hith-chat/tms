@@ -439,7 +439,7 @@ function getAgentWebSocketUrl(): string {
   }
   
   // Use hardcoded base URL since apiClient.getBaseUrl() doesn't exist
-  const baseUrl = 'http://localhost:8080'
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
   const wsUrl = baseUrl.replace('http', 'ws')
-  return `${wsUrl}/v1/tenants/${tenantId}/chat/agent/ws`
+  return `${wsUrl}/tenants/${tenantId}/chat/agent/ws`
 }

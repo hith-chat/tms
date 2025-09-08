@@ -242,7 +242,10 @@
             }
 
             getWebSocketUrl(sessionId) {
-                return 'ws://localhost:8080/ws/chat/' + sessionId;
+                const envUrl = viteEnv?.VITE_API_URL;
+                const mode = viteEnv?.MODE;
+                const defaultUrl = mode === 'production' ? 'ws://tms.bareuptime.co' : 'ws://localhost:8080';
+                return `${defaultUrl}/ws/chat/${sessionId}`;
             }
         }
 
