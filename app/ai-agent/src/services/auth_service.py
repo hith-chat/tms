@@ -37,7 +37,7 @@ class AuthService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.base_url}/v1/auth/ai-agent/{tenant_id}/{project_id}/login",
+                    f"{self.base_url}/v1/auth/ai-agent/tenant/{tenant_id}/project/{project_id}/login",
                     json={"agent_secret": self.agent_secret},
                     headers={"Content-Type": "application/json"},
                     timeout=10.0

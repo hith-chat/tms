@@ -253,7 +253,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 
 		authRoutes.POST("/refresh", authHandler.Refresh)
 		authRoutes.POST("/login", authHandler.Login)
-		authRoutes.POST("/ai-agent/:tenant_id/:project_id/login", authHandler.AiAgentLogin)
+		authRoutes.POST("/ai-agent/tenant/:tenant_id/project/:project_id/login", authHandler.AiAgentLogin)
 		authRoutes.POST("/signup", authHandler.SignUp)
 		authRoutes.POST("/verify-signup-otp", authHandler.VerifySignupOTP)
 		authRoutes.POST("/resend-signup-otp", authHandler.ResendSignupOTP)
