@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db_session
 from ..schemas.chat import ChatRequest, ChatSessionResponse
-from ..services.swarm_service import SwarmService
+from ..services.agent_service import AgentService
 from ..services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 # Initialize services
-swarm_service = SwarmService()
+agent_service = AgentService()
 chat_service = ChatService()
 
 
@@ -36,7 +36,7 @@ async def chat_stream(
     """
     try:
         return StreamingResponse(
-            swarm_service.process_message_stream(
+            agent_service.process_message_stream(
                 db_session, request.session_id, request.message
             ),
             media_type="text/event-stream",

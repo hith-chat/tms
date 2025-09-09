@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title="TMS Agent Service",
-    description="AI-powered customer support agent service using OpenAI Swarm",
+    description="AI-powered customer support agent service using OpenAI Agents SDK",
     version="1.0.0",
     lifespan=lifespan
 )

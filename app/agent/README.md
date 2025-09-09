@@ -1,6 +1,6 @@
 # TMS Agent Service
 
-A READ-ONLY AI-powered customer support agent service built with FastAPI, OpenAI Swarm, and async SQLAlchemy.
+A READ-ONLY AI-powered customer support agent service built with FastAPI, OpenAI Agents SDK, and async SQLAlchemy.
 
 ## 🏗️ Architecture
 

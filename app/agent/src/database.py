@@ -55,8 +55,9 @@ async def init_db() -> None:
     """
     try:
         async with engine.begin() as conn:
-            # Test connection
-            await conn.execute("SELECT 1")
+            # Test connection using proper SQLAlchemy text() for raw SQL
+            from sqlalchemy import text
+            await conn.execute(text("SELECT 1"))
         logger.info("Database connection established successfully")
     except Exception as e:
         logger.error(f"Failed to connect to database: {e}")

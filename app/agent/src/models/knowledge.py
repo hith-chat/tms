@@ -35,7 +35,7 @@ class KnowledgeDocument(BaseModel):
     processed_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="processing")
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
     
     # Relationships
     chunks: Mapped[List["KnowledgeChunk"]] = relationship(
@@ -60,7 +60,7 @@ class KnowledgeChunk(BaseModel):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)  # Made nullable in migration 023
-    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
     
     # Relationships
     document: Mapped["KnowledgeDocument"] = relationship("KnowledgeDocument", back_populates="chunks")
@@ -116,7 +116,7 @@ class KnowledgeScrapedPage(BaseModel):
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
     embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)  # Made nullable in migration 023
-    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # Added in migration 024/026
     page_id: Mapped[Optional[UUID]] = mapped_column(
         UUID(as_uuid=True),
@@ -151,7 +151,7 @@ class KnowledgePage(BaseModel):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)
-    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
     first_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
     last_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
     scrape_count: Mapped[int] = mapped_column(Integer, default=1)

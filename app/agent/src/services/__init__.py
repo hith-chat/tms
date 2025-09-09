@@ -1,13 +1,9 @@
 """Services package initialization."""
 
 from .chat_service import ChatService
-from .knowledge_service import KnowledgeService
-from .ticket_service import TicketService
-from .swarm_service import SwarmService
+from .agent_service import AgentService
 
 __all__ = [
     "ChatService",
-    "KnowledgeService", 
-    "TicketService",
-    "SwarmService"
+    "AgentService"
 ]
