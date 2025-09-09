@@ -269,3 +269,5 @@ postgres-data/
 
 # Test outputs
 /app/backend/test/testdata/
+
+*.pyc
