@@ -13,7 +13,9 @@ class AuthService:
     
     def __init__(self):
         self.base_url = os.getenv("TMS_API_BASE_URL", "http://172.17.0.1:8080")
-        self.agent_secret = os.getenv("AI_AGENT_SECRET", "ai-agent-secret-key")
+        self.agent_secret = os.getenv("AI_AGENT_LOGIN_ACCESS_KEY", "your-super-ai-access-key")
+        self.ai_agent_email = os.getenv("AI_AGENT_EMAIL", "superai@acme.com")
+        self.ai_agent_password = os.getenv("AI_AGENT_PASSWORD", "superai123")
         self.auth_tokens = {}  # Cache tokens per tenant/project
     
     async def authenticate(self, tenant_id: str, project_id: str) -> Optional[str]:
@@ -38,8 +40,8 @@ class AuthService:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.base_url}/v1/auth/ai-agent/tenant/{tenant_id}/project/{project_id}/login",
-                    json={"agent_secret": self.agent_secret},
-                    headers={"Content-Type": "application/json"},
+                    json={"email": self.ai_agent_email ,"password": self.ai_agent_password},
+                    headers={"Content-Type": "application/json", "X-S2S-KEY": self.agent_secret},
                     timeout=10.0
                 )
                 

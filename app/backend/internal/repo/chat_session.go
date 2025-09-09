@@ -91,7 +91,6 @@ func (r *ChatSessionRepo) GetChatSessionByID(ctx context.Context, tenantID, sess
 
 // GetChatSessionByClientSessionOnlyByID gets a chat session by ID for any tenant (used for global agent operations)
 func (r *ChatSessionRepo) GetChatSessionByClientSessionID(ctx context.Context, clientSessionID string) (*models.ChatSession, error) {
-	fmt.Println("Fetching chat session for client session ID:", clientSessionID)
 	query := `
 		SELECT cs.id, cs.tenant_id, cs.project_id, cs.widget_id, cs.customer_id, cs.ticket_id,
 			   cs.status, cs.visitor_info, cs.assigned_agent_id, cs.assigned_at, cs.started_at, cs.ended_at, cs.client_session_id,

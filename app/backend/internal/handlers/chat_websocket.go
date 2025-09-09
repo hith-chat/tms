@@ -237,7 +237,7 @@ func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context
 	// Create agent request
 	request := service.ChatRequest{
 		Message:   content,
-		TenantID:  session.ProjectID.String(), // Using ProjectID as TenantID for now
+		TenantID:  session.TenantID.String(), // Using ProjectID as TenantID for now
 		ProjectID: session.ProjectID.String(),
 		SessionID: session.ID.String(),
 		UserID:    getStringValue(session.CustomerEmail), // Use customer email as user ID if available

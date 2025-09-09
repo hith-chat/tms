@@ -199,7 +199,8 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123      
-      - TMS_API_BASE_URL=http://backend:8080/api
+      - TMS_API_BASE_URL=http://backend:8080
+      - AI_AGENT_LOGIN_ACCESS_KEY=your-super-ai-access-key
       - TMS_API_KEY=your-tms-api-key
       - JWT_SECRET=your-jwt-secret-change-in-production
     depends_on:
