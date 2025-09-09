@@ -162,7 +162,6 @@ func main() {
 	// Chat handlers
 	chatWidgetHandler := handlers.NewChatWidgetHandler(chatWidgetService)
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
-	aiHandler := handlers.NewAIHandler(aiService)
 
 	// Knowledge management handlers
 	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
@@ -177,7 +176,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, aiHandler, knowledgeHandler, alarmHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -215,7 +214,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, aiHandler *handlers.AIHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -477,15 +476,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/sessions/:session_id/messages", chatSessionHandler.GetChatMessages)
 				chat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkAgentMessagesAsRead)
 				chat.GET("/sessions/:session_id/client/status", chatSessionHandler.IsCustomerOnline)
-
-				// AI assistant endpoints
-				chat.GET("/ai/status", aiHandler.GetAIStatus)
-				chat.GET("/ai/capabilities", aiHandler.GetAICapabilities)
-				chat.GET("/ai/metrics", aiHandler.GetAIMetrics)
-
-				// AI handoff endpoints
-				chat.POST("/handoff/:sessionId/accept", aiHandler.AcceptHandoff)
-				chat.POST("/handoff/:sessionId/decline", aiHandler.DeclineHandoff)
 
 			}
 
