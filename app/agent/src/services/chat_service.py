@@ -14,82 +14,33 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """Service for chat operations."""
     
-    async def get_or_create_session(
+    async def get_session_info(
         self,
         session: AsyncSession,
         session_id: str
-    ) -> ChatSession:
+    ) -> Optional[ChatSession]:
         """
-        Get existing session or create a new one.
+        Get existing session information (READ-ONLY).
         
         Args:
             session: Database session
             session_id: Unique session identifier
             
         Returns:
-            ChatSession object
+            ChatSession object if exists, None otherwise
         """
         try:
-            # Try to get existing session
-            query = select(ChatSession).where(ChatSession.session_id == session_id)
+            query = select(ChatSession).where(ChatSession.session_id == session_id)  # session_id maps to client_session_id
             result = await session.execute(query)
             chat_session = result.scalar_one_or_none()
-            
-            if not chat_session:
-                # Create new session
-                chat_session = ChatSession(session_id=session_id)
-                session.add(chat_session)
-                await session.commit()
-                await session.refresh(chat_session)
-                logger.info(f"Created new chat session: {session_id}")
-            
             return chat_session
             
         except Exception as e:
-            await session.rollback()
-            logger.error(f"Error getting/creating session {session_id}: {e}")
-            raise
+            logger.error(f"Error getting session {session_id}: {e}")
+            return None
     
-    async def save_message(
-        self,
-        session: AsyncSession,
-        session_id: str,
-        role: str,
-        content: str
-    ) -> ChatMessage:
-        """
-        Save a message to the database.
-        
-        Args:
-            session: Database session
-            session_id: Chat session ID
-            role: Message role (user, assistant, system)
-            content: Message content
-            
-        Returns:
-            Created ChatMessage object
-        """
-        try:
-            # Ensure session exists
-            await self.get_or_create_session(session, session_id)
-            
-            # Create message
-            message = ChatMessage(
-                session_id=session_id,
-                role=role,
-                content=content
-            )
-            
-            session.add(message)
-            await session.commit()
-            await session.refresh(message)
-            
-            return message
-            
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Error saving message for session {session_id}: {e}")
-            raise
+    # REMOVED: save_message, update_contact_info methods 
+    # Agent is READ-ONLY and doesn't perform database writes
     
     async def get_recent_messages(
         self,
@@ -126,49 +77,7 @@ class ChatService:
             logger.error(f"Error fetching messages for session {session_id}: {e}")
             return []
     
-    async def update_contact_info(
-        self,
-        session: AsyncSession,
-        session_id: str,
-        contact_info: ContactInfoUpdate
-    ) -> bool:
-        """
-        Update contact information for a session.
-        
-        Args:
-            session: Database session
-            session_id: Chat session ID
-            contact_info: Contact information to update
-            
-        Returns:
-            True if updated successfully, False otherwise
-        """
-        try:
-            # Get session
-            query = select(ChatSession).where(ChatSession.session_id == session_id)
-            result = await session.execute(query)
-            chat_session = result.scalar_one_or_none()
-            
-            if not chat_session:
-                logger.warning(f"Session {session_id} not found for contact update")
-                return False
-            
-            # Update fields that are provided
-            if contact_info.email is not None:
-                chat_session.email = contact_info.email
-            if contact_info.phone is not None:
-                chat_session.phone = contact_info.phone
-            if contact_info.name is not None:
-                chat_session.name = contact_info.name
-            
-            await session.commit()
-            logger.info(f"Updated contact info for session {session_id}")
-            return True
-            
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Error updating contact info for session {session_id}: {e}")
-            return False
+
     
     async def get_session_messages(
         self,

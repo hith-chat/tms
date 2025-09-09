@@ -16,7 +16,7 @@ class KnowledgeService:
     """Service for knowledge base operations."""
     
     def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        self.openai_client = AsyncOpenAI(api_key=config.AI_API_KEY)
     
     async def search_knowledge_base(
         self,

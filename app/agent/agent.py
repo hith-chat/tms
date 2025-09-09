@@ -27,7 +27,7 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "chatdb")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+AI_API_KEY = os.getenv("AI_API_KEY")
 
 # ============== Data Models ==============
 @dataclass
@@ -57,7 +57,7 @@ class ContactInfo(BaseModel):
 class DatabaseManager:
     def __init__(self):
         self.pool = None
-        self.openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        self.openai_client = AsyncOpenAI(api_key=AI_API_KEY)
     
     async def connect(self):
         """Create connection pool"""

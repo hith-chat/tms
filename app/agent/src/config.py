@@ -14,7 +14,10 @@ class Config:
     )
     
     # OpenAI Configuration
-    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    AI_API_KEY: Optional[str] = os.getenv("AI_API_KEY")
+    
+    # TMS API Configuration
+    TMS_API_BASE_URL: str = os.getenv("TMS_API_BASE_URL", "https://tms.bareuptime.co")
     
     # Application Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")
@@ -32,8 +35,8 @@ class Config:
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration."""
-        if not cls.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
+        if not cls.AI_API_KEY:
+            raise ValueError("AI_API_KEY environment variable is required")
 
 
 # Global configuration instance
