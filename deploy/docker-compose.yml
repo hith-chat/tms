@@ -187,7 +187,7 @@ services:
   ai-agent-new:
     build:
       context: ../app/ai-agent
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: tms-ai-agent
     environment:
       - PORT=8090
