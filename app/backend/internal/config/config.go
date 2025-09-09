@@ -266,6 +266,9 @@ func Load() (*Config, error) {
 		origins := strings.Split(corsOriginsStr, ",")
 		for i, origin := range origins {
 			origins[i] = strings.TrimSpace(origin)
+			if origins[i] == `""` { // literal two quotes
+				origins[i] = ""
+			}
 		}
 		config.CORS.AllowedOrigins = origins
 	}

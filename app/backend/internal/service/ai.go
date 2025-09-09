@@ -32,9 +32,6 @@ type AIService struct {
 
 // NewAIService creates a new AI service instance
 func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *ws.ConnectionManager, howlingAlarmService *HowlingAlarmService) *AIService {
-	fmt.Println("Creating AI Service")
-	fmt.Println("AI API Key:", cfg.APIKey)
-	fmt.Println("Agentic Behavior Enabled:", agenticConfig.Enabled)
 	return &AIService{
 		config:              cfg,
 		agenticConfig:       agenticConfig,
