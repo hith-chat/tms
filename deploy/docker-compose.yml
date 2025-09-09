@@ -135,6 +135,7 @@ services:
       - CORS_ALLOW_CREDENTIALS=true
       - AI_AGENT_LOGIN_ACCESS_KEY=your-super-ai-access-key
       - AI_AGENT_SERVICE_URL=http://ai-agent-new:8090
+      - TMS_DISABLE_CONFIG_FILE=true
     ports:
       - "8080:8080"
     depends_on:
