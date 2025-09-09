@@ -36,16 +36,16 @@ func (s *KnowledgeService) SearchKnowledgeBase(ctx context.Context, tenantID, pr
 		if err == sql.ErrNoRows {
 			defaultSettings := &models.KnowledgeSettings{
 				ID:                  uuid.New(),
-				TenantID:           tenantID,
-				ProjectID:          projectID,
-				Enabled:            true, // Enable by default
-				EmbeddingModel:     "text-embedding-ada-002",
-				ChunkSize:          1000,
-				ChunkOverlap:       200,
-				MaxContextChunks:   5,
+				TenantID:            tenantID,
+				ProjectID:           projectID,
+				Enabled:             true, // Enable by default
+				EmbeddingModel:      "text-embedding-ada-002",
+				ChunkSize:           1000,
+				ChunkOverlap:        200,
+				MaxContextChunks:    5,
 				SimilarityThreshold: 0.7,
 			}
-			
+
 			err = s.knowledgeRepo.CreateSettings(defaultSettings)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create default knowledge settings: %w", err)
@@ -88,10 +88,10 @@ func (s *KnowledgeService) SearchKnowledgeBase(ctx context.Context, tenantID, pr
 	// Search knowledge base
 	fmt.Printf("Searching knowledge base with %d max results, threshold %.2f\n", maxResults, threshold)
 	results, err := s.knowledgeRepo.SearchKnowledgeBase(
-		tenantID, 
-		projectID, 
-		queryEmbedding, 
-		maxResults, 
+		tenantID,
+		projectID,
+		queryEmbedding,
+		maxResults,
 		threshold,
 		req.IncludeDocuments,
 		req.IncludePages,
@@ -178,29 +178,6 @@ func (s *KnowledgeService) UpdateKnowledgeSettings(ctx context.Context, projectI
 
 	// Return updated settings
 	return s.knowledgeRepo.GetSettings(projectID)
-}
-
-// CreateDefaultSettings creates default knowledge settings for a project
-func (s *KnowledgeService) CreateDefaultSettings(ctx context.Context, tenantID, projectID uuid.UUID) (*models.KnowledgeSettings, error) {
-	settings := &models.KnowledgeSettings{
-		ID:                  uuid.New(),
-		TenantID:            tenantID,
-		ProjectID:           projectID,
-		Enabled:             true,
-		EmbeddingModel:      "text-embedding-ada-002",
-		ChunkSize:           1000,
-		ChunkOverlap:        200,
-		MaxContextChunks:    5,
-		SimilarityThreshold: 0.7,
-		CreatedAt:           time.Now(),
-		UpdatedAt:           time.Now(),
-	}
-
-	if err := s.knowledgeRepo.CreateSettings(settings); err != nil {
-		return nil, fmt.Errorf("failed to create default settings: %w", err)
-	}
-
-	return settings, nil
 }
 
 // FormatContextForAI formats knowledge search results for AI context injection

@@ -7,8 +7,7 @@ from .knowledge import (
     KnowledgeChunk,
     KnowledgeScrapingJob,
     KnowledgeScrapedPage,
-    KnowledgePage,
-    KnowledgeSettings
+    KnowledgePage
 )
 from .agent import Agent, AgentSkill, Alarm, AlarmAcknowledgment
 
@@ -22,7 +21,6 @@ __all__ = [
     "KnowledgeScrapingJob", 
     "KnowledgeScrapedPage",
     "KnowledgePage",
-    "KnowledgeSettings",
     "Agent",
     "AgentSkill",
     "Alarm",

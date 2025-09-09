@@ -161,27 +161,3 @@ class KnowledgePage(BaseModel):
         "KnowledgeScrapedPage",
         back_populates="page"
     )
-
-
-class KnowledgeSettings(BaseModel):
-    """Knowledge base settings per project from migration 022."""
-    
-    __tablename__ = "knowledge_settings"
-    
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    project_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    embedding_model: Mapped[str] = mapped_column(String(100), nullable=False, default="text-embedding-ada-002")
-    chunk_size: Mapped[int] = mapped_column(Integer, nullable=False, default=1000)
-    chunk_overlap: Mapped[int] = mapped_column(Integer, nullable=False, default=200)
-    max_context_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    similarity_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.7)

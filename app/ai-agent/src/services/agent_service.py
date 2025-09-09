@@ -12,6 +12,7 @@ from openai import AsyncOpenAI
 from agents import Agent, Runner
 from agents.tool import FunctionTool 
 
+
 from ..models.chat import ChatSession, ChatMessage
 from .knowledge_service import KnowledgeService
 from .chat_service import ChatService
@@ -67,15 +68,22 @@ class AgentSession:
     current_agent: str = "support"
     context: Dict = field(default_factory=dict)
     temp_data: Dict = field(default_factory=dict)
+    history: List[Dict[str, str]] = field(default_factory=list)  # <---
+
 
 
 class AgentService:
     """Service for managing OpenAI Agents SDK-based AI agents."""
+
+    _current_session_id = None
+    _current_auth_token = None
+    _current_db_session = None
     
     def __init__(self):
-        # In the latest SDK, AsyncOpenAI IS the client - no wrapper needed!
-        self.agents_client = AsyncOpenAI(api_key=config.AI_API_KEY)
-        
+        # Initialize OpenAI client with API key
+        if not config.AI_API_KEY:
+            raise ValueError("AI_API_KEY is required for agent service")
+                    
         # Initialize services
         self.knowledge_service = KnowledgeService()
         self.chat_service = ChatService()
@@ -100,8 +108,14 @@ class AgentService:
                     return "I couldn't access the knowledge base at this moment."
                 
                 # Search knowledge base
-                results = await self.knowledge_service.search(
-                    db_session, params.query, params.max_results
+                session_id = getattr(self, '_current_session_id', None)
+                agent_session = self.sessions.get(session_id) if session_id else None
+                tenant_id = agent_session.tenant_id if agent_session else None
+                project_id = agent_session.project_id if agent_session else None
+                
+                results = await self.knowledge_service.search_knowledge_base(
+                    db_session, params.query, tenant_id=tenant_id, 
+                    project_id=project_id, limit=params.max_results
                 )
                 
                 if results:
@@ -126,7 +140,7 @@ class AgentService:
         )
         
         # Create ticket tool
-        async def create_ticket_impl(params: TicketParams) -> str:
+        async def create_ticket_impl(tool_context, params: TicketParams) -> str:
             """Create a support ticket in the system."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
@@ -135,18 +149,22 @@ class AgentService:
                 if not session_id or not db_session:
                     return "I couldn't access session information to create a ticket."
                 
-                # Get session auth context
-                auth_context = await self.auth_service.get_session_auth_context(
-                    db_session, session_id
-                )
+                # Get session context from agent session instead of auth service
+                agent_session = self.sessions.get(session_id) if session_id else None
                 
-                if not auth_context:
-                    return "I couldn't find your session information. Please refresh and try again."
+                if not agent_session:
+                    return "I couldn't access session information to create a ticket."
+                
+                tenant_id = agent_session.tenant_id
+                project_id = agent_session.project_id
+                
+                if not tenant_id or not project_id:
+                    return "I couldn't find your tenant and project information. Please refresh and try again."
                 
                 # Create ticket via API
                 ticket_result = await self.api_client.create_ticket(
-                    tenant_id=auth_context["tenant_id"],
-                    project_id=auth_context["project_id"], 
+                    tenant_id=tenant_id,
+                    project_id=project_id,
                     title=params.title,
                     description=params.description,
                     priority="medium",
@@ -176,7 +194,7 @@ class AgentService:
         )
         
         # Escalate to human tool
-        async def escalate_impl(params: EscalationParams) -> str:
+        async def escalate_impl(tool_context, params: EscalationParams) -> str:
             """Escalate session to human agents via TMS API."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
@@ -185,18 +203,22 @@ class AgentService:
                 if not session_id or not db_session:
                     return "I couldn't access session information for escalation."
                 
-                # Get session auth context
-                auth_context = await self.auth_service.get_session_auth_context(
-                    db_session, session_id
-                )
+                # Get session context from agent session instead of auth service
+                agent_session = self.sessions.get(session_id) if session_id else None
                 
-                if not auth_context:
-                    return "I couldn't find your session information. Please refresh and try again."
+                if not agent_session:
+                    return "I couldn't access session information for escalation."
+                
+                tenant_id = agent_session.tenant_id
+                project_id = agent_session.project_id
+                
+                if not tenant_id or not project_id:
+                    return "I couldn't find your tenant and project information. Please refresh and try again."
                 
                 # Escalate via API
                 escalation_result = await self.api_client.escalate_session(
-                    tenant_id=auth_context["tenant_id"],
-                    project_id=auth_context["project_id"],
+                    tenant_id=tenant_id,
+                    project_id=project_id,
                     session_id=session_id,
                     reason=params.reason,
                     priority="high"
@@ -227,7 +249,7 @@ class AgentService:
         )
         
         # Save contact info tool
-        async def save_contact_impl(params: ContactInfoParams) -> str:
+        async def save_contact_impl(tool_context, params: ContactInfoParams) -> str:
             """Save contact information via TMS API."""
             try:
                 contact_info = {}
@@ -245,18 +267,22 @@ class AgentService:
                 if not session_id or not db_session:
                     return "I couldn't access session information to save contact info."
                 
-                # Get session auth context
-                auth_context = await self.auth_service.get_session_auth_context(
-                    db_session, session_id
-                )
+                # Get session context from agent session instead of auth service
+                agent_session = self.sessions.get(session_id) if session_id else None
                 
-                if not auth_context:
-                    return "I couldn't find your session information. Please refresh and try again."
+                if not agent_session:
+                    return "I couldn't access session information to save contact info."
+                
+                tenant_id = agent_session.tenant_id
+                project_id = agent_session.project_id
+                
+                if not tenant_id or not project_id:
+                    return "I couldn't find your tenant and project information. Please refresh and try again."
                 
                 # Update contact info via API
                 result = await self.api_client.update_contact_info(
-                    tenant_id=auth_context["tenant_id"],
-                    project_id=auth_context["project_id"],
+                    tenant_id=tenant_id,
+                    project_id=project_id,
                     session_id=session_id,
                     contact_info=contact_info
                 )
@@ -361,11 +387,11 @@ Your approach:
         self,
         message: str,
         session_id: str,
-        user_id: str = None,
         auth_token: str = None,
         tenant_id: str = None,
         project_id: str = None,
-        metadata: dict = None
+        metadata: dict = None,
+        db_session: AsyncSession = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message and stream response using OpenAI Agents SDK.
@@ -373,7 +399,6 @@ Your approach:
         Args:
             message: User message
             session_id: Chat session ID  
-            user_id: User ID
             auth_token: Authentication token from Go service
             tenant_id: Tenant ID
             project_id: Project ID
@@ -387,8 +412,8 @@ Your approach:
             if session_id not in self.sessions:
                 self.sessions[session_id] = AgentSession(
                     session_id=session_id,
-                    tenant_id=tenant_id or "",
-                    project_id=project_id or ""
+                    tenant_id=tenant_id,
+                    project_id=project_id
                 )
             
             agent_session = self.sessions[session_id]
@@ -396,46 +421,36 @@ Your approach:
             # Set current context for function tools
             self._current_session_id = session_id
             self._current_auth_token = auth_token
+            self._current_db_session = db_session
             
             # Prepare messages for agent (simplified for SSE approach)
-            messages = [{"role": "user", "content": message}]
+            agent_session.history.append({"role": "user", "content": message})
+
             
             try:
-                # Use Runner with the AsyncOpenAI client directly
-                runner = Runner(client=self.agents_client)
-                
-                # Run the agent and stream response
-                result = await runner.run(
-                    agent=self.support_agent,
-                    messages=messages,
-                    stream=True  # Enable streaming
+                # Use Runner with the AsyncOpenAI client configured with API key
+                result = await Runner.run(
+                    starting_agent=self.support_agent,
+                    input=agent_session.history,
+                    context=agent_session
                 )
                 
-                response_content = ""
+                # response_content = ""
                 
-                # Stream the response
-                if hasattr(result, '__aiter__'):  # Check if result is async iterable
-                    async for chunk in result:
-                        if hasattr(chunk, 'content') and chunk.content:
-                            response_content += chunk.content
-                            yield {
-                                "type": "message",
-                                "content": chunk.content,
-                                "metadata": {"session_id": session_id}
-                            }
-                else:
-                    # Non-streaming fallback
-                    response_content = result.final_output if hasattr(result, 'final_output') else str(result)
-                    # Stream in chunks
-                    chunk_size = 50
-                    for i in range(0, len(response_content), chunk_size):
-                        chunk = response_content[i:i + chunk_size]
-                        yield {
-                            "type": "message",
-                            "content": chunk,
-                            "metadata": {"session_id": session_id}
-                        }
-                
+                # Get response text
+                response_content = result.final_output or ""
+
+                print(f"Agent response: {result.final_output}")
+                agent_session.history.append({"role": "assistant", "content": str(result.final_output or "")})
+
+
+                # Stream out in chunks (for SSE)
+                yield {
+                    "type": "message",
+                    "content": response_content,
+                    "metadata": {"session_id": session_id}
+                }
+
                 # Send final metadata
                 yield {
                     "type": "metadata",
@@ -453,18 +468,6 @@ Your approach:
             except Exception as agent_error:
                 logger.error(f"Agent execution error: {agent_error}")
                 # Fallback to direct OpenAI if Agents SDK fails
-                response_content = await self._generate_agent_response(
-                    agent_session, message, messages
-                )
-                # Stream the fallback response
-                chunk_size = 50
-                for i in range(0, len(response_content), chunk_size):
-                    chunk = response_content[i:i + chunk_size]
-                    yield {
-                        "type": "message",
-                        "content": chunk,
-                        "metadata": {"session_id": session_id}
-                    }
                 
                 yield {
                     "type": "metadata",
@@ -489,158 +492,3 @@ Your approach:
                 delattr(self, '_current_session_id')
             if hasattr(self, '_current_db_session'):
                 delattr(self, '_current_db_session')
-    
-    async def _generate_agent_response(
-        self, 
-        agent_session: AgentSession,
-        message: str,
-        messages: List[Dict]
-    ) -> str:
-        """
-        Fallback: Generate agent response using direct OpenAI API.
-        This is used when the Agents SDK has issues.
-        """
-        try:
-            # Define available functions for OpenAI function calling
-            functions = [
-                {
-                    "name": "search_knowledge",
-                    "description": "Search the knowledge base for relevant information",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string", 
-                                "description": "Search query for knowledge base"
-                            },
-                            "max_results": {
-                                "type": "integer",
-                                "description": "Maximum number of results to return",
-                                "default": 5
-                            }
-                        },
-                        "required": ["query"],
-                        "additionalProperties": False
-                    }
-                },
-                {
-                    "name": "create_ticket",
-                    "description": "Create a support ticket in the system",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "Ticket title"
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "Ticket description"
-                            }
-                        },
-                        "required": ["title", "description"],
-                        "additionalProperties": False
-                    }
-                },
-                {
-                    "name": "escalate_to_human",
-                    "description": "Escalate the case to a human agent",
-                    "parameters": {
-                        "type": "object", 
-                        "properties": {
-                            "reason": {
-                                "type": "string",
-                                "description": "Reason for escalation"
-                            }
-                        },
-                        "required": ["reason"],
-                        "additionalProperties": False
-                    }
-                },
-                {
-                    "name": "save_contact_info",
-                    "description": "Save customer contact information",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "email": {
-                                "type": "string",
-                                "description": "Email address",
-                                "default": ""
-                            },
-                            "phone": {
-                                "type": "string", 
-                                "description": "Phone number",
-                                "default": ""
-                            }
-                        },
-                        "additionalProperties": False
-                    }
-                }
-            ]
-            
-            # Get response from OpenAI with function calling
-            response = await self.agents_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self._get_support_instructions()
-                    }
-                ] + messages,
-                functions=functions,
-                function_call="auto",
-                temperature=0.7,
-                max_tokens=1000
-            )
-            
-            message_response = response.choices[0].message
-            
-            # Handle function calls
-            if message_response.function_call:
-                function_name = message_response.function_call.name
-                function_args = json.loads(message_response.function_call.arguments)
-                
-                # Execute the function
-                if function_name == "search_knowledge":
-                    params = KnowledgeSearchParams(**function_args)
-                    function_response = await self.search_knowledge_tool.function(params)
-                elif function_name == "create_ticket":
-                    params = TicketParams(**function_args)
-                    function_response = await self.create_ticket_tool.function(params)
-                elif function_name == "escalate_to_human":
-                    params = EscalationParams(**function_args)
-                    function_response = await self.escalate_tool.function(params)
-                elif function_name == "save_contact_info":
-                    params = ContactInfoParams(**function_args)
-                    function_response = await self.save_contact_tool.function(params)
-                else:
-                    function_response = f"Unknown function: {function_name}"
-                
-                # Get follow-up response from OpenAI
-                follow_up_response = await self.agents_client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "system", 
-                            "content": self._get_support_instructions()
-                        }
-                    ] + messages + [
-                        message_response.model_dump(),
-                        {
-                            "role": "function",
-                            "name": function_name,
-                            "content": function_response
-                        }
-                    ],
-                    temperature=0.7,
-                    max_tokens=1000
-                )
-                
-                return follow_up_response.choices[0].message.content
-            else:
-                return message_response.content
-                
-        except Exception as e:
-            logger.error(f"Response generation error: {e}")
-            return "I apologize, but I encountered an issue processing your request. Please try again or contact support directly."

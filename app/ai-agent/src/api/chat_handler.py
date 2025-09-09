@@ -8,8 +8,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import json
 
-from ..services.auth_service import AuthService
+from ..services.auth_service import auth_service
 from ..services.agent_service import AgentService
+from ..database import get_db_session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,10 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/process")
-async def process_chat_message(request: ChatRequest):
+async def process_chat_message(
+    request: ChatRequest, 
+    db_session: AsyncSession = Depends(get_db_session)
+):
     """
     Process chat message and return streaming SSE response.
     
@@ -45,16 +50,14 @@ async def process_chat_message(request: ChatRequest):
         logger.info(f"Processing chat message for session {request.session_id}")
         
         # Authenticate with Go service
-        auth_service = AuthService()
         auth_token = await auth_service.authenticate(request.tenant_id, request.project_id)
-        logger.info(f"Obtained auth token for tenant {request.tenant_id}, project {request.project_id}, auth_token: {auth_token}")
         
         if not auth_token:
             raise HTTPException(status_code=401, detail="Failed to authenticate with Go service")
         
         # Process message with streaming response
         return StreamingResponse(
-            _process_message_stream(request, auth_token),
+            _process_message_stream(request, auth_token, db_session),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -68,7 +71,7 @@ async def process_chat_message(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _process_message_stream(request: ChatRequest, auth_token: str) -> AsyncGenerator[str, None]:
+async def _process_message_stream(request: ChatRequest, auth_token: str, db_session: AsyncSession) -> AsyncGenerator[str, None]:
     """Generate SSE stream for chat message processing."""
     try:
         # Send initial thinking message
@@ -81,7 +84,7 @@ async def _process_message_stream(request: ChatRequest, auth_token: str) -> Asyn
         # Initialize agent service
         agent_service = AgentService()
         
-        # Process message with streaming
+        # Process message with streaming (now with database session)
         async for response in agent_service.process_message_stream(
             message=request.message,
             session_id=request.session_id,
@@ -89,7 +92,8 @@ async def _process_message_stream(request: ChatRequest, auth_token: str) -> Asyn
             auth_token=auth_token,
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            metadata=request.metadata
+            metadata=request.metadata,
+            db_session=db_session
         ):
             yield _format_sse_message(response)
         
@@ -111,7 +115,11 @@ async def _process_message_stream(request: ChatRequest, auth_token: str) -> Asyn
 
 def _format_sse_message(response: ChatResponse) -> str:
     """Format response as SSE message."""
-    data = response.dict()
+    logger.info(f"Formatting SSE message: {response}")
+    if isinstance(response, dict):
+        data = response
+    else:
+        data = response.model_dump()
     return f"data: {json.dumps(data)}\n\n"
 
 

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import config
 from .database import init_db, close_db
-from .api import chat_router, chat_handler_router, health_router
+from .api import chat_handler_router, health_router
 
 # Configure logging
 logging.basicConfig(
@@ -57,7 +57,6 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(chat_router)
 app.include_router(chat_handler_router)
 app.include_router(health_router)
 

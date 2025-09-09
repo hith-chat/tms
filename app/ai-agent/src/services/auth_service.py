@@ -38,8 +38,8 @@ class AuthService:
         
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.base_url}/v1/auth/ai-agent/tenant/{tenant_id}/project/{project_id}/login",
+                url = f"{self.base_url}/v1/auth/ai-agent/tenant/{tenant_id}/project/{project_id}/login"
+                response = await client.post(url,
                     json={"email": self.ai_agent_email ,"password": self.ai_agent_password},
                     headers={"Content-Type": "application/json", "X-S2S-KEY": self.agent_secret},
                     timeout=10.0
@@ -47,7 +47,7 @@ class AuthService:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    token = data.get("token")
+                    token = data.get("access_token")
                     if token:
                         # Cache the token
                         self.auth_tokens[cache_key] = token
@@ -63,27 +63,5 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error authenticating with Go service for {cache_key}: {e}")
             return None
-    
-    async def refresh_token(self, tenant_id: str, project_id: str) -> Optional[str]:
-        """
-        Refresh authentication token.
         
-        Args:
-            tenant_id: Tenant ID
-            project_id: Project ID
-            
-        Returns:
-            New authentication token or None if failed
-        """
-        cache_key = f"{tenant_id}:{project_id}"
-        
-        # Remove cached token to force refresh
-        if cache_key in self.auth_tokens:
-            del self.auth_tokens[cache_key]
-        
-        return await self.authenticate(tenant_id, project_id)
-    
-    def clear_token_cache(self):
-        """Clear all cached tokens."""
-        self.auth_tokens.clear()
-        logger.info("Cleared all cached auth tokens")
+auth_service = AuthService()
