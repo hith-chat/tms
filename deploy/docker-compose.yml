@@ -184,9 +184,9 @@ services:
       - tms-network
     restart: unless-stopped
 
-  ai-agent:
+  ai-agent-new:
     build:
-      context: ../app/agent
+      context: ../app/ai-agent
       dockerfile: Dockerfile
     container_name: tms-ai-agent
     environment:
@@ -209,7 +209,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ../app/agent:/app
+      - ../app/ai-agent:/app
     networks:
       - tms-network
     restart: unless-stopped
