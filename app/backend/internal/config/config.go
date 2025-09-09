@@ -28,10 +28,12 @@ type Config struct {
 
 // ServerConfig represents server configuration
 type ServerConfig struct {
-	Port         string        `mapstructure:"port"`
-	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout time.Duration `mapstructure:"write_timeout"`
-	IdleTimeout  time.Duration `mapstructure:"idle_timeout"`
+	Port                  string        `mapstructure:"port"`
+	ReadTimeout           time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout          time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout           time.Duration `mapstructure:"idle_timeout"`
+	Environment           string        `mapstructure:"environment"` // "development", "production", etc.
+	AiAgentLoginAccessKey string        `mapstructure:"ai_agent_login_access_key"`
 }
 
 // CORSConfig represents CORS configuration
@@ -59,7 +61,6 @@ type RedisConfig struct {
 	Password         string   `mapstructure:"password"`          // Password for Redis master
 	SentinelPassword string   `mapstructure:"sentinel_password"` // Password for Sentinel authentication
 	MasterName       string   `mapstructure:"master_name"`       // Redis master name
-	Environment      string   `mapstructure:"environment"`       // Environment (development, staging, production)
 }
 
 // MinIOConfig represents MinIO configuration
@@ -310,8 +311,8 @@ func setDefaults() {
 
 	// JWT defaults
 	viper.SetDefault("jwt.secret", "your-secret-key")
-	viper.SetDefault("jwt.access_token_expiry", "1h")
-	viper.SetDefault("jwt.refresh_token_expiry", "24h")
+	viper.SetDefault("jwt.access_token_expiry", "1d")
+	viper.SetDefault("jwt.refresh_token_expiry", "168h")
 
 	// Feature flags defaults
 	viper.SetDefault("features.enable_registration", true)

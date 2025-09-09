@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+import os
+import json
 from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import httpx
@@ -27,7 +29,7 @@ class AgentCredentials:
     """Agent login credentials."""
     email: str
     password: str
-    tenant_id: str
+    tenant_id: Optional[str] = None
 
 
 class AgentAuthService:
@@ -40,17 +42,22 @@ class AgentAuthService:
     
     def _load_agent_credentials(self):
         """Load agent credentials from configuration."""
-        # TODO: Load from environment variables or config file
-        # For now, using example credentials structure
-        self.credentials = {
-            # Format: tenant_id -> credentials
-            "550e8400-e29b-41d4-a716-446655440000": AgentCredentials(
-                email="admin@acme.com",
-                password="password",
-                tenant_id="550e8400-e29b-41d4-a716-446655440000"
+        # Try environment-based configuration.
+        # Supported formats (priority order):
+        # 1. AGENT_CREDENTIALS_JSON - JSON object mapping tenant_id -> {"email":..., "password":...}
+        # 2. AGENT_EMAIL + AGENT_PASSWORD + AGENT_TENANT_ID - single-agent config
+        # 3. Fallback example credentials for local/dev when nothing is provided.
+
+        
+        single_email = os.getenv("AGENT_EMAIL")
+        single_password = os.getenv("AGENT_PASSWORD")
+        single_tenant = os.getenv("AGENT_TENANT_ID") or "default-tenant"
+        if single_email and single_password and single_tenant:
+            self.credentials[single_tenant] = AgentCredentials(
+                email=single_email, password=single_password
             )
-        }
-    
+
+            
     async def get_authenticated_token(self, tenant_id: str) -> Optional[str]:
         """
         Get valid authentication token for a tenant.

@@ -44,6 +44,8 @@ func (s *ResendService) SendSignupVerificationEmail(ctx context.Context, toEmail
 		return nil
 	}
 
+	fmt.Println("Sending signup verification email to:", toEmail, s.environment, otp)
+
 	params := &resend.SendEmailRequest{
 		From:    s.fromEmail,
 		To:      []string{toEmail},

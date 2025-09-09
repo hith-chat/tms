@@ -89,11 +89,11 @@ func main() {
 		Password:         cfg.Redis.Password,
 		SentinelPassword: cfg.Redis.SentinelPassword,
 		MasterName:       cfg.Redis.MasterName,
-		Environment:      cfg.Redis.Environment,
+		Environment:      cfg.Server.Environment,
 	})
 
 	// Initialize services
-	resendService := service.NewResendService(&cfg.Resend, cfg.Redis.Environment)
+	resendService := service.NewResendService(&cfg.Resend, cfg.Server.Environment)
 
 	// Create feature flags for auth service
 	authFeatureFlags := &service.FeatureFlags{
@@ -145,7 +145,7 @@ func main() {
 	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService, connectionManager, howlingAlarmService)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService, publicService)
+	authHandler := handlers.NewAuthHandler(authService, publicService, cfg.Server.AiAgentLoginAccessKey)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	ticketHandler := handlers.NewTicketHandler(ticketService, messageService)
 	publicHandler := handlers.NewPublicHandler(publicService)
@@ -250,6 +250,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 
 		authRoutes.POST("/refresh", authHandler.Refresh)
 		authRoutes.POST("/login", authHandler.Login)
+		authRoutes.POST("/ai-agent/:tenant_id/:project_id/login", authHandler.AiAgentLogin)
 		authRoutes.POST("/signup", authHandler.SignUp)
 		authRoutes.POST("/verify-signup-otp", authHandler.VerifySignupOTP)
 		authRoutes.POST("/resend-signup-otp", authHandler.ResendSignupOTP)

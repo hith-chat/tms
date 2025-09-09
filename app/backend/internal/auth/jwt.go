@@ -46,7 +46,7 @@ func (s *Service) VerifyPassword(password, hash string) bool {
 }
 
 // GenerateAccessToken generates an access token for an agent
-func (s *Service) GenerateAccessToken(agentID, tenantID, email string, roleBindings map[string][]string) (string, error) {
+func (s *Service) GenerateAccessToken(agentID, tenantID, email string, roleBindings map[string][]string, expiry *time.Duration) (string, error) {
 	now := time.Now()
 	jti := uuid.New().String()
 
@@ -66,6 +66,11 @@ func (s *Service) GenerateAccessToken(agentID, tenantID, email string, roleBindi
 		}
 	}
 
+	expiresIn := s.accessTokenExpiry
+	if expiry != nil {
+		expiresIn = *expiry
+	}
+
 	// Create access token claims
 	accessClaims := &models.JWTClaims{
 		Sub:           agentID,
@@ -76,7 +81,7 @@ func (s *Service) GenerateAccessToken(agentID, tenantID, email string, roleBindi
 		RoleBindings:  roleBindings,
 		TokenType:     "access",
 		JTI:           jti,
-		Exp:           now.Add(s.accessTokenExpiry).Unix(),
+		Exp:           now.Add(expiresIn).Unix(),
 		Iat:           now.Unix(),
 		IsTenantAdmin: isTenantAdmin,
 	}
