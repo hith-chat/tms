@@ -116,15 +116,13 @@ services:
   backend:
     build:
       context: ../app/backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: tms-backend
+    env_file:
+      - ../app/backend/.env
     environment:
       - PORT=8080
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=tms
-      - DB_USER=tms
-      - DB_PASSWORD=tms123
+      - DATABASE_URL=postgres://tms:tms123@postgres:5432/tms?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
@@ -135,6 +133,8 @@ services:
       - ENABLE_APP_CORS=true
       - CORS_ORIGINS=https://taral.bareuptime.co,http://localhost:5173,http://localhost:5174
       - CORS_ALLOW_CREDENTIALS=true
+      - AI_AGENT_LOGIN_ACCESS_KEY=your-super-ai-access-key
+      - AI_AGENT_SERVICE_URL=http://ai-agent-new:8090
     ports:
       - "8080:8080"
     depends_on:
@@ -195,9 +195,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin123
-      
-      - AI_API_KEY=your-openai-api-key
+      - MINIO_SECRET_KEY=minioadmin123      
       - TMS_API_BASE_URL=http://backend:8080/v1
       - TMS_API_KEY=your-tms-api-key
       - JWT_SECRET=your-jwt-secret-change-in-production
