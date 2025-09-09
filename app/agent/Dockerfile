@@ -1,20 +1,26 @@
 # Dockerfile
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for PostgreSQL and compilation
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
     postgresql-client \
+    libpq-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
-COPY agent.py .
+# Copy application source
+COPY src/ ./src/
+
+# Set Python path
+ENV PYTHONPATH=/app
 
 # Run the application
-CMD ["uvicorn", "agent:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "5000"]
