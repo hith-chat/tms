@@ -47,6 +47,7 @@ async def process_chat_message(request: ChatRequest):
         # Authenticate with Go service
         auth_service = AuthService()
         auth_token = await auth_service.authenticate(request.tenant_id, request.project_id)
+        logger.info(f"Obtained auth token for tenant {request.tenant_id}, project {request.project_id}, auth_token: {auth_token}")
         
         if not auth_token:
             raise HTTPException(status_code=401, detail="Failed to authenticate with Go service")

@@ -169,7 +169,7 @@ func main() {
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
 	// Initialize agent client for Python agent service communication
-	agentClient := service.NewAgentClient()
+	agentClient := service.NewAgentClient(cfg.Knowledge.AiAgentServiceUrl)
 
 	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, agentClient, jwtAuth)
 	agentWebSocketHandler := handlers.NewAgentWebSocketHandler(chatSessionService, connectionManager, agentService)

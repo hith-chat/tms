@@ -157,6 +157,7 @@ type AIConfig struct {
 // KnowledgeConfig represents knowledge management configuration
 type KnowledgeConfig struct {
 	Enabled              bool          `mapstructure:"enabled"`
+	AiAgentServiceUrl    string        `mapstructure:"ai_agent_service_url"`
 	MaxFileSize          int64         `mapstructure:"max_file_size"`
 	MaxFilesPerProject   int           `mapstructure:"max_files_per_project"`
 	EmbeddingService     string        `mapstructure:"embedding_service"`
@@ -216,6 +217,7 @@ func Load() (*Config, error) {
 
 	// Knowledge management configuration bindings
 	viper.BindEnv("knowledge.enabled", "KNOWLEDGE_ENABLED")
+	viper.BindEnv("knowledge.ai_agent_service_url", "AI_AGENT_SERVICE_URL")
 	viper.BindEnv("knowledge.max_file_size", "KNOWLEDGE_MAX_FILE_SIZE")
 	viper.BindEnv("knowledge.max_files_per_project", "KNOWLEDGE_MAX_FILES_PER_PROJECT")
 	viper.BindEnv("knowledge.embedding_service", "KNOWLEDGE_EMBEDDING_SERVICE")
@@ -330,6 +332,7 @@ func setDefaults() {
 
 	// Knowledge management defaults
 	viper.SetDefault("knowledge.enabled", true)
+	viper.SetDefault("knowledge.ai_agent_service_url", "http://localhost:8090")
 	viper.SetDefault("knowledge.max_file_size", 10485760) // 10MB
 	viper.SetDefault("knowledge.max_files_per_project", 100)
 	viper.SetDefault("knowledge.embedding_service", "openai")

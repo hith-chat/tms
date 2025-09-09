@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -36,14 +35,10 @@ type AgentResponse struct {
 }
 
 // NewAgentClient creates a new agent client
-func NewAgentClient() *AiAgentClient {
-	baseURL := os.Getenv("AI_AGENT_SERVICE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:8001" // Default Python service URL
-	}
-
+func NewAgentClient(agentUrl string) *AiAgentClient {
+	fmt.Println("Initializing AiAgentClient with URL:", agentUrl)
 	return &AiAgentClient{
-		baseURL: baseURL,
+		baseURL: agentUrl,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},

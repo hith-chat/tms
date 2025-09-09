@@ -12,7 +12,7 @@ class AuthService:
     """Service for authenticating with Go service."""
     
     def __init__(self):
-        self.base_url = os.getenv("TMS_API_BASE_URL", "http://localhost:8080")
+        self.base_url = os.getenv("TMS_API_BASE_URL", "http://172.17.0.1:8080")
         self.agent_secret = os.getenv("AI_AGENT_SECRET", "ai-agent-secret-key")
         self.auth_tokens = {}  # Cache tokens per tenant/project
     
