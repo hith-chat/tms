@@ -1,9 +1,12 @@
-FROM golang:1.24-alpine AS dev
+FROM golang:1.24-alpine AS dev-backend
 
 RUN apk add --no-cache git
 
 # Install air for hot reload
 RUN go install github.com/air-verse/air@latest
+
+# Ensure Go binaries installed by `go install` are on PATH
+ENV PATH="/go/bin:${PATH}"
 
 WORKDIR /app
 
