@@ -8,17 +8,18 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openai import AsyncOpenAI
 from agents import Agent, Runner
 from agents.tool import FunctionTool 
 
 
 from ..models.chat import ChatSession, ChatMessage
 from .knowledge_service import KnowledgeService
-from .chat_service import ChatService
 from .agent_auth_service import AgentAuthService
-from .tms_api_client import TMSApiClient
+from .tms_api_client import TMSApiClient, tms_api_client
 from ..config import config
+from ..models.knowledge import (
+    KnowledgeSearchResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +87,7 @@ class AgentService:
                     
         # Initialize services
         self.knowledge_service = KnowledgeService()
-        self.chat_service = ChatService()
-        self.auth_service = AgentAuthService()
-        self.api_client = TMSApiClient(self.auth_service)
+        self.api_client: TMSApiClient = tms_api_client
         self.sessions: Dict[str, AgentSession] = {}
         
         # Initialize agents
@@ -102,10 +101,6 @@ class AgentService:
             """Search the knowledge base for relevant information."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
-                db_session = getattr(self, '_current_db_session', None)
-                
-                if not db_session:
-                    return "I couldn't access the knowledge base at this moment."
                 
                 # Search knowledge base
                 session_id = getattr(self, '_current_session_id', None)
@@ -113,17 +108,19 @@ class AgentService:
                 tenant_id = agent_session.tenant_id if agent_session else None
                 project_id = agent_session.project_id if agent_session else None
                 
-                results = await self.knowledge_service.search_knowledge_base(
-                    db_session, params.query, tenant_id=tenant_id, 
+                results: KnowledgeSearchResponse = await self.knowledge_service.search_knowledge_base(
+                    params.query, tenant_id=tenant_id, 
                     project_id=project_id, limit=params.max_results
                 )
                 
                 if results:
                     response = "I found the following relevant information:\n\n"
-                    for idx, result in enumerate(results[:3], 1):
-                        title = result.get('title', 'Information')
-                        content = result.get('content', '')
-                        response += f"**{idx}. {title}**\n{content}\n\n"
+                    for idx, result in enumerate(results.results):
+                        title = result.title or ""
+                        content = result.content
+                        source = result.source
+                        score = result.score
+                        response += f"**{idx}. Title{title}**\nContent:\n{content}\n\n Source: {source} (Score: {score:.2f})\n\n"
                     return response
                 else:
                     return "I couldn't find specific information about that in our knowledge base."
@@ -144,10 +141,7 @@ class AgentService:
             """Create a support ticket in the system."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
-                db_session = getattr(self, '_current_db_session', None)
                 
-                if not session_id or not db_session:
-                    return "I couldn't access session information to create a ticket."
                 
                 # Get session context from agent session instead of auth service
                 agent_session = self.sessions.get(session_id) if session_id else None

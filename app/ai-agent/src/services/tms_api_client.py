@@ -8,6 +8,7 @@ from datetime import datetime
 
 from ..config import config
 from .agent_auth_service import AgentAuthService
+from .auth_service import auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,7 @@ logger = logging.getLogger(__name__)
 class TMSApiClient:
     """Client for making authenticated requests to TMS APIs."""
     
-    def __init__(self, auth_service: AgentAuthService):
-        self.auth_service = auth_service
+    def __init__(self):
         self.base_url = config.TMS_API_BASE_URL
         self.timeout = 30.0
     
@@ -25,6 +25,7 @@ class TMSApiClient:
         method: str,
         endpoint: str,
         tenant_id: str,
+        project_id: str,
         data: Optional[Dict] = None,
         params: Optional[Dict] = None,
         retry_auth: bool = True
@@ -44,7 +45,7 @@ class TMSApiClient:
             API response data or None on failure
         """
         # Get authentication token
-        token = await self.auth_service.get_authenticated_token(tenant_id)
+        token = await auth_service.authenticate(tenant_id, project_id)
         if not token:
             logger.error(f"Failed to get auth token for tenant {tenant_id}")
             return None
@@ -68,25 +69,17 @@ class TMSApiClient:
                 )
                 
                 # Handle authentication errors
-                if response.status_code == 401 and retry_auth:
-                    logger.info(f"Auth failed, refreshing token for tenant {tenant_id}")
-                    new_token = await self.auth_service.refresh_token(tenant_id)
-                    if new_token:
-                        # Retry with new token
-                        headers["Authorization"] = f"Bearer {new_token}"
-                        response = await client.request(
-                            method=method,
-                            url=url,
-                            headers=headers,
-                            json=data,
-                            params=params,
-                            timeout=self.timeout
-                        )
+                if response.status_code >= 299:
+                    logger.error(
+                        f"TMS API {method} {endpoint} failed: {response.status_code} - {response.text}"
+                    )
+                    raise httpx.HTTPStatusError(
+                        f"Error response {response.status_code}",
+                        request=response.request,
+                        response=response
+                    )
                 
-                if response.status_code >= 400:
-                    logger.error(f"TMS API error {response.status_code} for {method} {endpoint}: {response.text}")
-                    return None
-                
+
                 return response.json() if response.content else {}
                 
         except Exception as e:
@@ -133,42 +126,13 @@ class TMSApiClient:
         
         logger.info(f"Creating ticket for tenant {tenant_id}, project {project_id}: {title}")
         
-        result = await self._make_request("POST", endpoint, tenant_id, ticket_data)
+        result = await self._make_request("POST", endpoint, tenant_id, project_id, ticket_data)
         
         if result:
             logger.info(f"Ticket created successfully: #{result.get('id', 'unknown')}")
         
         return result
     
-    async def get_project_info(self, tenant_id: str, project_id: str) -> Optional[Dict]:
-        """
-        Get project information.
-        
-        Args:
-            tenant_id: Tenant ID
-            project_id: Project ID
-            
-        Returns:
-            Project data or None on failure
-        """
-        endpoint = f"/v1/tenants/{tenant_id}/projects/{project_id}"
-        
-        return await self._make_request("GET", endpoint, tenant_id)
-    
-    async def list_projects(self, tenant_id: str) -> Optional[List[Dict]]:
-        """
-        List projects for a tenant.
-        
-        Args:
-            tenant_id: Tenant ID
-            
-        Returns:
-            List of projects or None on failure
-        """
-        endpoint = f"/v1/tenants/{tenant_id}/projects"
-        
-        result = await self._make_request("GET", endpoint, tenant_id)
-        return result.get("data", []) if result else None
     
     async def escalate_session(
         self,
@@ -260,3 +224,5 @@ class TMSApiClient:
         logger.info(f"Updating contact info for session {session_id}")
         
         return await self._make_request("PATCH", endpoint, tenant_id, contact_data)
+
+tms_api_client = TMSApiClient()

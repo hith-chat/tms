@@ -1,163 +1,43 @@
-"""Knowledge base related SQLAlchemy models based on existing migrations."""
+"""Pydantic request/response models for knowledge search operations.
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Text, Integer, Boolean, Float, DateTime, ForeignKey, BIGINT
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from pgvector.sqlalchemy import Vector
-from uuid import uuid4
-from datetime import datetime
+These are plain Pydantic models used for request validation and response
+serialization (not SQLAlchemy/DB models).
+"""
+
 from typing import Optional, Dict, Any, List
+from uuid import uuid4, UUID
 
-from .base import BaseModel
-
-
-class KnowledgeDocument(BaseModel):
-    """Knowledge document model from migration 022."""
-    
-    __tablename__ = "knowledge_documents"
-    
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), 
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    project_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    file_size: Mapped[int] = mapped_column(BIGINT, nullable=False)
-    file_path: Mapped[str] = mapped_column(Text, nullable=False)
-    original_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    processed_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="processing")
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
-    
-    # Relationships
-    chunks: Mapped[List["KnowledgeChunk"]] = relationship(
-        "KnowledgeChunk",
-        back_populates="document",
-        cascade="all, delete-orphan"
-    )
+from pydantic import BaseModel, Field
 
 
-class KnowledgeChunk(BaseModel):
-    """Knowledge chunk model for embeddings from migration 022."""
-    
-    __tablename__ = "knowledge_chunks"
-    
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    document_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("knowledge_documents.id", ondelete="CASCADE"),
-        nullable=False
+class KnowledgeSearchRequest(BaseModel):
+    """Model for knowledge search requests."""
+
+    query: str = Field(..., description="Search query string")
+    max_results: int = Field(5, ge=1, description="Maximum number of results to return")
+    similarity_score: float = Field(
+        0.75, ge=0.0, le=1.0, description="Minimum similarity score filter (0.0-1.0)"
     )
-    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)  # Made nullable in migration 023
-    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
-    
-    # Relationships
-    document: Mapped["KnowledgeDocument"] = relationship("KnowledgeDocument", back_populates="chunks")
+    include_documents: bool = Field(True, description="Whether to include document results")
+    include_pages: bool = Field(True, description="Whether to include page/webpage results")
 
 
-class KnowledgeScrapingJob(BaseModel):
-    """Web scraping job model from migration 022."""
-    
-    __tablename__ = "knowledge_scraping_jobs"
-    
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    project_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    url: Mapped[str] = mapped_column(Text, nullable=False)
-    max_depth: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
-    pages_scraped: Mapped[int] = mapped_column(Integer, default=0)
-    total_pages: Mapped[int] = mapped_column(Integer, default=0)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    
-    # Relationships
-    pages: Mapped[List["KnowledgeScrapedPage"]] = relationship(
-        "KnowledgeScrapedPage",
-        back_populates="job",
-        cascade="all, delete-orphan"
-    )
+class KnowledgeSearchResult(BaseModel):
+    """Model for an individual knowledge search result."""
+
+    id: UUID = Field(default_factory=uuid4, description="Unique identifier for the result")
+    type: str = Field(..., description='Result type, e.g. "document" or "webpage"')
+    content: str = Field(..., description="Extracted content of the result")
+    score: float = Field(..., description="Similarity or relevance score")
+    source: str = Field(..., description="Source filename or URL")
+    title: Optional[str] = Field(None, description="Optional title for the result")
+    meta: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary metadata")
 
 
-class KnowledgeScrapedPage(BaseModel):
-    """Scraped page model from migration 022."""
-    
-    __tablename__ = "knowledge_scraped_pages"
-    
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    job_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("knowledge_scraping_jobs.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    url: Mapped[str] = mapped_column(Text, nullable=False)
-    title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)  # Made nullable in migration 023
-    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
-    content_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # Added in migration 024/026
-    page_id: Mapped[Optional[UUID]] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("knowledge_pages.id", ondelete="SET NULL"),
-        nullable=True
-    )  # Added in migration 025
-    
-    # Relationships
-    job: Mapped["KnowledgeScrapingJob"] = relationship("KnowledgeScrapingJob", back_populates="pages")
-    page: Mapped[Optional["KnowledgePage"]] = relationship("KnowledgePage", back_populates="scraped_versions")
+class KnowledgeSearchResponse(BaseModel):
+    """Model for knowledge search responses."""
 
-
-class KnowledgePage(BaseModel):
-    """Deduplicated knowledge page model from migration 025."""
-    
-    __tablename__ = "knowledge_pages"
-    
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    project_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    url: Mapped[str] = mapped_column(Text, nullable=False)
-    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)
-    meta: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, name="metadata")
-    first_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
-    last_scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now())
-    scrape_count: Mapped[int] = mapped_column(Integer, default=1)
-    
-    # Relationships
-    scraped_versions: Mapped[List["KnowledgeScrapedPage"]] = relationship(
-        "KnowledgeScrapedPage",
-        back_populates="page"
-    )
+    results: List[KnowledgeSearchResult] = Field(default_factory=list)
+    total_count: int = Field(..., ge=0)
+    query: str = Field(..., description="Echo of the original query")
+    processed_in: str = Field(..., description="Human-readable processing time, e.g. '123ms'")

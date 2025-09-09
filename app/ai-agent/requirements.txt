@@ -29,3 +29,4 @@ structlog==23.2.0
 # Development and testing
 pytest==8.4.2
 pytest-asyncio==1.1.0
+cachetools==6.2.0

@@ -1,136 +1,91 @@
-"""Knowledge base search service using async SQLAlchemy."""
+"""Knowledge base search service that calls the TMS backend API.
+
+This service provides a small helper that calls the tenant-scoped knowledge
+search endpoint and returns parsed results suitable for the agent service.
+"""
 
 import logging
 from typing import List, Dict, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
-from openai import AsyncOpenAI
+import httpx
 
 from ..config import config
-from ..models.knowledge import KnowledgePage, KnowledgeScrapedPage
+from ..models.knowledge import (
+    KnowledgeSearchRequest,
+    KnowledgeSearchResponse,
+)
+from .auth_service import auth_service
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    """Service for knowledge base operations."""
-    
+    """Service for knowledge base operations that calls backend API."""
+
     def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=config.AI_API_KEY)
-    
+        # OpenAI client kept for future use (embeddings etc.)
+        self.base_url = config.TMS_API_BASE_URL
+
     async def search_knowledge_base(
         self,
-        session: AsyncSession,
         query: str,
         tenant_id: Optional[str] = None,
         project_id: Optional[str] = None,
-        limit: int = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Search knowledge base using vector similarity.
-        
+        limit: int = None,
+    ) -> KnowledgeSearchResponse:
+        """Search the TMS backend knowledge endpoint and return results.
+
         Args:
-            session: Database session
-            query: Search query
-            tenant_id: Optional tenant filter
-            project_id: Optional project filter
-            limit: Number of results to return
-            
+            session: Database session (unused here but kept for compatibility)
+            query: Search query string
+            tenant_id: Tenant UUID string
+            project_id: Project UUID string
+            limit: Maximum number of results to return
+
         Returns:
-            List of relevant knowledge base articles with similarity scores
+            List of result dicts (each matches KnowledgeSearchResult shape)
         """
-        try:
-            # Generate embedding for query
-            response = await self.openai_client.embeddings.create(
-                model="text-embedding-3-small",
-                input=query
-            )
-            query_embedding = response.data[0].embedding
-            
-            # Use configured limit if not provided
-            if limit is None:
-                limit = config.KB_MAX_RESULTS
-            
-            # Search in deduplicated pages table first
-            page_query = select(
-                KnowledgePage.url,
-                KnowledgePage.title,
-                KnowledgePage.content,
-                KnowledgePage.metadata,
-                text("1 - (embedding <=> :embedding::vector) as similarity")
-            ).where(
-                text("embedding IS NOT NULL")
-            ).order_by(
-                text("embedding <=> :embedding::vector")
-            ).limit(limit)
-            
-            # Add tenant/project filters if provided
-            if tenant_id:
-                page_query = page_query.where(KnowledgePage.tenant_id == tenant_id)
-            if project_id:
-                page_query = page_query.where(KnowledgePage.project_id == project_id)
-            
-            result = await session.execute(page_query, {"embedding": query_embedding})
-            pages = result.fetchall()
-            
-            # If no results in pages table, fall back to scraped pages
-            if not pages:
-                scraped_query = select(
-                    KnowledgeScrapedPage.url,
-                    KnowledgeScrapedPage.title, 
-                    KnowledgeScrapedPage.content,
-                    KnowledgeScrapedPage.metadata,
-                    text("1 - (embedding <=> :embedding::vector) as similarity")
-                ).where(
-                    text("embedding IS NOT NULL")
-                ).order_by(
-                    text("embedding <=> :embedding::vector")
-                ).limit(limit)
-                
-                result = await session.execute(scraped_query, {"embedding": query_embedding})
-                pages = result.fetchall()
-            
-            # Filter by similarity threshold and format results
-            results = []
-            for page in pages:
-                if page.similarity >= config.KB_SIMILARITY_THRESHOLD:
-                    results.append({
-                        "url": page.url,
-                        "title": page.title,
-                        "content": page.content,
-                        "metadata": page.metadata or {},
-                        "similarity": float(page.similarity)
-                    })
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Knowledge base search error: {e}")
+
+        if not tenant_id or not project_id:
+            logger.debug("Knowledge search called without tenant or project id")
             return []
-    
-    async def format_kb_response(self, articles: List[Dict[str, Any]]) -> Optional[str]:
-        """
-        Format knowledge base articles into a response.
-        
-        Args:
-            articles: List of knowledge base articles
-            
-        Returns:
-            Formatted response string or None if no relevant articles
-        """
-        if not articles:
-            return None
-        
-        # Check if the top result meets the threshold
-        if articles[0].get('similarity', 0) < config.KB_SIMILARITY_THRESHOLD:
-            return None
-        
-        # Format response from KB articles
-        response = "Based on our knowledge base:\n\n"
-        for article in articles[:2]:  # Use top 2 results
-            metadata = article.get('metadata', {})
-            title = metadata.get('title', article.get('title', 'Information'))
-            response += f"**{title}**\n"
-            response += f"{article['content']}\n\n"
-        
-        return response
+
+        # Build request model
+        req = KnowledgeSearchRequest(
+            query=query,
+            max_results=limit or config.KB_MAX_RESULTS,
+            similarity_score=getattr(config, "KB_SIMILARITY_THRESHOLD", 0.7),
+            include_documents=True,
+            include_pages=True,
+        )
+
+        url = f"{self.base_url}/v1/tenants/{tenant_id}/projects/{project_id}/knowledge/search"
+
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+        auth_token = auth_service.authenticate(tenant_id, project_id)
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(url, json=req.dict(), headers=headers)
+
+                if resp.status_code >= 400:
+                    logger.error(f"Knowledge API error {resp.status_code}: {resp.text}")
+                    return []
+
+                data = resp.json() if resp.content else {}
+
+                try:
+                    parsed = KnowledgeSearchResponse.model_validate(data)
+                    return parsed
+                except Exception as e:
+                    logger.error(f"Failed to parse knowledge response: {e}")
+                    # best effort fallback
+                    if isinstance(data, dict):
+                        return data.get("results", [])
+                    return []
+
+        except Exception as e:
+            logger.error(f"Knowledge search request failed: {e}")
+            return []
