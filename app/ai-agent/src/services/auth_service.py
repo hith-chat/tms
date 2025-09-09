@@ -1,0 +1,87 @@
+"""Authentication service for communicating with Go service."""
+
+import logging
+import httpx
+import os
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+class AuthService:
+    """Service for authenticating with Go service."""
+    
+    def __init__(self):
+        self.base_url = os.getenv("TMS_API_BASE_URL", "http://localhost:8080")
+        self.agent_secret = os.getenv("AI_AGENT_SECRET", "ai-agent-secret-key")
+        self.auth_tokens = {}  # Cache tokens per tenant/project
+    
+    async def authenticate(self, tenant_id: str, project_id: str) -> Optional[str]:
+        """
+        Authenticate with Go service and get auth token.
+        
+        Args:
+            tenant_id: Tenant ID
+            project_id: Project ID
+            
+        Returns:
+            Authentication token or None if failed
+        """
+        cache_key = f"{tenant_id}:{project_id}"
+        
+        # Check if we have a cached token
+        if cache_key in self.auth_tokens:
+            logger.info(f"Using cached auth token for {cache_key}")
+            return self.auth_tokens[cache_key]
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/v1/auth/ai-agent/{tenant_id}/{project_id}/login",
+                    json={"agent_secret": self.agent_secret},
+                    headers={"Content-Type": "application/json"},
+                    timeout=10.0
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    token = data.get("token")
+                    if token:
+                        # Cache the token
+                        self.auth_tokens[cache_key] = token
+                        logger.info(f"Successfully authenticated for {cache_key}")
+                        return token
+                    else:
+                        logger.error(f"No token in response for {cache_key}")
+                        return None
+                else:
+                    logger.error(f"Authentication failed for {cache_key}: {response.status_code} - {response.text}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Error authenticating with Go service for {cache_key}: {e}")
+            return None
+    
+    async def refresh_token(self, tenant_id: str, project_id: str) -> Optional[str]:
+        """
+        Refresh authentication token.
+        
+        Args:
+            tenant_id: Tenant ID
+            project_id: Project ID
+            
+        Returns:
+            New authentication token or None if failed
+        """
+        cache_key = f"{tenant_id}:{project_id}"
+        
+        # Remove cached token to force refresh
+        if cache_key in self.auth_tokens:
+            del self.auth_tokens[cache_key]
+        
+        return await self.authenticate(tenant_id, project_id)
+    
+    def clear_token_cache(self):
+        """Clear all cached tokens."""
+        self.auth_tokens.clear()
+        logger.info("Cleared all cached auth tokens")

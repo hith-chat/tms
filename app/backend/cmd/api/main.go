@@ -168,7 +168,10 @@ func main() {
 
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
-	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, jwtAuth)
+	// Initialize agent client for Python agent service communication
+	agentClient := service.NewAgentClient()
+
+	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, agentClient, jwtAuth)
 	agentWebSocketHandler := handlers.NewAgentWebSocketHandler(chatSessionService, connectionManager, agentService)
 
 	// Set up combined message handling - ChatWebSocketHandler handles all Redis pub/sub messages

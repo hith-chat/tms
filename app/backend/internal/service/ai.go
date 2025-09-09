@@ -209,6 +209,43 @@ func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.C
 	})
 }
 
+func (s *AIService) processComplexMessageThroughAgent(ctx context.Context, session *models.ChatSession, messageContent, connID string) (*models.ChatMessage, error) {
+	// Get conversation history
+	messages, err := s.chatSessionService.GetChatMessages(ctx, session.TenantID, session.ProjectID, session.ID, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation history: %w", err)
+	}
+
+	// Convert to slice and limit to recent messages
+	var recentMessages []models.ChatMessage
+	messageCount := len(messages)
+	startIdx := 0
+	if messageCount > 20 {
+		startIdx = messageCount - 20
+	}
+
+	for i := startIdx; i < messageCount; i++ {
+		if messages[i] != nil {
+			recentMessages = append(recentMessages, *messages[i])
+		}
+	}
+
+	// Generate AI response with knowledge context
+	response, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
+	if err != nil {
+		fmt.Println("Error generating AI response:", err.Error())
+		return nil, fmt.Errorf("failed to generate AI response: %w", err)
+	}
+
+	fmt.Println("Response from ai -", response)
+
+	// Send the AI response
+	return s.sendAIResponse(ctx, session, connID, response, map[string]interface{}{
+		"ai_generated":  true,
+		"response_type": "knowledge_based",
+	})
+}
+
 // processComplexMessage handles non-greeting messages using AI and knowledge base
 func (s *AIService) processComplexMessage(ctx context.Context, session *models.ChatSession, messageContent, connID string) (*models.ChatMessage, error) {
 	// Get conversation history

@@ -359,68 +359,52 @@ Your approach:
     
     async def process_message_stream(
         self,
-        db_session: AsyncSession,
+        message: str,
         session_id: str,
-        message: str
-    ) -> AsyncGenerator[str, None]:
+        user_id: str = None,
+        auth_token: str = None,
+        tenant_id: str = None,
+        project_id: str = None,
+        metadata: dict = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message and stream response using OpenAI Agents SDK.
         
         Args:
-            db_session: Database session
-            session_id: Chat session ID  
             message: User message
+            session_id: Chat session ID  
+            user_id: User ID
+            auth_token: Authentication token from Go service
+            tenant_id: Tenant ID
+            project_id: Project ID
+            metadata: Additional metadata
             
         Yields:
-            Formatted SSE chunks with response data
+            Response dictionaries for SSE formatting
         """
         try:
             # Get or create agent session
             if session_id not in self.sessions:
-                # Get auth context to get tenant and project IDs
-                auth_context = await self.auth_service.get_session_auth_context(
-                    db_session, session_id
+                self.sessions[session_id] = AgentSession(
+                    session_id=session_id,
+                    tenant_id=tenant_id or "",
+                    project_id=project_id or ""
                 )
-                if auth_context:
-                    self.sessions[session_id] = AgentSession(
-                        session_id=session_id,
-                        tenant_id=auth_context.get("tenant_id", ""),
-                        project_id=auth_context.get("project_id", "")
-                    )
-                else:
-                    # Fallback if no auth context
-                    self.sessions[session_id] = AgentSession(
-                        session_id=session_id,
-                        tenant_id="",
-                        project_id=""
-                    )
             
             agent_session = self.sessions[session_id]
             
             # Set current context for function tools
             self._current_session_id = session_id
-            self._current_db_session = db_session
+            self._current_auth_token = auth_token
             
-            # Get recent messages for context
-            recent_messages = await self.chat_service.get_recent_messages(
-                db_session, session_id, limit=10
-            )
-            
-            # Convert messages to format expected by Agents SDK
-            messages = []
-            for msg in recent_messages:
-                role = "user" if msg.get("role") == "user" else "assistant"
-                messages.append({"role": role, "content": msg.get("content", "")})
-            
-            # Add current message
-            messages.append({"role": "user", "content": message})
+            # Prepare messages for agent (simplified for SSE approach)
+            messages = [{"role": "user", "content": message}]
             
             try:
                 # Use Runner with the AsyncOpenAI client directly
                 runner = Runner(client=self.agents_client)
                 
                 # Run the agent and stream response
-                # The latest SDK supports streaming natively
                 result = await runner.run(
                     agent=self.support_agent,
                     messages=messages,
@@ -434,34 +418,37 @@ Your approach:
                     async for chunk in result:
                         if hasattr(chunk, 'content') and chunk.content:
                             response_content += chunk.content
-                            yield f"data: {json.dumps({'content': chunk.content})}\n\n"
+                            yield {
+                                "type": "message",
+                                "content": chunk.content,
+                                "metadata": {"session_id": session_id}
+                            }
                 else:
                     # Non-streaming fallback
                     response_content = result.final_output if hasattr(result, 'final_output') else str(result)
                     # Stream in chunks
-                    chunk_size = 20
+                    chunk_size = 50
                     for i in range(0, len(response_content), chunk_size):
                         chunk = response_content[i:i + chunk_size]
-                        yield f"data: {json.dumps({'content': chunk})}\n\n"
-                
-                # Save the message and response
-                await self.chat_service.save_message(
-                    db_session, session_id, "user", message
-                )
-                await self.chat_service.save_message(
-                    db_session, session_id, "assistant", response_content
-                )
+                        yield {
+                            "type": "message",
+                            "content": chunk,
+                            "metadata": {"session_id": session_id}
+                        }
                 
                 # Send final metadata
-                metadata = {
-                    "session_id": session_id,
-                    "context": {
-                        "escalated": agent_session.context.get('escalated', False),
-                        "has_ticket": 'ticket_id' in agent_session.context,
-                        "has_contact_info": 'contact_info' in agent_session.context
+                yield {
+                    "type": "metadata",
+                    "content": "Processing complete",
+                    "metadata": {
+                        "session_id": session_id,
+                        "context": {
+                            "escalated": agent_session.context.get('escalated', False),
+                            "has_ticket": 'ticket_id' in agent_session.context,
+                            "has_contact_info": 'contact_info' in agent_session.context
+                        }
                     }
                 }
-                yield f"data: {json.dumps({'metadata': metadata, 'done': True})}\n\n"
                 
             except Exception as agent_error:
                 logger.error(f"Agent execution error: {agent_error}")
@@ -470,26 +457,31 @@ Your approach:
                     agent_session, message, messages
                 )
                 # Stream the fallback response
-                chunk_size = 20
+                chunk_size = 50
                 for i in range(0, len(response_content), chunk_size):
                     chunk = response_content[i:i + chunk_size]
-                    yield f"data: {json.dumps({'content': chunk})}\n\n"
-                    
-                await self.chat_service.save_message(
-                    db_session, session_id, "user", message
-                )
-                await self.chat_service.save_message(
-                    db_session, session_id, "assistant", response_content
-                )
+                    yield {
+                        "type": "message",
+                        "content": chunk,
+                        "metadata": {"session_id": session_id}
+                    }
                 
-                metadata = {
-                    "session_id": session_id,
-                    "context": agent_session.context
+                yield {
+                    "type": "metadata",
+                    "content": "Processing complete (fallback)",
+                    "metadata": {
+                        "session_id": session_id,
+                        "context": agent_session.context
+                    }
                 }
-                yield f"data: {json.dumps({'metadata': metadata, 'done': True})}\n\n"
             
         except Exception as e:
             logger.error(f"Stream processing error: {e}")
+            yield {
+                "type": "error",
+                "content": f"Error processing message: {str(e)}",
+                "metadata": {"session_id": session_id}
+            }
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
             # Clean up context
