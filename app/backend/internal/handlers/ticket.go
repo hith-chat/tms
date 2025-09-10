@@ -41,12 +41,7 @@ func (h *TicketHandler) CreateTicket(c *gin.Context) {
 	}
 
 	tenantID := middleware.GetTenantID(c)
-	projectIDStr := c.Param("project_id")
-	projectID, err := uuid.Parse(projectIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project_id"})
-		return
-	}
+	projectID := middleware.GetProjectID(c)
 	agentID := middleware.GetAgentID(c)
 
 	ticket, err := h.ticketService.CreateTicket(c.Request.Context(), tenantID, projectID, agentID, req)

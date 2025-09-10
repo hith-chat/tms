@@ -14,17 +14,19 @@ import (
 
 // AuthHandler handles authentication endpoints
 type AuthHandler struct {
-	authService   *service.AuthService
-	publicService *service.PublicService
-	validator     *validator.Validate
+	authService           *service.AuthService
+	publicService         *service.PublicService
+	validator             *validator.Validate
+	AiAgentLoginAccessKey string
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService, aiAgentLoginAccessKey string) *AuthHandler {
 	return &AuthHandler{
-		authService:   authService,
-		publicService: publicService,
-		validator:     validator.New(),
+		authService:           authService,
+		publicService:         publicService,
+		validator:             validator.New(),
+		AiAgentLoginAccessKey: aiAgentLoginAccessKey,
 	}
 }
 
@@ -71,6 +73,76 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	response, err := h.authService.Login(c.Request.Context(), loginReq)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Determine primary role (use tenant_admin if available, otherwise first role found)
+	primaryRole := models.RoleAgent.String() // default
+	for _, roles := range response.RoleBindings {
+		for _, role := range roles {
+			if role == models.RoleTenantAdmin.String() {
+				primaryRole = role
+				break
+			}
+			if primaryRole == models.RoleAgent.String() { // Only set if we haven't found a better role
+				primaryRole = role
+			}
+		}
+		if primaryRole == models.RoleTenantAdmin.String() {
+			break
+		}
+	}
+
+	c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  response.AccessToken,
+		RefreshToken: response.RefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600, // 1 hour
+		User: User{
+			ID:       response.Agent.ID.String(),
+			Email:    response.Agent.Email,
+			Name:     response.Agent.Name,
+			Role:     primaryRole,
+			TenantID: response.Agent.TenantID.String(),
+		},
+	})
+}
+
+// Login handles user login
+func (h *AuthHandler) AiAgentLogin(c *gin.Context) {
+	var req LoginRequest
+	s2sKey := c.GetHeader("X-S2S-KEY")
+	if s2sKey == "" || s2sKey != h.AiAgentLoginAccessKey {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or missing S2S key"})
+		return
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
+		return
+	}
+
+	loginReq := service.LoginRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	}
+	tenantIDstr, errT := c.Params.Get("tenant_id")
+	fmt.Println("Tenant ID from param:", tenantIDstr, "Found:", errT)
+	if !errT || tenantIDstr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant ID is required"})
+		return
+	}
+	tenantID, _ := uuid.Parse(tenantIDstr)
+	projectID := middleware.GetProjectID(c)
+
+	response, err := h.authService.AiAgentLogin(c.Request.Context(), loginReq, tenantID, projectID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return

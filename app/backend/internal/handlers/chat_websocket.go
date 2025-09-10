@@ -30,15 +30,17 @@ type ChatWebSocketHandler struct {
 	connectionManager   *ws.ConnectionManager
 	notificationService *service.NotificationService
 	aiService           *service.AIService
+	aiAgentClient       *service.AiAgentClient
 	authService         *auth.Service
 }
 
-func NewChatWebSocketHandler(chatSessionService *service.ChatSessionService, connectionManager *ws.ConnectionManager, notificationService *service.NotificationService, aiService *service.AIService, authService *auth.Service) *ChatWebSocketHandler {
+func NewChatWebSocketHandler(chatSessionService *service.ChatSessionService, connectionManager *ws.ConnectionManager, notificationService *service.NotificationService, aiService *service.AIService, agentClient *service.AiAgentClient, authService *auth.Service) *ChatWebSocketHandler {
 	return &ChatWebSocketHandler{
 		chatSessionService:  chatSessionService,
 		connectionManager:   connectionManager,
 		notificationService: notificationService,
 		aiService:           aiService,
+		aiAgentClient:       agentClient,
 		authService:         authService,
 	}
 }
@@ -199,23 +201,148 @@ func (h *ChatWebSocketHandler) processVisitorChatMessage(ctx context.Context, se
 				connID,
 			)
 
-			// Process AI response if enabled and applicable
-			shouldRespondWithAI := h.aiService != nil && session.UseAI && session.AssignedAgentID == nil
-			fmt.Println("should respond with AI: h.aiService != nil ->", h.aiService != nil)
+			// Process AI response using agent client SSE
+			shouldRespondWithAI := h.aiAgentClient != nil && session.UseAI && session.AssignedAgentID == nil
+			fmt.Println("should respond with AI: h.agentClient != nil ->", h.aiAgentClient != nil)
 			fmt.Println("should respond with AI: session.UseAI ->", session.UseAI)
 			fmt.Println("should respond with AI: session.AssignedAgentID == nil ->", session.AssignedAgentID == nil)
 			fmt.Println("should respond with AI: overall ->", shouldRespondWithAI)
 
 			if shouldRespondWithAI {
 				go func() {
-					_, err := h.aiService.ProcessMessage(ctx, session, content, connID)
-					if err != nil {
-						log.Printf("AI processing error for session %s: %v", session.ID, err)
-						return
-					}
+					// _, err := h.aiService.ProcessMessage(ctx, session, content, connID)
+					// if err != nil {
+					// 	log.Printf("AI processing error for session %s: %v", session.ID, err)
+					// 	return
+					// }
+					fmt.Println("Processing visitor message with AI agent client... ", content)
+					h.processVisitorResponseUsingAi(ctx, session, content, connID)
 				}()
 			}
 		}
+	}
+}
+
+// getStringValue safely extracts string value from string pointer
+func getStringValue(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// processVisitorResponseUsingAi handles AI agent response using SSE streaming
+func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context, session *models.ChatSession, content string, connID string) {
+	// Create agent request
+	request := service.ChatRequest{
+		Message:   content,
+		TenantID:  session.TenantID.String(), // Using ProjectID as TenantID for now
+		ProjectID: session.ProjectID.String(),
+		SessionID: session.ID.String(),
+		UserID:    getStringValue(session.CustomerEmail), // Use customer email as user ID if available
+		Metadata: map[string]string{
+			"connection_id": connID,
+			"widget_id":     session.WidgetID.String(),
+		},
+	}
+
+	// Start streaming response from agent service
+	responseChan, errorChan := h.aiAgentClient.ProcessMessageStream(ctx, request)
+
+	// Handle the streaming response
+	for {
+		select {
+		case response, ok := <-responseChan:
+			fmt.Println("\nReceived from AI agent response channel:", response, ok)
+			if !ok {
+				// Channel closed, finish processing
+				return
+			}
+
+			// Handle different response types
+			switch response.Type {
+			case "message":
+				fmt.Println("\nReceived AI agent message chunk:", response.Content)
+				if response.Content != "" {
+					h.aiService.SendAIResponse(ctx, session, connID, response.Content, map[string]interface{}{
+						"ai_generated":  true,
+						"response_type": "knowledge_based",
+					})
+				}
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
+			case "thinking":
+				// Send typing indicator
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, true)
+			case "done", "metadata":
+				// Processing complete
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
+			case "error":
+				log.Printf("AI agent processing error for session %s: %s", session.ID, response.Content)
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
+				return
+			}
+
+		case err, ok := <-errorChan:
+			fmt.Println("\n\nReceived from AI agent error channel:", err, ok)
+			if !ok {
+				return
+			}
+			log.Printf("AI Agent client error for session %s: %v", session.ID, err)
+			h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
+			return
+
+		case <-ctx.Done():
+			log.Printf("Context cancelled for ai-agent processing in session %s", session.ID)
+			return
+		}
+	}
+}
+
+// sendStreamingResponse sends a streaming chunk to the WebSocket
+func (h *ChatWebSocketHandler) sendStreamingResponse(session *models.ChatSession, content string, isFirst bool, connectionID string) {
+	message := &ws.Message{
+		Type:      "chat_message",
+		SessionID: session.ID,
+		Data: json.RawMessage(fmt.Sprintf(`{
+			"content": %q,
+			"streaming": true,
+			"is_first": %t,
+			"session_id": %q,
+			"connection_id": %q,
+			"sender": "agent",
+			"sender_name": "AI Agent"
+		}`, content, isFirst, session.ID.String(), connectionID)),
+		FromType:  ws.ConnectionTypeAiAgent,
+		ProjectID: &session.ProjectID,
+	}
+
+	// Use the connection manager's proper messaging system instead of direct WebSocket writes
+	if err := h.connectionManager.DeliverWebSocketMessage(session.ID, message); err != nil {
+		log.Printf("Failed to send streaming chunk via connection manager: %v", err)
+	}
+}
+
+// saveAiAgentMessage saves the complete agent response as a chat message
+func (h *ChatWebSocketHandler) saveAiAgentMessage(ctx context.Context, session *models.ChatSession, content string, connectionID string) {
+	request := &models.SendChatMessageRequest{
+		Content: content,
+	}
+
+	// Save message as agent response
+	_, err := h.chatSessionService.SendMessageWithUuidDetails(
+		ctx,
+		session.TenantID,
+		session.ProjectID,
+		session.ID,
+		request,
+		"ai-agent",
+		nil, // No specific agent UUID for AI agent
+		"AI Agent",
+		connectionID,
+	)
+
+	if err != nil {
+		log.Printf("Failed to save agent message for session %s: %v", session.ID, err)
 	}
 }
 

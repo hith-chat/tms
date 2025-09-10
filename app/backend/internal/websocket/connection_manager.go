@@ -35,6 +35,7 @@ type Connection struct {
 	LastPingAt   time.Time       `json:"last_ping_at"`
 	ProjectIDs   []uuid.UUID     `json:"project_ids"`
 	WsConnection *websocket.Conn `json:"-"`
+	writeMutex   sync.Mutex      `json:"-"` // Mutex to synchronize WebSocket writes
 }
 
 type DeliveryType string
@@ -237,10 +238,20 @@ func (cm *ConnectionManager) DeliverWebSocketMessage(sessionID uuid.UUID, messag
 func (cm *ConnectionManager) SendToConnection(connID string, message *Message) {
 	// Since we don't store local connections, always publish to Redis for delivery
 	message.Timestamp = time.Now()
-	message.SessionID = cm.localConnections[connID].SessionID
 
-	if conn, exists := cm.localConnections[connID]; exists {
-		if err := conn.WsConnection.WriteJSON(message); err != nil {
+	cm.connMutex.RLock()
+	conn, exists := cm.localConnections[connID]
+	cm.connMutex.RUnlock()
+
+	if exists {
+		message.SessionID = conn.SessionID
+
+		// Use mutex to synchronize WebSocket writes and prevent concurrent write panic
+		conn.writeMutex.Lock()
+		err := conn.WsConnection.WriteJSON(message)
+		conn.writeMutex.Unlock()
+
+		if err != nil {
 			log.Error().Err(err).Str("connection_id", connID).Msg("Failed to deliver session message to local connection")
 			// Remove failed connection in background
 			go cm.RemoveConnection(connID)
@@ -248,7 +259,6 @@ func (cm *ConnectionManager) SendToConnection(connID string, message *Message) {
 			// log.Debug().Str("connection_id", connID).Str("session_id", message.SessionID.String()).Msg("Successfully delivered session message to local connection")
 		}
 	}
-
 }
 
 // SendToProjectAgents sends a message to all agents connected to a specific project
@@ -431,7 +441,12 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 				}
 			}
 
-			if err := conn.WsConnection.WriteJSON(message); err != nil {
+			// Use mutex to synchronize WebSocket writes and prevent concurrent write panic
+			conn.writeMutex.Lock()
+			err := conn.WsConnection.WriteJSON(message)
+			conn.writeMutex.Unlock()
+
+			if err != nil {
 				log.Error().Err(err).Str("connection_id", connID).Msg("Failed to deliver session message to local connection")
 				// Remove failed connection in background
 				go cm.RemoveConnection(connID)

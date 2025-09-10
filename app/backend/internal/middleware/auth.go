@@ -258,8 +258,10 @@ func CORSMiddleware(corsConfig *config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		// Determine allowed origin
+
 		allowedOrigin := ""
-		if len(corsConfig.AllowedOrigins) == 1 && corsConfig.AllowedOrigins[0] == "*" {
+		if (len(corsConfig.AllowedOrigins) == 0) ||
+			(len(corsConfig.AllowedOrigins) == 1 && corsConfig.AllowedOrigins[0] == "*") || (len(corsConfig.AllowedOrigins) == 1 && corsConfig.AllowedOrigins[0] == "") {
 			// If allowing all origins and not using credentials, use wildcard
 			if !corsConfig.AllowCredentials {
 				allowedOrigin = "*"

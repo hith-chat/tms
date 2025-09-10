@@ -234,6 +234,71 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		agent.TenantID.String(),
 		agent.Email,
 		s.convertRoleBindings(roleBindings),
+		nil, // Use default expiry
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	refreshToken, err := s.authService.GenerateRefreshToken(
+		agent.ID.String(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Remove password hash from response
+	agent.PasswordHash = nil
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Agent:        agent,
+		RoleBindings: s.convertRoleBindings(roleBindings),
+	}, nil
+}
+
+func (s *AuthService) AiAgentLogin(ctx context.Context, req LoginRequest, tenantID, projectID uuid.UUID) (*LoginResponse, error) {
+
+	// Get agent by email
+	agent, err := s.agentRepo.GetByEmailWithoutTenantID(ctx, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("agent not found: %w", err)
+	}
+
+	// Verify password
+	// if agent.PasswordHash == nil {
+	// 	return nil, fmt.Errorf("account not configured for password login")
+	// }
+
+	// err = bcrypt.CompareHashAndPassword([]byte(*agent.PasswordHash), []byte(req.Password))
+	// if err != nil {
+	// 	return nil, fmt.Errorf("invalid credentials")
+	// }
+
+	// Construct role bindings for AI agent login (project-scoped agent role)
+	roleBindings := []*db.RoleBinding{
+		{
+			AgentID:   agent.ID,
+			TenantID:  tenantID,
+			ProjectID: &projectID,
+			Role:      models.RoleTenantAdmin,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}
+	fmt.Println("Role bindings:", roleBindings)
+
+	// Generate tokens
+	accessToken, err := s.authService.GenerateAccessToken(
+		agent.ID.String(),
+		tenantID.String(),
+		agent.Email,
+		s.convertRoleBindings(roleBindings),
+		func() *time.Duration {
+			d := 48 * time.Hour
+			return &d
+		}(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -307,6 +372,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, req RefreshTokenRequest)
 		agent.TenantID.String(),
 		agent.Email,
 		s.convertRoleBindings(roleBindings),
+		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -413,6 +479,7 @@ func (s *AuthService) ConsumeMagicLink(ctx context.Context, req ConsumeMagicLink
 		agent.TenantID.String(),
 		agent.Email,
 		s.convertRoleBindings(roleBindings),
+		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -648,6 +715,7 @@ func (s *AuthService) VerifySignupOTP(ctx context.Context, req VerifySignupOTPRe
 		agent.TenantID.String(),
 		agent.Email,
 		s.convertRoleBindings(roleBindings),
+		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)

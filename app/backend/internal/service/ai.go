@@ -32,9 +32,6 @@ type AIService struct {
 
 // NewAIService creates a new AI service instance
 func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *ws.ConnectionManager, howlingAlarmService *HowlingAlarmService) *AIService {
-	fmt.Println("Creating AI Service")
-	fmt.Println("AI API Key:", cfg.APIKey)
-	fmt.Println("Agentic Behavior Enabled:", agenticConfig.Enabled)
 	return &AIService{
 		config:              cfg,
 		agenticConfig:       agenticConfig,
@@ -144,14 +141,14 @@ func (s *AIService) ProcessMessage(ctx context.Context, session *models.ChatSess
 	}
 
 	// For complex messages, use the existing AI processing flow
-	go s.processAiTyping(session, models.WSMessage{}, connID, true)
+	go s.ProcessAiTyping(session, models.WSMessage{}, connID, true)
 	resp, err := s.processComplexMessage(ctx, session, messageContent, connID)
-	go s.processAiTyping(session, models.WSMessage{}, connID, false)
+	go s.ProcessAiTyping(session, models.WSMessage{}, connID, false)
 	return resp, err
 }
 
 // processVisitorTyping handles visitor typing indicators
-func (h *AIService) processAiTyping(session *models.ChatSession, msg models.WSMessage, connID string, isTyping bool) {
+func (s *AIService) ProcessAiTyping(session *models.ChatSession, msg models.WSMessage, connID string, isTyping bool) {
 
 	msgType := "typing_stop"
 	if isTyping {
@@ -172,14 +169,14 @@ func (h *AIService) processAiTyping(session *models.ChatSession, msg models.WSMe
 		TenantID:  &session.TenantID,
 		AgentID:   session.AssignedAgentID,
 	}
-	h.connectionManager.DeliverWebSocketMessage(session.ID, broadcastMsg)
+	s.connectionManager.DeliverWebSocketMessage(session.ID, broadcastMsg)
 	typingDataAgent, _ := json.Marshal(map[string]interface{}{
 		"author_name": "AI",
 		"author_type": "agent",
 	})
 	broadcastMsg.Data = typingDataAgent
 	broadcastMsg.FromType = ws.ConnectionTypeAgent
-	go h.connectionManager.SendToConnection(connID, broadcastMsg)
+	go s.connectionManager.SendToConnection(connID, broadcastMsg)
 }
 
 // handleGreetingMessage processes simple greeting messages with brand-aware responses
@@ -202,10 +199,47 @@ func (s *AIService) handleGreetingMessage(ctx context.Context, session *models.C
 	}
 
 	// Send the greeting response
-	return s.sendAIResponse(ctx, session, connID, response, map[string]interface{}{
+	return s.SendAIResponse(ctx, session, connID, response, map[string]interface{}{
 		"ai_generated":  true,
 		"response_type": "greeting",
 		"brand_aware":   s.brandGreeting != nil,
+	})
+}
+
+func (s *AIService) processComplexMessageThroughAgent(ctx context.Context, session *models.ChatSession, messageContent, connID string) (*models.ChatMessage, error) {
+	// Get conversation history
+	messages, err := s.chatSessionService.GetChatMessages(ctx, session.TenantID, session.ProjectID, session.ID, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation history: %w", err)
+	}
+
+	// Convert to slice and limit to recent messages
+	var recentMessages []models.ChatMessage
+	messageCount := len(messages)
+	startIdx := 0
+	if messageCount > 20 {
+		startIdx = messageCount - 20
+	}
+
+	for i := startIdx; i < messageCount; i++ {
+		if messages[i] != nil {
+			recentMessages = append(recentMessages, *messages[i])
+		}
+	}
+
+	// Generate AI response with knowledge context
+	response, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
+	if err != nil {
+		fmt.Println("Error generating AI response:", err.Error())
+		return nil, fmt.Errorf("failed to generate AI response: %w", err)
+	}
+
+	fmt.Println("Response from ai -", response)
+
+	// Send the AI response
+	return s.SendAIResponse(ctx, session, connID, response, map[string]interface{}{
+		"ai_generated":  true,
+		"response_type": "knowledge_based",
 	})
 }
 
@@ -241,14 +275,14 @@ func (s *AIService) processComplexMessage(ctx context.Context, session *models.C
 	fmt.Println("Response from ai -", response)
 
 	// Send the AI response
-	return s.sendAIResponse(ctx, session, connID, response, map[string]interface{}{
+	return s.SendAIResponse(ctx, session, connID, response, map[string]interface{}{
 		"ai_generated":  true,
 		"response_type": "knowledge_based",
 	})
 }
 
-// sendAIResponse is a helper method to send AI responses
-func (s *AIService) sendAIResponse(ctx context.Context, session *models.ChatSession, connID, content string, metadata map[string]interface{}) (*models.ChatMessage, error) {
+// SendAIResponse is a helper method to send AI responses
+func (s *AIService) SendAIResponse(ctx context.Context, session *models.ChatSession, connID, content string, metadata map[string]interface{}) (*models.ChatMessage, error) {
 	// Send AI response
 	aiMessageReq := &models.SendChatMessageRequest{
 		Content:     content,

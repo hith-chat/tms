@@ -164,3 +164,31 @@ func (s *CustomerService) ListCustomers(ctx context.Context, tenantID, agentID u
 
 	return customers, nextCursor, nil
 }
+
+// DeleteCustomer deletes a customer if permissions allow
+func (s *CustomerService) DeleteCustomer(ctx context.Context, tenantID, customerID, agentID uuid.UUID) error {
+	// Check write permission
+	hasPermission, err := s.rbacService.CheckPermission(ctx, agentID, tenantID, uuid.Nil, rbac.PermCustomerWrite)
+	if err != nil {
+		return fmt.Errorf("failed to check permission: %w", err)
+	}
+	if !hasPermission {
+		return fmt.Errorf("insufficient permissions to delete customer")
+	}
+
+	// Ensure customer exists
+	cust, err := s.customerRepo.GetByID(ctx, tenantID, customerID)
+	if err != nil {
+		return fmt.Errorf("customer not found: %w", err)
+	}
+	if cust == nil {
+		return fmt.Errorf("customer not found")
+	}
+
+	// Delete
+	if err := s.customerRepo.Delete(ctx, tenantID, customerID); err != nil {
+		return fmt.Errorf("failed to delete customer: %w", err)
+	}
+
+	return nil
+}

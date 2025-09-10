@@ -89,11 +89,11 @@ func main() {
 		Password:         cfg.Redis.Password,
 		SentinelPassword: cfg.Redis.SentinelPassword,
 		MasterName:       cfg.Redis.MasterName,
-		Environment:      cfg.Redis.Environment,
+		Environment:      cfg.Server.Environment,
 	})
 
 	// Initialize services
-	resendService := service.NewResendService(&cfg.Resend, cfg.Redis.Environment)
+	resendService := service.NewResendService(&cfg.Resend, cfg.Server.Environment)
 
 	// Create feature flags for auth service
 	authFeatureFlags := &service.FeatureFlags{
@@ -104,7 +104,7 @@ func main() {
 	projectService := service.NewProjectService(projectRepo)
 	agentService := service.NewAgentService(agentRepo, projectRepo, rbacService)
 	tenantService := service.NewTenantService(tenantRepo, agentRepo, rbacService)
-	// customerService := service.NewCustomerService(customerRepo, rbacService) // Reserved for future use
+	customerService := service.NewCustomerService(customerRepo, rbacService)
 	messageService := service.NewMessageService(messageRepo, ticketRepo, customerRepo, agentRepo, rbacService)
 	publicService := service.NewPublicService(ticketRepo, messageRepo, jwtAuth, messageService)
 	ticketService := service.NewTicketService(ticketRepo, customerRepo, agentRepo, messageRepo, rbacService, mailService, publicService)
@@ -145,7 +145,7 @@ func main() {
 	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService, connectionManager, howlingAlarmService)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService, publicService)
+	authHandler := handlers.NewAuthHandler(authService, publicService, cfg.Server.AiAgentLoginAccessKey)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	ticketHandler := handlers.NewTicketHandler(ticketService, messageService)
 	publicHandler := handlers.NewPublicHandler(publicService)
@@ -153,6 +153,7 @@ func main() {
 	emailHandler := handlers.NewEmailHandler(emailRepo, redisService, mailService)
 	emailInboxHandler := handlers.NewEmailInboxHandler(emailInboxService)
 	agentHandler := handlers.NewAgentHandler(agentService)
+	customerHandler := handlers.NewCustomerHandler(customerService)
 	apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
 	settingsHandler := handlers.NewSettingsHandler(settingsRepo)
 	tenantHandler := handlers.NewTenantHandler(tenantService)
@@ -162,14 +163,16 @@ func main() {
 	// Chat handlers
 	chatWidgetHandler := handlers.NewChatWidgetHandler(chatWidgetService)
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
-	aiHandler := handlers.NewAIHandler(aiService)
 
 	// Knowledge management handlers
 	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
 
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
-	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, jwtAuth)
+	// Initialize agent client for Python agent service communication
+	agentClient := service.NewAgentClient(cfg.Knowledge.AiAgentServiceUrl)
+
+	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, agentClient, jwtAuth)
 	agentWebSocketHandler := handlers.NewAgentWebSocketHandler(chatSessionService, connectionManager, agentService)
 
 	// Set up combined message handling - ChatWebSocketHandler handles all Redis pub/sub messages
@@ -177,7 +180,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, aiHandler, knowledgeHandler, alarmHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -215,7 +218,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, aiHandler *handlers.AIHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -251,6 +254,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 
 		authRoutes.POST("/refresh", authHandler.Refresh)
 		authRoutes.POST("/login", authHandler.Login)
+		authRoutes.POST("/ai-agent/tenant/:tenant_id/project/:project_id/login", authHandler.AiAgentLogin)
 		authRoutes.POST("/signup", authHandler.SignUp)
 		authRoutes.POST("/verify-signup-otp", authHandler.VerifySignupOTP)
 		authRoutes.POST("/resend-signup-otp", authHandler.ResendSignupOTP)
@@ -315,6 +319,14 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 			// Agent notification preferences (Phase 4)
 			api.GET("/agents/:agent_id/notification-preferences", alarmHandler.GetNotificationPreferences)
 			api.PUT("/agents/:agent_id/notification-preferences", alarmHandler.UpdateNotificationPreferences)
+		}
+
+		// Customer management (tenant-level)
+		{
+			api.POST("/customers", middleware.TenantAdminMiddleware(), customerHandler.CreateCustomer)
+			api.PUT("/customers/:customer_id", middleware.TenantAdminMiddleware(), customerHandler.UpdateCustomer)
+			// Deletion should be protected by appropriate middleware/permissions; service will also enforce RBAC
+			api.DELETE("/customers/:customer_id", middleware.TenantAdminMiddleware(), customerHandler.DeleteCustomer)
 		}
 
 		// API Key management endpoints
@@ -477,15 +489,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/sessions/:session_id/messages", chatSessionHandler.GetChatMessages)
 				chat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkAgentMessagesAsRead)
 				chat.GET("/sessions/:session_id/client/status", chatSessionHandler.IsCustomerOnline)
-
-				// AI assistant endpoints
-				chat.GET("/ai/status", aiHandler.GetAIStatus)
-				chat.GET("/ai/capabilities", aiHandler.GetAICapabilities)
-				chat.GET("/ai/metrics", aiHandler.GetAIMetrics)
-
-				// AI handoff endpoints
-				chat.POST("/handoff/:sessionId/accept", aiHandler.AcceptHandoff)
-				chat.POST("/handoff/:sessionId/decline", aiHandler.DeclineHandoff)
 
 			}
 

@@ -116,15 +116,13 @@ services:
   backend:
     build:
       context: ../app/backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: tms-backend
+    env_file:
+      - ../app/backend/.env
     environment:
       - PORT=8080
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=tms
-      - DB_USER=tms
-      - DB_PASSWORD=tms123
+      - DATABASE_URL=postgres://tms:tms123@postgres:5432/tms?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
@@ -132,9 +130,12 @@ services:
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
       - JWT_SECRET=your-jwt-secret-change-in-production
-      - ENABLE_APP_CORS=true
-      - CORS_ORIGINS=https://taral.bareuptime.co,http://localhost:5173,http://localhost:5174
-      - CORS_ALLOW_CREDENTIALS=true
+      - ENABLE_APP_CORS="false"
+      - CORS_ALLOW_CREDENTIALS=false
+      - CORS_ORIGINS=""
+      - AI_AGENT_LOGIN_ACCESS_KEY=your-super-ai-access-key
+      - AI_AGENT_SERVICE_URL=http://ai-agent-new:8090
+      - TMS_DISABLE_CONFIG_FILE=true
     ports:
       - "8080:8080"
     depends_on:
@@ -183,6 +184,39 @@ services:
     networks:
       - tms-network
     restart: unless-stopped
+
+  ai-agent-new:
+    build:
+      context: ../app/ai-agent
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ../app/ai-agent/.env
+    container_name: tms-ai-agent
+    environment:
+      - PORT=8090
+      - DATABASE_URL=postgresql+asyncpg://tms:tms123@postgres:5432/tms
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123      
+      - TMS_API_BASE_URL=http://backend:8080
+      - AI_AGENT_LOGIN_ACCESS_KEY=your-super-ai-access-key
+      - TMS_API_KEY=your-tms-api-key
+      - JWT_SECRET=your-jwt-secret-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ../app/ai-agent:/app
+    networks:
+      - tms-network
+    restart: unless-stopped
+    ports:
+    - "8090:8090"
 
 volumes:
   postgres_data:

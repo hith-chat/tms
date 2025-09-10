@@ -81,18 +81,22 @@ type CreateTicketRequest struct {
 
 // CreateTicket creates a new ticket
 func (s *TicketService) CreateTicket(ctx context.Context, tenantID, projectID, agentID uuid.UUID, req CreateTicketRequest) (*db.Ticket, error) {
-	// Find or create customer
+	// Find customer by email. The repo returns (nil, nil) when not found,
+	// so handle that case explicitly. If the repo returns an error, fail.
 	customer, err := s.customerRepo.GetByEmail(ctx, tenantID, req.RequesterEmail)
 	if err != nil {
-		// Create new customer
+		return nil, fmt.Errorf("failed to lookup customer: %w", err)
+	}
+
+	// If customer doesn't exist, create one
+	if customer == nil {
 		customer = &db.Customer{
 			ID:       uuid.New(),
 			TenantID: tenantID,
 			Email:    req.RequesterEmail,
 			Name:     req.RequesterName,
 		}
-		err = s.customerRepo.Create(ctx, customer)
-		if err != nil {
+		if err := s.customerRepo.Create(ctx, customer); err != nil {
 			return nil, fmt.Errorf("failed to create customer: %w", err)
 		}
 	}
