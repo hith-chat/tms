@@ -245,12 +245,12 @@ func (cm *ConnectionManager) SendToConnection(connID string, message *Message) {
 
 	if exists {
 		message.SessionID = conn.SessionID
-		
+
 		// Use mutex to synchronize WebSocket writes and prevent concurrent write panic
 		conn.writeMutex.Lock()
 		err := conn.WsConnection.WriteJSON(message)
 		conn.writeMutex.Unlock()
-		
+
 		if err != nil {
 			log.Error().Err(err).Str("connection_id", connID).Msg("Failed to deliver session message to local connection")
 			// Remove failed connection in background
@@ -445,7 +445,7 @@ func (cm *ConnectionManager) deliverSessionMessage(message *Message) {
 			conn.writeMutex.Lock()
 			err := conn.WsConnection.WriteJSON(message)
 			conn.writeMutex.Unlock()
-			
+
 			if err != nil {
 				log.Error().Err(err).Str("connection_id", connID).Msg("Failed to deliver session message to local connection")
 				// Remove failed connection in background

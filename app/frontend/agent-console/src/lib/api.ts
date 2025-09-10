@@ -102,11 +102,14 @@ export interface Ticket {
 
 export interface CreateTicketRequest {
   subject: string
-  description?: string
+  initialMessage?: string
+  requestorName: string
+  requestorEmail: string
+  status?: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
   priority: 'low' | 'normal' | 'high' | 'urgent'
   type: 'question' | 'incident' | 'problem' | 'task'
   source: 'web' | 'email' | 'api' | 'phone' | 'chat'
-  customer_id: string
+  customer_id?: string
 }
 
 export interface EmailSettings {

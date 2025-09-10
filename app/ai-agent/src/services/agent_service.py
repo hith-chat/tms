@@ -82,7 +82,6 @@ class AgentService:
 
     _current_session_id = None
     _current_auth_token = None
-    _current_db_session = None
     
     def __init__(self):
         # Initialize OpenAI client with API key
@@ -225,12 +224,8 @@ class AgentService:
             """Escalate session to human agents via TMS API."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
-                db_session = getattr(self, '_current_db_session', None)
 
                 params = EscalationParams.model_validate_json(params)
-                
-                if not session_id or not db_session:
-                    return "I couldn't access session information for escalation."
                 
                 # Get session context from agent session instead of auth service
                 agent_session = self.sessions.get(session_id) if session_id else None
@@ -442,7 +437,6 @@ Your approach:
             # Set current context for function tools
             self._current_session_id = session_id
             self._current_auth_token = auth_token
-            self._current_db_session = db_session
             
             # Prepare messages for agent (simplified for SSE approach)
             agent_session.history.append({"role": "user", "content": message})
@@ -511,5 +505,3 @@ Your approach:
             # Clean up context
             if hasattr(self, '_current_session_id'):
                 delattr(self, '_current_session_id')
-            if hasattr(self, '_current_db_session'):
-                delattr(self, '_current_db_session')
