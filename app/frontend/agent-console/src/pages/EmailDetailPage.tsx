@@ -334,7 +334,7 @@ export function EmailDetailPage() {
   }
 
   return (
-    <div className="container mx-auto px-6 py-8 max-w-7xl">
+    <div className="container mx-auto px-6 py-8 max-w-7xl h-full flex flex-col">
       {/* Page Header */}
       <PageHeader>
         <PageHeaderBreadcrumb>
@@ -411,9 +411,10 @@ export function EmailDetailPage() {
       </PageHeader>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+      <div className="flex-1 min-h-0 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
         {/* Email Conversation */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 overflow-y-auto min-h-0 space-y-6 pr-1">
           <div className="space-y-4">
             {threadEmails.map((threadEmail) => (
               <DataCard key={threadEmail.id} className={threadEmail.id === email?.id ? 'ring-2 ring-primary/20' : ''}>
@@ -478,7 +479,7 @@ export function EmailDetailPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-6 min-h-0">
           {/* Email Details */}
           <DetailSection>
             <DetailSectionHeader>
@@ -529,6 +530,7 @@ export function EmailDetailPage() {
               </DetailSectionContent>
             </DetailSection>
           )}
+        </div>
         </div>
       </div>
 
