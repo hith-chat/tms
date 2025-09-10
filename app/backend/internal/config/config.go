@@ -316,7 +316,7 @@ func setDefaults() {
 
 	// JWT defaults
 	viper.SetDefault("jwt.secret", "your-secret-key")
-	viper.SetDefault("jwt.access_token_expiry", "1d")
+	viper.SetDefault("jwt.access_token_expiry", "24h")
 	viper.SetDefault("jwt.refresh_token_expiry", "168h")
 
 	// Feature flags defaults
