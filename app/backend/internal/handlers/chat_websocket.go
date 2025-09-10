@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -211,11 +210,11 @@ func (h *ChatWebSocketHandler) processVisitorChatMessage(ctx context.Context, se
 
 			if shouldRespondWithAI {
 				go func() {
-					_, err := h.aiService.ProcessMessage(ctx, session, content, connID)
-					if err != nil {
-						log.Printf("AI processing error for session %s: %v", session.ID, err)
-						return
-					}
+					// _, err := h.aiService.ProcessMessage(ctx, session, content, connID)
+					// if err != nil {
+					// 	log.Printf("AI processing error for session %s: %v", session.ID, err)
+					// 	return
+					// }
 					fmt.Println("Processing visitor message with AI agent client... ", content)
 					h.processVisitorResponseUsingAi(ctx, session, content, connID)
 				}()
@@ -233,7 +232,7 @@ func getStringValue(s *string) string {
 }
 
 // processVisitorResponseUsingAi handles AI agent response using SSE streaming
-func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context, session *models.ChatSession, content string, connectionID string) {
+func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context, session *models.ChatSession, content string, connID string) {
 	// Create agent request
 	request := service.ChatRequest{
 		Message:   content,
@@ -242,7 +241,7 @@ func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context
 		SessionID: session.ID.String(),
 		UserID:    getStringValue(session.CustomerEmail), // Use customer email as user ID if available
 		Metadata: map[string]string{
-			"connection_id": connectionID,
+			"connection_id": connID,
 			"widget_id":     session.WidgetID.String(),
 		},
 	}
@@ -251,50 +250,44 @@ func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context
 	responseChan, errorChan := h.aiAgentClient.ProcessMessageStream(ctx, request)
 
 	// Handle the streaming response
-	var responseContent strings.Builder
-	isFirstChunk := true
-
 	for {
 		select {
 		case response, ok := <-responseChan:
+			fmt.Println("\nReceived from AI agent response channel:", response, ok)
 			if !ok {
 				// Channel closed, finish processing
-				finalResponse := responseContent.String()
-				if finalResponse != "" {
-					// Save the complete AI response as a message
-					h.saveAiAgentMessage(ctx, session, finalResponse, connectionID)
-				}
 				return
 			}
 
 			// Handle different response types
 			switch response.Type {
 			case "message":
+				fmt.Println("\nReceived AI agent message chunk:", response.Content)
 				if response.Content != "" {
-					responseContent.WriteString(response.Content)
-
-					// Send streaming chunk to WebSocket
-					h.sendStreamingResponse(session, response.Content, isFirstChunk, connectionID)
-					isFirstChunk = false
+					h.aiService.SendAIResponse(ctx, session, connID, response.Content, map[string]interface{}{
+						"ai_generated":  true,
+						"response_type": "knowledge_based",
+					})
 				}
 			case "thinking":
 				// Send typing indicator
-				h.sendTypingIndicator(session, true, connectionID)
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, true)
 			case "done", "metadata":
 				// Processing complete
-				h.sendTypingIndicator(session, false, connectionID)
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
 			case "error":
 				log.Printf("AI agent processing error for session %s: %s", session.ID, response.Content)
-				h.sendTypingIndicator(session, false, connectionID)
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
 				return
 			}
 
 		case err, ok := <-errorChan:
+			fmt.Println("\n\nReceived from AI agent error channel:", err, ok)
 			if !ok {
 				return
 			}
 			log.Printf("AI Agent client error for session %s: %v", session.ID, err)
-			h.sendTypingIndicator(session, false, connectionID)
+			h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
 			return
 
 		case <-ctx.Done():
@@ -326,36 +319,6 @@ func (h *ChatWebSocketHandler) sendStreamingResponse(session *models.ChatSession
 	for _, conn := range sessionConnections {
 		if err := conn.WsConnection.WriteJSON(message); err != nil {
 			log.Printf("Failed to send streaming chunk: %v", err)
-		}
-	}
-}
-
-// sendTypingIndicator sends typing indicator to WebSocket
-func (h *ChatWebSocketHandler) sendTypingIndicator(session *models.ChatSession, isTyping bool, connectionID string) {
-	var msgType models.WSMessageType
-	if isTyping {
-		msgType = models.WSMsgTypeTypingStart
-	} else {
-		msgType = models.WSMsgTypeTypingStop
-	}
-
-	message := models.WSMessage{
-		Type: msgType,
-		Data: map[string]interface{}{
-			"session_id":    session.ID.String(),
-			"connection_id": connectionID,
-			"sender":        "agent",
-			"sender_name":   "AI Agent",
-		},
-		ClientSessionID: &connectionID,
-		ProjectID:       &session.ProjectID,
-	}
-
-	// Send to all connections for this session
-	sessionConnections, _ := h.connectionManager.GetSessionConnections(session.ID.String())
-	for _, conn := range sessionConnections {
-		if err := conn.WsConnection.WriteJSON(message); err != nil {
-			log.Printf("Failed to send typing indicator: %v", err)
 		}
 	}
 }

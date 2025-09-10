@@ -30,6 +30,7 @@ class ContactInfoParams(BaseModel):
     class Config:
         extra = "forbid"  # Strict mode - no additional properties
     
+    name: str = Field(default="", description="Full name")
     email: str = Field(default="", description="Email address")
     phone: str = Field(default="", description="Phone number")
 
@@ -154,13 +155,33 @@ class AgentService:
                 
                 if not tenant_id or not project_id:
                     return "I couldn't find your tenant and project information. Please refresh and try again."
-                
+                # ---- HARD GATE: require name + email before actual ticket creation ----
+                contact_info = agent_session.context.get("contact_info", {}) if agent_session else {}
+                name = (contact_info.get("name") or "").strip()
+                email = (contact_info.get("email") or "").strip()
+                if not name or not email:
+                    missing = []
+                    if not name: missing.append("full name")
+                    if not email: missing.append("email")
+                    need = " and ".join(missing)
+                    return (
+                        "ℹ️ Before I create your ticket, I need your "
+                        f"{need}. Please reply with:\n"
+                        "- Full name:\n"
+                        "- Email:\n\n"
+                        "I’ll save these and proceed immediately."
+                    )
+                # Create ticket via API (include reporter details inside description to preserve external API shape)
+                enriched_description = (
+                    f"{params.description}\n\n"
+                    f"— Reporter: {name} <{email}>"
+                )
                 # Create ticket via API
                 ticket_result = await self.api_client.create_ticket(
                     tenant_id=tenant_id,
                     project_id=project_id,
                     title=params.title,
-                    description=params.description,
+                    description=enriched_description,
                     priority="medium",
                     category="general"
                 )
@@ -172,7 +193,11 @@ class AgentService:
                     if session_id in self.sessions:
                         self.sessions[session_id].context['ticket_id'] = ticket_id
                     
-                    return f"✅ I've successfully created support ticket #{ticket_id}. Our team will review it and get back to you shortly."
+                    return (
+                        f"✅ I've created support ticket #{ticket_id}. "
+                        f"We’ll reach out to {name} at {email} if we need anything else."
+                    )
+               
                 else:
                     return "❌ I encountered an issue creating your support ticket. Please try again or contact support directly."
                     
@@ -247,6 +272,8 @@ class AgentService:
             """Save contact information via TMS API."""
             try:
                 contact_info = {}
+                if params.name:
+                    contact_info["name"] = params.name
                 if params.email:
                     contact_info["email"] = params.email
                 if params.phone:
@@ -256,10 +283,6 @@ class AgentService:
                     return "Please provide either an email address or phone number."
                 
                 session_id = getattr(self, '_current_session_id', None)
-                db_session = getattr(self, '_current_db_session', None)
-                
-                if not session_id or not db_session:
-                    return "I couldn't access session information to save contact info."
                 
                 # Get session context from agent session instead of auth service
                 agent_session = self.sessions.get(session_id) if session_id else None
@@ -287,7 +310,11 @@ class AgentService:
                         self.sessions[session_id].context['contact_info'] = contact_info
                     
                     contact_type = "email" if "email" in contact_info else "phone" if "phone" in contact_info else "contact"
-                    return f"✅ Thank you! I've saved your {contact_type} information securely. This will help us provide better support."
+                    # Prefer granular acknowledgment when both present
+                    if "name" in contact_info and "email" in contact_info:
+                        return "✅ Thanks! I’ve saved your full name and email for follow-up."
+                    contact_type = "email" if "email" in contact_info else "phone" if "phone" in contact_info else "contact"
+                    return f"✅ Thank you! I've saved your {contact_type} information securely."
                 else:
                     return "❌ I encountered an issue saving your contact information. Please try again or continue with your inquiry."
                     
@@ -351,6 +378,7 @@ Your capabilities:
 Guidelines:
 - Be professional, empathetic, and concise
 - Search the knowledge base first for common questions
+- **Before creating any ticket, collect and save the user's full name and email using save_contact_info. Do not call create_ticket until both are present in context.**
 - Create tickets for issues that need follow-up
 - Escalate complex or urgent issues to human agents
 - You can perform actual actions - when you create tickets or escalate, these actions happen immediately in the system"""
@@ -360,7 +388,7 @@ Guidelines:
         return """You collect user contact information and can update it in the system.
 
 Your approach:
-1. Ask for email first (required), then phone (optional) 
+1. Ask for full name and email (both required), then phone (optional)
 2. Explain this helps with follow-up
 3. Use save_contact_info to actually update the contact information in the system
 4. You can perform real updates - the information will be saved immediately
@@ -372,9 +400,9 @@ Your approach:
 
 Your approach:
 1. Gather clear issue description, error messages, what user tried
-2. Use create_ticket to create a real ticket in the system
-3. After ticket creation, suggest collecting contact details for follow-up
-4. You create real tickets - they will appear in the system immediately
+2. **Collect and save the user's full name and email first (use save_contact_info). Do not create a ticket before these are present.**
+3. Use create_ticket to create a real ticket in the system
+4. Confirm back the saved contact details in your acknowledgement
 5. Be thorough in gathering information before creating tickets"""
     
     async def process_message_stream(

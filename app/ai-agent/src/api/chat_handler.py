@@ -88,7 +88,6 @@ async def _process_message_stream(request: ChatRequest, auth_token: str, db_sess
         async for response in agent_service.process_message_stream(
             message=request.message,
             session_id=request.session_id,
-            user_id=request.user_id,
             auth_token=auth_token,
             tenant_id=request.tenant_id,
             project_id=request.project_id,
