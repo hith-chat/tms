@@ -180,6 +180,7 @@ class AgentService:
                     f"— Reporter: {name} <{email}>"
                 )
                 # Create ticket via API
+                
                 ticket_result = await self.api_client.create_ticket(
                     tenant_id=tenant_id,
                     project_id=project_id,

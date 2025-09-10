@@ -292,7 +292,7 @@ func (s *AuthService) AiAgentLogin(ctx context.Context, req LoginRequest, tenant
 	// Generate tokens
 	accessToken, err := s.authService.GenerateAccessToken(
 		agent.ID.String(),
-		agent.TenantID.String(),
+		tenantID.String(),
 		agent.Email,
 		s.convertRoleBindings(roleBindings),
 		func() *time.Duration {

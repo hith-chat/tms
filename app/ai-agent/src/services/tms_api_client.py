@@ -46,6 +46,7 @@ class TMSApiClient:
         """
         # Get authentication token
         token = await auth_service.authenticate(tenant_id, project_id)
+        logger.info(f"Obtained auth token for tenant {tenant_id}, project {project_id} with token: {token}")
         if not token:
             logger.error(f"Failed to get auth token for tenant {tenant_id}")
             return None
@@ -117,12 +118,11 @@ class TMSApiClient:
         
         ticket_data = {
             "subject": title,
-            "description": description,
             "priority": priority,
             "type": category,
             "requester_email": customer_email,
             "requester_name": customer_name,
-            "initial_message": title,
+            "initial_message": description,
             "status": "open",
             "source": source
         }
@@ -131,6 +131,10 @@ class TMSApiClient:
             ticket_data["requester_email"] = customer_email
         
         logger.info(f"Creating ticket for tenant {tenant_id}, project {project_id}: {title}")
+
+        logger.info(f"Ticket data: {ticket_data}")
+        logger.info(f"Endpoint: {endpoint}")
+
         
         result = await self._make_request("POST", endpoint, tenant_id, project_id, ticket_data)
         

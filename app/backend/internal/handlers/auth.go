@@ -133,7 +133,13 @@ func (h *AuthHandler) AiAgentLogin(c *gin.Context) {
 		Email:    req.Email,
 		Password: req.Password,
 	}
-	tenantID := middleware.GetTenantID(c)
+	tenantIDstr, errT := c.Params.Get("tenant_id")
+	fmt.Println("Tenant ID from param:", tenantIDstr, "Found:", errT)
+	if !errT || tenantIDstr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant ID is required"})
+		return
+	}
+	tenantID, _ := uuid.Parse(tenantIDstr)
 	projectID := middleware.GetProjectID(c)
 
 	response, err := h.authService.AiAgentLogin(c.Request.Context(), loginReq, tenantID, projectID)
