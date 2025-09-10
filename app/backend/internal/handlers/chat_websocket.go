@@ -269,6 +269,7 @@ func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context
 						"response_type": "knowledge_based",
 					})
 				}
+				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, false)
 			case "thinking":
 				// Send typing indicator
 				h.aiService.ProcessAiTyping(session, models.WSMessage{}, connID, true)
