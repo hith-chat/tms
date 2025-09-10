@@ -107,18 +107,18 @@ export function AppShell({ children }: AppShellProps) {
       <div 
         className={`${sidebarCollapsed ? 'w-16' : 'w-64'} transition-all duration-300 ease-in-out flex flex-col bg-card border-r border-border/60 shadow-sm`}
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-center border-b border-border/60 bg-card">
+  {/* Logo */}
+        <div className="flex h-16 items-center justify-start border-b border-border/60 bg-card px-3">
           {sidebarCollapsed ? (
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-              <span className="text-primary-foreground font-bold text-sm">T</span>
+              <img src="/sounds/images/taral-svg.svg" alt="T" className="h-5 w-5" />
             </div>
           ) : (
             <div className="flex items-center space-x-3">
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-                <span className="text-primary-foreground font-bold text-sm">T</span>
+                <img src="/sounds/images/taral-svg.svg" alt="T" className="h-5 w-5" />
               </div>
-              <span className="font-semibold text-foreground text-lg">TMS</span>
+              <span className="font-semibold text-foreground text-lg">Taral</span>
             </div>
           )}
         </div>
