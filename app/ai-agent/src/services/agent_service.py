@@ -12,12 +12,11 @@ from agents import Agent, Runner
 from agents.tool import FunctionTool 
 
 
-from ..models.chat import ChatSession, ChatMessage
 from .knowledge_service import KnowledgeService
 from .agent_auth_service import AgentAuthService
 from .tms_api_client import TMSApiClient, tms_api_client
 from ..config import config
-from ..models.knowledge import (
+from ..schemas.knowledge import (
     KnowledgeSearchResponse,
 )
 
@@ -414,7 +413,6 @@ Your approach:
         tenant_id: str = None,
         project_id: str = None,
         metadata: dict = None,
-        db_session: AsyncSession = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message and stream response using OpenAI Agents SDK.

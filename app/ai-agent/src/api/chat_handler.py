@@ -10,7 +10,6 @@ import json
 
 from ..services.auth_service import auth_service
 from ..services.agent_service import AgentService
-from ..database import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -35,8 +34,7 @@ class ChatResponse(BaseModel):
 
 @router.post("/process")
 async def process_chat_message(
-    request: ChatRequest, 
-    db_session: AsyncSession = Depends(get_db_session)
+    request: ChatRequest 
 ):
     """
     Process chat message and return streaming SSE response.
@@ -57,7 +55,7 @@ async def process_chat_message(
         
         # Process message with streaming response
         return StreamingResponse(
-            _process_message_stream(request, auth_token, db_session),
+            _process_message_stream(request, auth_token),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -71,7 +69,7 @@ async def process_chat_message(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _process_message_stream(request: ChatRequest, auth_token: str, db_session: AsyncSession) -> AsyncGenerator[str, None]:
+async def _process_message_stream(request: ChatRequest, auth_token: str) -> AsyncGenerator[str, None]:
     """Generate SSE stream for chat message processing."""
     try:
         # Send initial thinking message
@@ -91,8 +89,7 @@ async def _process_message_stream(request: ChatRequest, auth_token: str, db_sess
             auth_token=auth_token,
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            metadata=request.metadata,
-            db_session=db_session
+            metadata=request.metadata
         ):
             yield _format_sse_message(response)
         

@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from ..database import get_db_session
 from ..config import config
 
 logger = logging.getLogger(__name__)
@@ -14,7 +13,7 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health_check(db_session: AsyncSession = Depends(get_db_session)):
+async def health_check():
     """
     Health check endpoint.
     

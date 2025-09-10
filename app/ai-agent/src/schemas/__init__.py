@@ -8,6 +8,11 @@ from .chat import (
     ChatMessageResponse,
     ContactInfoUpdate
 )
+from .knowledge import (
+    KnowledgeSearchRequest,
+    KnowledgeSearchResponse,
+    KnowledgeSearchResult
+)
 from .ticket import TicketCreate, TicketResponse
 
 __all__ = [
@@ -18,5 +23,8 @@ __all__ = [
     "ChatMessageResponse",
     "ContactInfoUpdate",
     "TicketCreate",
-    "TicketResponse"
+    "TicketResponse",
+    "KnowledgeSearchRequest",
+    "KnowledgeSearchResponse",
+    "KnowledgeSearchResult"
 ]

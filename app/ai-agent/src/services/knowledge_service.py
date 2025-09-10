@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 import httpx
 
 from ..config import config
-from ..models.knowledge import (
+from ..schemas.knowledge import (
     KnowledgeSearchRequest,
     KnowledgeSearchResponse,
 )
