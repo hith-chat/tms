@@ -102,10 +102,11 @@ class AgentService:
         """Setup all agents and their tools."""
         
         # Search knowledge tool
-        async def search_knowledge_impl(params: KnowledgeSearchParams) -> str:
+        async def search_knowledge_impl(tool_context, params: str) -> str:
             """Search the knowledge base for relevant information."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
+                params: KnowledgeSearchParams = KnowledgeSearchParams.model_validate_json(params)
                 
                 # Search knowledge base
                 session_id = getattr(self, '_current_session_id', None)
@@ -160,9 +161,9 @@ class AgentService:
                 if not tenant_id or not project_id:
                     return "I couldn't find your tenant and project information. Please refresh and try again."
                 # ---- HARD GATE: require name + email before actual ticket creation ----
-                contact_info = agent_session.context.get("contact_info", {}) if agent_session else {}
-                name = (contact_info.get("name") or "").strip()
-                email = (contact_info.get("email") or "").strip()
+                contact_info = params
+                name = contact_info.name
+                email = contact_info.email
                 if not name or not email:
                     missing = []
                     if not name: missing.append("full name")
@@ -209,6 +210,7 @@ class AgentService:
                     return "❌ I encountered an issue creating your support ticket. Please try again or contact support directly."
                     
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"Ticket creation error: {e}")
                 return "❌ I encountered an issue creating your support ticket. Please try again or contact support directly."
         
@@ -266,6 +268,7 @@ class AgentService:
                     return "❌ I encountered an issue escalating your case. Let me create a priority support ticket instead."
                     
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"Escalation error: {e}")
                 return "❌ I encountered an issue escalating your case. Let me create a priority support ticket for immediate attention."
         
@@ -310,9 +313,9 @@ class AgentService:
                 )
                 
                 if result:
-                    # Update session context
+                    # Update session context - convert Pydantic model to dict to avoid JSON serialization issues
                     if session_id in self.sessions:
-                        self.sessions[session_id].context['contact_info'] = contact_info
+                        self.sessions[session_id].context['contact_info'] = contact_info.model_dump()
                     
                     contact_type = "email" if contact_info.email else "phone" if contact_info.phone else "contact"
                     # Prefer granular acknowledgment when both present
