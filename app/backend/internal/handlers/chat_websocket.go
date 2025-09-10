@@ -299,27 +299,25 @@ func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context
 
 // sendStreamingResponse sends a streaming chunk to the WebSocket
 func (h *ChatWebSocketHandler) sendStreamingResponse(session *models.ChatSession, content string, isFirst bool, connectionID string) {
-	message := models.WSMessage{
-		Type: models.WSMsgTypeChatMessage,
-		Data: map[string]interface{}{
-			"content":       content,
-			"streaming":     true,
-			"is_first":      isFirst,
-			"session_id":    session.ID.String(),
-			"connection_id": connectionID,
-			"sender":        "agent",
-			"sender_name":   "AI Agent",
-		},
-		ClientSessionID: &connectionID,
-		ProjectID:       &session.ProjectID,
+	message := &ws.Message{
+		Type:      "chat_message",
+		SessionID: session.ID,
+		Data: json.RawMessage(fmt.Sprintf(`{
+			"content": %q,
+			"streaming": true,
+			"is_first": %t,
+			"session_id": %q,
+			"connection_id": %q,
+			"sender": "agent",
+			"sender_name": "AI Agent"
+		}`, content, isFirst, session.ID.String(), connectionID)),
+		FromType:  ws.ConnectionTypeAiAgent,
+		ProjectID: &session.ProjectID,
 	}
 
-	// Send to all connections for this session
-	sessionConnections, _ := h.connectionManager.GetSessionConnections(session.ID.String())
-	for _, conn := range sessionConnections {
-		if err := conn.WsConnection.WriteJSON(message); err != nil {
-			log.Printf("Failed to send streaming chunk: %v", err)
-		}
+	// Use the connection manager's proper messaging system instead of direct WebSocket writes
+	if err := h.connectionManager.DeliverWebSocketMessage(session.ID, message); err != nil {
+		log.Printf("Failed to send streaming chunk via connection manager: %v", err)
 	}
 }
 
