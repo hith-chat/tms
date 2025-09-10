@@ -352,14 +352,10 @@ export function EmailDetailPage() {
         <PageHeaderContent>
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <PageHeaderTitle>{email.subject || '(No Subject)'}</PageHeaderTitle>
               <div className="flex items-center gap-2">
-                {email.is_reply && (
-                  <StatusIndicator status="default" size="sm" showDot={false}>
-                    <Reply className="w-3 h-3 mr-1" />
-                    Reply
-                  </StatusIndicator>
-                )}
+                <PageHeaderTitle>{email.subject || '(No Subject)'}</PageHeaderTitle>
+              </div>
+              <div className="flex items-center gap-2">
                 {email.is_converted_to_ticket && (
                   <StatusIndicator status="success" size="sm" showDot={false}>
                     <ExternalLink className="w-3 h-3 mr-1" />
