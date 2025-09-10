@@ -518,11 +518,11 @@ const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
 }) => {
   const [formData, setFormData] = useState<CreateTicketRequest>({
     subject: '',
-    initialMessage: '',
+    initial_message: '',
     priority: 'normal',
     type: 'question',
-    requestorName: '',
-    requestorEmail: '',
+    requester_name: '',
+    requester_email: '',
     source: 'web',
     customer_id: '550e8400-e29b-41d4-a716-446655440050' // Dummy customer ID
   })
@@ -536,10 +536,10 @@ const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
   const resetForm = () => {
     setFormData({
       subject: '',
-      initialMessage: '',
+      initial_message: '',
       priority: 'normal',
-      requestorName: '',
-      requestorEmail: '',
+      requester_name: '',
+      requester_email: '',
       type: 'question',
       source: 'web',
       customer_id: '550e8400-e29b-41d4-a716-446655440050'
@@ -585,8 +585,8 @@ const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
             </label>
             <textarea
               id="description"
-              value={formData.initialMessage}
-              onChange={(e) => setFormData(prev => ({ ...prev, initialMessage: e.target.value }))}
+              value={formData.initial_message}
+              onChange={(e) => setFormData(prev => ({ ...prev, initial_message: e.target.value }))}
               placeholder="Enter ticket description"
               disabled={isLoading}
               className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground h-24 resize-none"
@@ -600,8 +600,8 @@ const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
               <Input
                 id="name"
                 type="text"
-                value={formData.requestorName}
-                onChange={(e) => setFormData(prev => ({ ...prev, requestorName: e.target.value }))}
+                value={formData.requester_name}
+                onChange={(e) => setFormData(prev => ({ ...prev, requester_name: e.target.value }))}
                 placeholder="Customer Name"
                 required
                 disabled={isLoading}
@@ -615,8 +615,8 @@ const CreateTicketDialog: React.FC<CreateTicketDialogProps> = ({
               <Input
                 id="email"
                 type="text"
-                value={formData.requestorEmail}
-                onChange={(e) => setFormData(prev => ({ ...prev, requestorEmail: e.target.value }))}
+                value={formData.requester_email}
+                onChange={(e) => setFormData(prev => ({ ...prev, requester_email: e.target.value }))}
                 placeholder="Customer Email"
                 required
                 disabled={isLoading}

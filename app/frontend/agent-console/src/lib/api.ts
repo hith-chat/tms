@@ -102,9 +102,9 @@ export interface Ticket {
 
 export interface CreateTicketRequest {
   subject: string
-  initialMessage?: string
-  requestorName: string
-  requestorEmail: string
+  initial_message?: string
+  requester_name: string
+  requester_email: string
   status?: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
   priority: 'low' | 'normal' | 'high' | 'urgent'
   type: 'question' | 'incident' | 'problem' | 'task'
