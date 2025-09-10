@@ -51,8 +51,10 @@ class TicketParams(BaseModel):
     
     title: str = Field(..., description="Ticket title")
     description: str = Field(..., description="Ticket description")
+    priority: Optional[str] = Field(default="normal", description="low normal high urgent - priority level based on urgency")
+    category: Optional[str] = Field(default="problem", description="question incident problem task - Ticket category")
     name:  Optional[str] = Field(default="", description="Full name of the reporter")
-    email: Optional[str] = Field(default="", description="Email address of the reporter")
+    email: Optional[str] = Field(default="", description="Email address of the reporter") 
 
 
 class EscalationParams(BaseModel):
@@ -144,7 +146,7 @@ class AgentService:
             """Create a support ticket in the system."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
-                params = TicketParams.model_validate_json(params)
+                params: TicketParams = TicketParams.model_validate_json(params)
                 
                 # Get session context from agent session instead of auth service
                 agent_session = self.sessions.get(session_id) if session_id else None
@@ -184,8 +186,11 @@ class AgentService:
                     project_id=project_id,
                     title=params.title,
                     description=enriched_description,
-                    priority="medium",
-                    category="general"
+                    customer_email=email,
+                    customer_name=name,
+                    source="chat",
+                    priority=params.priority or "normal",
+                    category=params.category or "problem"
                 )
                 
                 if ticket_result and 'id' in ticket_result:

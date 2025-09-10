@@ -93,7 +93,9 @@ class TMSApiClient:
         title: str,
         description: str,
         customer_email: Optional[str] = None,
+        customer_name: Optional[str] = None,
         priority: str = "medium",
+        source: str = "chat",
         category: str = "general"
     ) -> Optional[Dict]:
         """
@@ -114,15 +116,19 @@ class TMSApiClient:
         endpoint = f"/v1/tenants/{tenant_id}/projects/{project_id}/tickets"
         
         ticket_data = {
-            "title": title,
+            "subject": title,
             "description": description,
             "priority": priority,
-            "category": category,
-            "status": "open"
+            "type": category,
+            "requester_email": customer_email,
+            "requester_name": customer_name,
+            "initial_message": title,
+            "status": "open",
+            "source": source
         }
         
         if customer_email:
-            ticket_data["customer_email"] = customer_email
+            ticket_data["requester_email"] = customer_email
         
         logger.info(f"Creating ticket for tenant {tenant_id}, project {project_id}: {title}")
         
