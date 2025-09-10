@@ -76,7 +76,7 @@ export function AppShell({ children }: AppShellProps) {
   }, [])
 
   const navigation = [
-    { name: 'Dashboard', icon: Home, href: '/dashboard' },
+    // { name: 'Dashboard', icon: Home, href: '/dashboard' },
     { name: 'Inbox', icon: Mail, href: '/inbox' },
     { name: 'Tickets', icon: Ticket, href: '/tickets' },
     { name: 'Chat', icon: MessageCircle, href: '/chat/sessions' },
