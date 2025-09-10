@@ -7,7 +7,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-
+import traceback
 from agents import Agent, Runner
 from agents.tool import FunctionTool 
 
@@ -30,9 +30,9 @@ class ContactInfoParams(BaseModel):
     class Config:
         extra = "forbid"  # Strict mode - no additional properties
     
-    name: str = Field(default="", description="Full name")
-    email: str = Field(default="", description="Email address")
-    phone: str = Field(default="", description="Phone number")
+    name: Optional[str] = Field(default="", description="Full name")
+    email: Optional[str] = Field(default="", description="Email address")
+    phone: Optional[str] = Field(default="", description="Phone number")
 
 
 class KnowledgeSearchParams(BaseModel):
@@ -51,6 +51,8 @@ class TicketParams(BaseModel):
     
     title: str = Field(..., description="Ticket title")
     description: str = Field(..., description="Ticket description")
+    name:  Optional[str] = Field(default="", description="Full name of the reporter")
+    email: Optional[str] = Field(default="", description="Email address of the reporter")
 
 
 class EscalationParams(BaseModel):
@@ -138,11 +140,11 @@ class AgentService:
         )
         
         # Create ticket tool
-        async def create_ticket_impl(tool_context, params: TicketParams) -> str:
+        async def create_ticket_impl(tool_context, params: str) -> str:
             """Create a support ticket in the system."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
-                
+                params = TicketParams.model_validate_json(params)
                 
                 # Get session context from agent session instead of auth service
                 agent_session = self.sessions.get(session_id) if session_id else None
@@ -218,6 +220,8 @@ class AgentService:
             try:
                 session_id = getattr(self, '_current_session_id', None)
                 db_session = getattr(self, '_current_db_session', None)
+
+                params = EscalationParams.model_validate_json(params)
                 
                 if not session_id or not db_session:
                     return "I couldn't access session information for escalation."
@@ -268,17 +272,11 @@ class AgentService:
         )
         
         # Save contact info tool
-        async def save_contact_impl(tool_context, params: ContactInfoParams) -> str:
+        async def save_contact_impl(tool_context, params: str) -> str:
             """Save contact information via TMS API."""
             try:
-                contact_info = {}
-                if params.name:
-                    contact_info["name"] = params.name
-                if params.email:
-                    contact_info["email"] = params.email
-                if params.phone:
-                    contact_info["phone"] = params.phone
-                
+                contact_info = ContactInfoParams.model_validate_json(params)
+                logger.info(f"Saving contact info: {params}")
                 if not contact_info:
                     return "Please provide either an email address or phone number."
                 
@@ -301,7 +299,9 @@ class AgentService:
                     tenant_id=tenant_id,
                     project_id=project_id,
                     session_id=session_id,
-                    contact_info=contact_info
+                    email = contact_info.email,
+                    phone = contact_info.phone,
+                    name = contact_info.name
                 )
                 
                 if result:
@@ -309,26 +309,19 @@ class AgentService:
                     if session_id in self.sessions:
                         self.sessions[session_id].context['contact_info'] = contact_info
                     
-                    contact_type = "email" if "email" in contact_info else "phone" if "phone" in contact_info else "contact"
+                    contact_type = "email" if contact_info.email else "phone" if contact_info.phone else "contact"
                     # Prefer granular acknowledgment when both present
-                    if "name" in contact_info and "email" in contact_info:
+                    if contact_info.email and contact_info.name:
                         return "✅ Thanks! I’ve saved your full name and email for follow-up."
-                    contact_type = "email" if "email" in contact_info else "phone" if "phone" in contact_info else "contact"
+                    contact_type = "email" if contact_info.email else "phone" if contact_info.phone else "contact"
                     return f"✅ Thank you! I've saved your {contact_type} information securely."
                 else:
                     return "❌ I encountered an issue saving your contact information. Please try again or continue with your inquiry."
                     
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"Contact info save error: {e}")
                 # Store in session as fallback
-                session_id = getattr(self, '_current_session_id', None)
-                if session_id and session_id in self.sessions:
-                    contact_info = {}
-                    if params.email:
-                        contact_info["email"] = params.email
-                    if params.phone:
-                        contact_info["phone"] = params.phone
-                    self.sessions[session_id].context['contact_info'] = contact_info
                 return "✅ I've noted your contact information. There was a temporary issue with our system, but I've recorded it for this session."
         
         self.save_contact_tool = FunctionTool(

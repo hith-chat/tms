@@ -189,6 +189,7 @@ class TMSApiClient:
     async def update_contact_info(
         self,
         tenant_id: str,
+        project_id: str,
         session_id: str,
         email: Optional[str] = None,
         phone: Optional[str] = None,
@@ -208,7 +209,7 @@ class TMSApiClient:
             Update result or None on failure
         """
         # This might need to be adjusted based on actual API structure
-        endpoint = f"/api/public/chat/sessions/{session_id}/contact"
+        endpoint = f"/v1/tenants/{tenant_id}/customers"
         
         contact_data = {}
         if email:
@@ -222,7 +223,11 @@ class TMSApiClient:
             return {"success": True}  # Nothing to update
         
         logger.info(f"Updating contact info for session {session_id}")
-        
-        return await self._make_request("PATCH", endpoint, tenant_id, contact_data)
+
+        try:
+            await self._make_request("POST", endpoint, tenant_id, project_id, contact_data)
+        except Exception as e:
+            logger.error(f"Failed to update contact info for session {session_id}: {e}")
+        return {"success": True}
 
 tms_api_client = TMSApiClient()

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -95,8 +97,8 @@ func (ac *AiAgentClient) ProcessMessageStream(ctx context.Context, req ChatReque
 
 // readSSEStream reads Server-Sent Events from the response body
 func (ac *AiAgentClient) readSSEStream(ctx context.Context, body io.Reader, responseChan chan<- AgentResponse, errorChan chan<- error) {
-	buffer := make([]byte, 4096)
-	leftover := ""
+	reader := bufio.NewReader(body)
+	var dataLines []string
 
 	for {
 		select {
@@ -105,91 +107,59 @@ func (ac *AiAgentClient) readSSEStream(ctx context.Context, body io.Reader, resp
 		default:
 		}
 
-		n, err := body.Read(buffer)
+		// Read a line (including the trailing '\n')
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			if err != io.EOF {
-				log.Printf("Error reading stream: %v", err)
-				errorChan <- fmt.Errorf("error reading stream: %w", err)
+			if err == io.EOF {
+				// Process any remaining line and buffered data
+				line = strings.TrimRight(line, "\r\n")
+				if line != "" && hasPrefix(line, "data: ") {
+					dataLines = append(dataLines, line[6:])
+				}
+				if len(dataLines) > 0 {
+					ac.processSSEData(strings.Join(dataLines, "\n"), responseChan)
+				}
+				return
 			}
+			log.Printf("Error reading stream: %v", err)
+			errorChan <- fmt.Errorf("error reading stream: %w", err)
 			return
 		}
 
-		data := leftover + string(buffer[:n])
-		lines := splitLines(data)
-
-		// Keep the last incomplete line
-		if len(lines) > 0 && !isCompleteLine(data) {
-			leftover = lines[len(lines)-1]
-			lines = lines[:len(lines)-1]
-		} else {
-			leftover = ""
+		// Trim trailing newline characters
+		trimmed := strings.TrimRight(line, "\r\n")
+		if trimmed == "" {
+			// blank line indicates end of an event, process accumulated data lines
+			if len(dataLines) > 0 {
+				ac.processSSEData(strings.Join(dataLines, "\n"), responseChan)
+				dataLines = dataLines[:0]
+			}
+			continue
 		}
 
-		// Process complete lines
-		for _, line := range lines {
-			if line = trimWhitespace(line); line == "" {
-				continue
-			}
-
-			if hasPrefix(line, "data: ") {
-				jsonData := line[6:] // Remove "data: " prefix
-				if jsonData == "" {
-					continue
-				}
-
-				var response AgentResponse
-				if err := json.Unmarshal([]byte(jsonData), &response); err != nil {
-					log.Printf("Error parsing JSON data: %v, data: %s", err, jsonData)
-					continue
-				}
-
-				select {
-				case responseChan <- response:
-				case <-ctx.Done():
-					return
-				}
-			}
+		if hasPrefix(trimmed, "data: ") {
+			dataLines = append(dataLines, trimmed[6:])
 		}
+		// ignore other SSE fields (event:, id:, retry:, etc.)
 	}
+}
+
+// processSSEData unmarshals JSON data from an SSE 'data' payload and forwards it
+func (ac *AiAgentClient) processSSEData(jsonData string, responseChan chan<- AgentResponse) {
+	if jsonData == "" {
+		return
+	}
+	var response AgentResponse
+	if err := json.Unmarshal([]byte(jsonData), &response); err != nil {
+		log.Printf("Error parsing JSON data: %v, data: %s", err, jsonData)
+		return
+	}
+
+	// Best-effort send; block if receiver isn't ready to avoid dropping responses silently
+	responseChan <- response
 }
 
 // Helper functions for string processing
-func splitLines(s string) []string {
-	lines := make([]string, 0)
-	start := 0
-	for i, c := range s {
-		if c == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
-}
-
-func isCompleteLine(s string) bool {
-	return len(s) > 0 && s[len(s)-1] == '\n'
-}
-
-func trimWhitespace(s string) string {
-	start := 0
-	end := len(s)
-
-	// Trim leading whitespace
-	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\r' || s[start] == '\n') {
-		start++
-	}
-
-	// Trim trailing whitespace
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\r' || s[end-1] == '\n') {
-		end--
-	}
-
-	return s[start:end]
-}
-
 func hasPrefix(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

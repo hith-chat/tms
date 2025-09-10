@@ -104,7 +104,7 @@ func main() {
 	projectService := service.NewProjectService(projectRepo)
 	agentService := service.NewAgentService(agentRepo, projectRepo, rbacService)
 	tenantService := service.NewTenantService(tenantRepo, agentRepo, rbacService)
-	// customerService := service.NewCustomerService(customerRepo, rbacService) // Reserved for future use
+	customerService := service.NewCustomerService(customerRepo, rbacService)
 	messageService := service.NewMessageService(messageRepo, ticketRepo, customerRepo, agentRepo, rbacService)
 	publicService := service.NewPublicService(ticketRepo, messageRepo, jwtAuth, messageService)
 	ticketService := service.NewTicketService(ticketRepo, customerRepo, agentRepo, messageRepo, rbacService, mailService, publicService)
@@ -153,6 +153,7 @@ func main() {
 	emailHandler := handlers.NewEmailHandler(emailRepo, redisService, mailService)
 	emailInboxHandler := handlers.NewEmailInboxHandler(emailInboxService)
 	agentHandler := handlers.NewAgentHandler(agentService)
+	customerHandler := handlers.NewCustomerHandler(customerService)
 	apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
 	settingsHandler := handlers.NewSettingsHandler(settingsRepo)
 	tenantHandler := handlers.NewTenantHandler(tenantService)
@@ -179,7 +180,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -217,7 +218,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -318,6 +319,14 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 			// Agent notification preferences (Phase 4)
 			api.GET("/agents/:agent_id/notification-preferences", alarmHandler.GetNotificationPreferences)
 			api.PUT("/agents/:agent_id/notification-preferences", alarmHandler.UpdateNotificationPreferences)
+		}
+
+		// Customer management (tenant-level)
+		{
+			api.POST("/customers", middleware.TenantAdminMiddleware(), customerHandler.CreateCustomer)
+			api.PUT("/customers/:customer_id", middleware.TenantAdminMiddleware(), customerHandler.UpdateCustomer)
+			// Deletion should be protected by appropriate middleware/permissions; service will also enforce RBAC
+			api.DELETE("/customers/:customer_id", middleware.TenantAdminMiddleware(), customerHandler.DeleteCustomer)
 		}
 
 		// API Key management endpoints
