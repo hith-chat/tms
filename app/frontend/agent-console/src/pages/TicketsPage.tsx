@@ -196,8 +196,7 @@ export const TicketsPage: React.FC = () => {
   }
 
   return (
-    <>
-      <div className="flex-1 bg-background">
+    <div className="h-full flex flex-col bg-background">
         {/* Enhanced Header */}
         <div className="border-b bg-card">
           <div className="px-6 py-3">
@@ -318,7 +317,8 @@ export const TicketsPage: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div className="p-6">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <div className="p-6">
           {loading ? (
             <Card>
               <div className="p-6">
@@ -344,10 +344,10 @@ export const TicketsPage: React.FC = () => {
               </div>
             </Card>
           )}
+          </div>
         </div>
-      </div>
 
-      {/* Create Ticket Dialog */}
+        {/* Create Ticket Dialog */}
       <CreateTicketDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
@@ -357,7 +357,7 @@ export const TicketsPage: React.FC = () => {
       
       {/* Toast Notifications */}
       <Toaster />
-    </>
+    </div>
   )
 }
 
