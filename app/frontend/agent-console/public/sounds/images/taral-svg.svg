@@ -1,6 +1,5 @@
 <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Clean background -->
-  <rect width="200" height="200" fill="white"/>
+
   
   <!-- Define gradient for premium feel -->
   <defs>
@@ -23,9 +22,7 @@
   
   <!-- Shape 3: Hexagon forming the central vertical stem -->
   <path d="M 85 60 L 115 60 L 115 140 L 100 155 L 85 140 Z" fill="url(#premiumGradient)"/>
-  
-  <!-- Shape 4: Diamond accent at the intersection -->
-  
+    
   <!-- Subtle line details for sophistication -->
   <line x1="40" y1="45" x2="160" y2="45" stroke="#3b82f6" stroke-width="0.5" opacity="0.5"/>
   <line x1="100" y1="60" x2="100" y2="155" stroke="#3b82f6" stroke-width="0.5" opacity="0.5"/>
