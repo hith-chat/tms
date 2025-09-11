@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Optional, Any, List
 import httpx
 from datetime import datetime
+from cachetools import TTLCache
 
 from ..config import config
 from .agent_auth_service import AgentAuthService
@@ -15,10 +16,11 @@ logger = logging.getLogger(__name__)
 
 class TMSApiClient:
     """Client for making authenticated requests to TMS APIs."""
-    
+    _TOKEN_TTL_SECONDS = 15 * 60  # 15 minutes cache for responses
     def __init__(self):
         self.base_url = config.TMS_API_BASE_URL
         self.timeout = 30.0
+        self.response_cache = TTLCache(maxsize=1024, ttl=self._TOKEN_TTL_SECONDS)
     
     async def _make_request(
         self,
@@ -256,10 +258,17 @@ class TMSApiClient:
             About me content or None on failure
         """
         endpoint = f"/v1/tenants/{tenant_id}/projects/{project_id}/settings/about-me"
+        cache_key = f"about_me:{tenant_id}:{project_id}"
+        
+        # Check cache first
+        cached_response = self.response_cache.get(cache_key)
+        if cached_response:
+            return cached_response
         
         try:
             result = await self._make_request("GET", endpoint, tenant_id, project_id)
             if result and "content" in result:
+                self.response_cache[cache_key] = result["content"]
                 return result["content"]
             return None
         except Exception as e:
