@@ -240,4 +240,30 @@ class TMSApiClient:
             logger.error(f"Failed to update contact info for session {session_id}: {e}")
         return {"success": True}
 
+    async def get_about_me_settings(
+        self,
+        tenant_id: str,
+        project_id: str
+    ) -> Optional[str]:
+        """
+        Get about me settings for a project.
+        
+        Args:
+            tenant_id: Tenant ID
+            project_id: Project ID
+            
+        Returns:
+            About me content or None on failure
+        """
+        endpoint = f"/v1/tenants/{tenant_id}/projects/{project_id}/settings/about-me"
+        
+        try:
+            result = await self._make_request("GET", endpoint, tenant_id, project_id)
+            if result and "content" in result:
+                return result["content"]
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get about me settings for project {project_id}: {e}")
+            return None
+
 tms_api_client = TMSApiClient()
