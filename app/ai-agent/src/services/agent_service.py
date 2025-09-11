@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
 from agents import Agent, Runner
 from agents.tool import FunctionTool 
+from cachetools import TTLCache
 
 
 from .knowledge_service import KnowledgeService
@@ -22,6 +23,7 @@ from ..schemas.knowledge import (
 
 logger = logging.getLogger(__name__)
 
+global_session_store = TTLCache(maxsize=1024, ttl=60*60)  # 60 minutes cache for sessions
 
 # Pydantic models for function tool parameters - STRICT SCHEMA COMPLIANT
 class ContactInfoParams(BaseModel):
@@ -91,7 +93,7 @@ class AgentService:
         # Initialize services
         self.knowledge_service = KnowledgeService()
         self.api_client: TMSApiClient = tms_api_client
-        self.sessions: Dict[str, AgentSession] = {}
+        self.sessions: Dict[str, AgentSession] = global_session_store
         
         # Agents will be initialized later when we have tenant/project info
         self.support_agent = None
@@ -472,6 +474,8 @@ Your approach:
             
             # Prepare messages for agent (simplified for SSE approach)
             agent_session.history.append({"role": "user", "content": message})
+
+            logger.info(f"Agent input messages: {agent_session.history}")
 
             
             try:
