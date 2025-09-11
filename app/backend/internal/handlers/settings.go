@@ -47,6 +47,11 @@ type AutomationSettings struct {
 	AutoReplyTemplate        string `json:"auto_reply_template"`
 }
 
+// AboutMeSettings represents about me configuration
+type AboutMeSettings struct {
+	Content string `json:"content"`
+}
+
 // GetBrandingSettings retrieves branding settings for a tenant
 func (h *SettingsHandler) GetBrandingSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
@@ -153,4 +158,58 @@ func (h *SettingsHandler) UpdateAutomationSettings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, automationSettings)
+}
+
+// GetAboutMeSettings retrieves about me settings for a tenant
+func (h *SettingsHandler) GetAboutMeSettings(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectIDStr, _ := c.Params.Get("project_id")
+	projectUUID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	settings, httpStatusCode, err := h.settingsRepo.GetSetting(context.Background(), tenantID, projectUUID, "about_me")
+	if err != nil {
+		c.JSON(httpStatusCode, gin.H{"error": "Failed to retrieve about me settings"})
+		return
+	}
+
+	// Convert map to AboutMeSettings struct
+	settingsJSON, _ := json.Marshal(settings)
+	var aboutMeSettings AboutMeSettings
+	json.Unmarshal(settingsJSON, &aboutMeSettings)
+
+	c.JSON(http.StatusOK, aboutMeSettings)
+}
+
+// UpdateAboutMeSettings updates about me settings for a tenant
+func (h *SettingsHandler) UpdateAboutMeSettings(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectIDStr, _ := c.Params.Get("project_id")
+	projectUUID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	var aboutMeSettings AboutMeSettings
+	if err := c.ShouldBindJSON(&aboutMeSettings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Convert struct to map
+	settingsJSON, _ := json.Marshal(aboutMeSettings)
+	var settingsMap map[string]interface{}
+	json.Unmarshal(settingsJSON, &settingsMap)
+
+	err = h.settingsRepo.UpdateSetting(context.Background(), tenantID, projectUUID, "about_me", settingsMap)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update about me settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, aboutMeSettings)
 }

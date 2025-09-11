@@ -377,6 +377,8 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				settings.PUT("/branding", middleware.ProjectAdminMiddleware(), settingsHandler.UpdateBrandingSettings)
 				settings.GET("/automation", middleware.ProjectAdminMiddleware(), settingsHandler.GetAutomationSettings)
 				settings.PUT("/automation", middleware.ProjectAdminMiddleware(), settingsHandler.UpdateAutomationSettings)
+				settings.GET("/about-me", middleware.ProjectAdminMiddleware(), settingsHandler.GetAboutMeSettings)
+				settings.PUT("/about-me", middleware.ProjectAdminMiddleware(), settingsHandler.UpdateAboutMeSettings)
 			}
 
 			// Notifications endpoints

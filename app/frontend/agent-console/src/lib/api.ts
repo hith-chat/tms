@@ -180,6 +180,10 @@ export interface AutomationSettings {
   auto_reply_template: string
 }
 
+export interface AboutMeSettings {
+  content: string
+}
+
 // Knowledge Management Types
 export interface KnowledgeDocument {
   id: string
@@ -1019,6 +1023,16 @@ class APIClient {
 
   async updateAutomationSettings(data: AutomationSettings): Promise<AutomationSettings> {
     const response = await this.client.put('/settings/automation', data)
+    return response.data
+  }
+
+  async getAboutMeSettings(): Promise<AboutMeSettings> {
+    const response = await this.client.get('/settings/about-me')
+    return response.data
+  }
+
+  async updateAboutMeSettings(data: AboutMeSettings): Promise<AboutMeSettings> {
+    const response = await this.client.put('/settings/about-me', data)
     return response.data
   }
 

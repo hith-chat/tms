@@ -9,9 +9,11 @@ import {
   XCircle, 
   AlertCircle,
   Plus,
-  Search 
+  Search,
+  Save,
+  User
 } from 'lucide-react'
-import { apiClient, KnowledgeDocument, KnowledgeScrapingJob } from '../lib/api'
+import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, AboutMeSettings } from '../lib/api'
 
 interface KnowledgeManagementProps {
   projectId: string | null
@@ -39,6 +41,11 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any>(null)
   const [searchLoading, setSearchLoading] = useState(false)
+
+  // About Me state
+  const [aboutMeContent, setAboutMeContent] = useState('')
+  const [aboutMeLoading, setAboutMeLoading] = useState(false)
+  const [aboutMeSaving, setAboutMeSaving] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -69,13 +76,15 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     setError(null)
     try {
       console.log('Loading knowledge data for project:', projectId)
-      const [documentsData, jobsData] = await Promise.all([
+      const [documentsData, jobsData, aboutMeData] = await Promise.all([
         apiClient.getDocuments(projectId),
-        apiClient.getScrapingJobs(projectId)
+        apiClient.getScrapingJobs(projectId),
+        apiClient.getAboutMeSettings().catch(() => ({ content: '' })) // Default to empty if not found
       ])
-      console.log('Successfully loaded:', { documents: documentsData?.length, jobs: jobsData?.length })
+      console.log('Successfully loaded:', { documents: documentsData?.length, jobs: jobsData?.length, aboutMe: aboutMeData?.content?.length })
       setDocuments(documentsData || [])
       setScrapingJobs(jobsData || [])
+      setAboutMeContent(aboutMeData?.content || '')
     } catch (err: any) {
       console.error('Error loading knowledge data:', {
         error: err,
@@ -189,6 +198,27 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     }
   }
 
+  const saveAboutMe = async () => {
+    if (!projectId) {
+      setError('No project selected')
+      return
+    }
+
+    setAboutMeSaving(true)
+    setError(null)
+
+    try {
+      await apiClient.updateAboutMeSettings({ content: aboutMeContent })
+      setSuccessMessage('About me information saved successfully')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err: any) {
+      setError(`Failed to save about me information: ${err?.response?.data?.error || err?.message || 'Unknown error'}`)
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setAboutMeSaving(false)
+    }
+  }
+
   const searchKnowledge = async () => {
     if (!projectId) {
       setError('No project selected')
@@ -274,50 +304,96 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
         </div>
       )}
 
-      {/* Document Upload Section */}
-      <div className="border rounded-lg p-6 bg-card">
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-medium">Document Upload</h3>
-            <p className="text-sm text-muted-foreground">Upload PDF files to add content to your knowledge base</p>
-          </div>
-          
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragOver 
-                ? 'border-primary bg-primary/5' 
-                : 'border-border hover:border-primary/50'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+      {/* About Me and Document Upload Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* About Me Section */}
+        <div className="border rounded-lg p-6 bg-card">
+          <div className="space-y-4">
             <div>
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <span className="text-sm font-medium">
-                  Drag and drop PDF files here or click to browse
-                </span>
-                <input
-                  id="file-upload"
-                  name="file-upload"
-                  type="file"
-                  className="sr-only"
-                  multiple
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                />
-              </label>
-              <p className="mt-2 text-xs text-muted-foreground">PDF files only, up to 10MB each</p>
+              <h3 className="font-medium">About Me & Information</h3>
+              <p className="text-sm text-muted-foreground">Provide information about yourself and other relevant details for the AI agent</p>
+            </div>
+            
+            <div className="space-y-4">
+              <textarea
+                value={aboutMeContent}
+                onChange={(e) => setAboutMeContent(e.target.value)}
+                placeholder="Tell me about yourself, your role, preferences, and any other information that would help the AI agent assist you better..."
+                className="w-full h-64 px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                disabled={aboutMeSaving}
+              />
+              
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {aboutMeContent.length} characters
+                </div>
+                <button
+                  onClick={saveAboutMe}
+                  disabled={aboutMeSaving}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {aboutMeSaving ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Information
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
+        </div>
 
-          {uploading && (
-            <div className="flex items-center justify-center py-4">
-              <Loader className="h-5 w-5 animate-spin text-primary mr-2" />
-              <span className="text-sm text-muted-foreground">Uploading...</span>
+        {/* Document Upload Section */}
+        <div className="border rounded-lg p-6 bg-card">
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium">Document Upload</h3>
+              <p className="text-sm text-muted-foreground">Upload PDF files to add content to your knowledge base</p>
             </div>
-          )}
+            
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragOver 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-primary/50'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <div>
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <span className="text-sm font-medium">
+                    Drag and drop PDF files here or click to browse
+                  </span>
+                  <input
+                    id="file-upload"
+                    name="file-upload"
+                    type="file"
+                    className="sr-only"
+                    multiple
+                    accept=".pdf"
+                    onChange={handleFileSelect}
+                  />
+                </label>
+                <p className="mt-2 text-xs text-muted-foreground">PDF files only, up to 10MB each</p>
+              </div>
+            </div>
+
+            {uploading && (
+              <div className="flex items-center justify-center py-4">
+                <Loader className="h-5 w-5 animate-spin text-primary mr-2" />
+                <span className="text-sm text-muted-foreground">Uploading...</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

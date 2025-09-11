@@ -14,6 +14,7 @@ import {
   Ticket,
   LogOut,
   MessageCircle,
+  Zap,
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
 import { useAuth } from '../hooks/useAuth'
