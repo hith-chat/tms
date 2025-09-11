@@ -93,11 +93,21 @@ class AgentService:
         self.api_client: TMSApiClient = tms_api_client
         self.sessions: Dict[str, AgentSession] = {}
         
-        # Initialize agents
-        self._setup_agents()
+        # Agents will be initialized later when we have tenant/project info
+        self.support_agent = None
+        self.contact_agent = None  
+        self.ticket_agent = None
     
-    def _setup_agents(self):
-        """Setup all agents and their tools."""
+    async def _setup_agents_for_session(self, tenant_id: str, project_id: str):
+        """Setup agents with personalized instructions based on project settings."""
+        # Only setup if not already done for this project
+        if self.support_agent is not None:
+            return
+            
+        await self._setup_agents(tenant_id, project_id)
+    
+    async def _setup_agents(self, tenant_id: str, project_id: str):
+        """Setup all agents and their tools with personalized instructions."""
         
         # Search knowledge tool
         async def search_knowledge_impl(tool_context, params: str) -> str:
@@ -335,9 +345,11 @@ class AgentService:
         )
         
         # Create agents with tools
+        support_instructions = await self._get_support_instructions(tenant_id, project_id)
+        
         self.support_agent = Agent(
             name="Support Agent",
-            instructions=self._get_support_instructions(),
+            instructions=support_instructions,
             tools=[
                 self.search_knowledge_tool,
                 self.create_ticket_tool,
@@ -361,9 +373,13 @@ class AgentService:
             handoffs=[self.contact_agent]  # Can handoff to contact agent
         )
     
-    def _get_support_instructions(self) -> str:
-        """Get instructions for the support agent."""
-        return """You are a helpful customer support agent with the ability to perform real actions.
+    async def _get_support_instructions(self, tenant_id: str, project_id: str) -> str:
+        """Get instructions for the support agent with personalized about me information."""
+        
+        # Fetch about me settings from the API
+        about_me_content = await self.api_client.get_about_me_settings(tenant_id, project_id)
+        
+        base_instructions = """You are a helpful customer support agent with the ability to perform real actions.
 
 Your capabilities:
 1. Search the knowledge base for answers using search_knowledge
@@ -378,6 +394,18 @@ Guidelines:
 - Create tickets for issues that need follow-up
 - Escalate complex or urgent issues to human agents
 - You can perform actual actions - when you create tickets or escalate, these actions happen immediately in the system"""
+
+        # If we have about me content, add it to the instructions
+        if about_me_content and about_me_content.strip():
+            personalized_instructions = f"""{base_instructions}
+
+IMPORTANT CONTEXT ABOUT THE SUPPORT ORGANIZATION:
+{about_me_content}
+
+Use this context to provide more personalized and relevant support. When greeting users or handling basic requests, reference this information appropriately to create a more tailored experience."""
+            return personalized_instructions
+        
+        return base_instructions
     
     def _get_contact_instructions(self) -> str:
         """Get instructions for the contact agent."""
@@ -434,6 +462,9 @@ Your approach:
                 )
             
             agent_session = self.sessions[session_id]
+            
+            # Setup agents with personalized instructions if not already done
+            await self._setup_agents_for_session(tenant_id, project_id)
             
             # Set current context for function tools
             self._current_session_id = session_id
