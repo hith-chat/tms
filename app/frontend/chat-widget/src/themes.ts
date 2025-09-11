@@ -202,6 +202,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       --tms-secondary-color-rgb: ${hexToRgb(widget.secondary_color || '#6b7280')};
       --tms-background-color: ${widget.background_color || '#ffffff'};
       --tms-background-color-rgb: ${hexToRgb(widget.background_color || '#ffffff')};
+      --tms-chat-text-color: ${hexToRgb('#000000')};
       --tms-placeholder-color: ${placeholderColor};
       --tms-widget-width: ${size.width};
       --tms-widget-height: ${size.height};
@@ -621,6 +622,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       padding: 4px 0;
       overflow-y: auto;
       resize: none;
+      color: var(--tms-chat-text-color);
     }
 
     /* Enhanced placeholder visibility with complementary colors */

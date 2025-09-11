@@ -208,10 +208,6 @@ export class TMSChatWidget {
                 <input id="tms-file-input" type="file" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt" />
               </label>
             ` : ''}
-            <div class="tms-reaction-group">
-              <button id="tms-thumb-up" class="tms-thumb-button" title="Thumbs up" aria-label="Thumbs up">👍</button>
-              <button id="tms-thumb-down" class="tms-thumb-button" title="Thumbs down" aria-label="Thumbs down">👎</button>
-            </div>
           </div>
           <div class="tms-input-wrapper">
             <div
