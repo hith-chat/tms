@@ -10,10 +10,9 @@ import {
   AlertCircle,
   Plus,
   Search,
-  Save,
-  User
+  Save
 } from 'lucide-react'
-import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, AboutMeSettings } from '../lib/api'
+import { apiClient, KnowledgeDocument, KnowledgeScrapingJob } from '../lib/api'
 
 interface KnowledgeManagementProps {
   projectId: string | null
@@ -44,7 +43,6 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
 
   // About Me state
   const [aboutMeContent, setAboutMeContent] = useState('')
-  const [aboutMeLoading, setAboutMeLoading] = useState(false)
   const [aboutMeSaving, setAboutMeSaving] = useState(false)
 
   useEffect(() => {

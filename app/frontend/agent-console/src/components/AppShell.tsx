@@ -4,17 +4,17 @@ import {
   Search, 
   Settings, 
   User, 
-  Mail, 
+  // Mail, 
   Moon, 
   Sun, 
   Monitor,
   ChevronLeft,
   ChevronRight,
-  Home,
+  // Home,
   Ticket,
   LogOut,
   MessageCircle,
-  Zap,
+  // Zap,
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
 import { useAuth } from '../hooks/useAuth'

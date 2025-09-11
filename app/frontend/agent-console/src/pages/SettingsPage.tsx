@@ -4,7 +4,6 @@ import {
   Settings, 
   Users, 
   Mail, 
-  Palette, 
   Key, 
   Plus,
   Trash2,
@@ -13,7 +12,6 @@ import {
   Check,
   X,
   Brain,
-  Bell,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'

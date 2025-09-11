@@ -3,18 +3,18 @@ job "ai-agent" {
   type        = "service"
 
   group "ai-agent-service" {
-    count = 3  # High availability with 5 replicas
+    count = 2  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
-    # spread {
-    #   attribute = "${meta.region}"
-    #   target "falkenstein" {
-    #     percent = 60
-    #   }
-    #   target "iowa" {
-    #     percent = 40
-    #   } 
-    # }
+    spread {
+      attribute = "${meta.region}"
+      # target "falkenstein" {
+      #   percent = 60
+      # }
+      target "iowa" {
+        percent = 100
+      } 
+    }
     
     constraint {
       attribute = "${attr.kernel.name}"
@@ -175,6 +175,7 @@ EOH
       resources {
         cpu    = 300   # 0.15 CPU
         memory = 800   # 512MB
+        disk   = 50 # MB
       }
       
       # Logs configurationp
