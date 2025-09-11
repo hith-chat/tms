@@ -3,7 +3,7 @@ job "tms-backend" {
   type        = "service"
 
   group "tms-falkenstein" {
-    count = 5  # High availability with 5 replicas
+    count = 1  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
     # spread {
@@ -238,6 +238,7 @@ CONSUL_HTTP_ADDR=http://{{ env "NOMAD_IP_http" }}:8500
 SERVICE_NAME=backend
 SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
 SERVER_PORT={{ env "NOMAD_PORT_http" }}
+AI_AGENT_SERVICE_URL=http://{{- range $i, $service := service "ai-agent" -}}{{- if eq $i 0 }}{{ .Address }}:{{ .Port }}{{- end }}{{- end }}
 EOH
         destination = "secrets/consul.env"
         env         = true

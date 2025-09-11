@@ -3,7 +3,7 @@ job "ai-agent" {
   type        = "service"
 
   group "ai-agent-service" {
-    count = 2  # High availability with 5 replicas
+    count = 1  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
     spread {

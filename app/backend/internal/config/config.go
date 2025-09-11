@@ -190,6 +190,7 @@ func Load() (*Config, error) {
 	// Bind specific environment variables to config keys
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("server.environment", "APP_ENV")
+	viper.BindEnv("server.ai_agent_login_access_key", "TMS_API_S2S_KEY")
 	viper.BindEnv("database.host", "DB_HOST")
 	viper.BindEnv("database.port", "DB_PORT")
 	viper.BindEnv("database.user", "DB_USER")
