@@ -1,6 +1,6 @@
 {
   "name": "@taral/web-chat",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Embeddable chat widget for TMS",
   "main": "dist/chat-widget.js",
   "type": "module",

@@ -622,7 +622,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       padding: 4px 0;
       overflow-y: auto;
       resize: none;
-      color: var(--tms-chat-text-color);
+      color: black;
     }
 
     /* Enhanced placeholder visibility with complementary colors */
