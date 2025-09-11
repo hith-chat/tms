@@ -8,7 +8,6 @@ import type {
   SendChatMessageRequest,
   AssignChatSessionRequest,
   ChatSessionFilters,
-  AICapabilities,
   AIMetrics
 } from '../types/chat'
 import type { Notification, NotificationCount, HowlingAlarm, AlarmStats } from '../types/notifications'
@@ -1232,11 +1231,6 @@ class APIClient {
 
   async markAllNotificationsAsRead(): Promise<void> {
     await this.client.put('/notifications/mark-all-read')
-  }
-
-  async getAICapabilities(): Promise<AICapabilities> {
-    const response: AxiosResponse<AICapabilities> = await this.client.get('/chat/ai/capabilities')
-    return response.data
   }
 
   async getAIMetrics(): Promise<AIMetrics> {

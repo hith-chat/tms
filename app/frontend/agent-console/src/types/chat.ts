@@ -137,12 +137,6 @@ export interface AIStatus {
   model?: string
 }
 
-export interface AICapabilities {
-  features: string[]
-  supported_providers: string[]
-  handoff_triggers: string[]
-}
-
 export interface AIMetrics {
   tenant_id: string
   project_id: string
