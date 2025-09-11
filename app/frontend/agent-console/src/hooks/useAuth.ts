@@ -85,7 +85,7 @@ export function useAuth() {
       setIsLoading(false)
       
       // Navigate to inbox after successful login
-      window.location.assign("/dashboard")
+      window.location.assign("/tickets")
     } catch (error: any) {
       setError(error.response?.data?.message || 'Login failed')
       setIsLoading(false)
@@ -97,7 +97,7 @@ export function useAuth() {
     apiClient.logout()
     setUser(null)
     setIsAuthenticated(false)
-    navigate('/login')
+    window.location.assign("/login")
   }
 
   const clearError = () => {
