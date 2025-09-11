@@ -3,7 +3,7 @@ job "ai-agent" {
   type        = "service"
 
   group "ai-agent-service" {
-    count = 5  # High availability with 5 replicas
+    count = 3  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
     # spread {
@@ -32,14 +32,8 @@ job "ai-agent" {
       }
     }
 
-    volume "tms_backend_storage" {
-      type      = "host"
-      read_only = false
-      source    = "tms_backend_storage"
-    }
-    
     service {
-      name = "tms-backend"
+      name = "ai-agent"
       port = "http"
       
       # Health checks
@@ -85,14 +79,8 @@ job "ai-agent" {
     #   weight    = 50
     # }
     
-    task "backend" {
+    task "ai-agent" {
       driver = "docker"
-
-      volume_mount {
-        volume      = "tms_backend_storage"
-        destination = "/opt/tms"
-        read_only   = false
-      }
       
       # Enable Vault workload identity
       # identity {
@@ -173,18 +161,6 @@ EOH
         
         # Force pull latest image
         force_pull = true
-        
-        # Wait for database to be ready
-        command = "/bin/sh"
-        args = [
-          "-c",
-          <<EOF
-echo 'Waiting for database...' &&
-echo 'Database is ready' &&
-echo 'Starting Backend service...' &&
-# sleep 1000 &&  # Ensure PostgreSQL replica is fully initialized
-EOF
-        ]
       }
       
       # Performance optimizations
@@ -193,8 +169,6 @@ EOF
         GOGC = "100"
         GOMEMLIMIT = "450MiB"
         REGION = "${meta.region}"  # or "iowa"
-        CORS_ALLOW_CREDENTIALS="false"
-        CORS_ORIGINS=""
       }
       
       # Resource allocation matching Docker Swarm config
