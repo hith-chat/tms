@@ -14,6 +14,7 @@ import {
 } from '@tms/shared'
 import { MessageCircle, Clock, User, Building, AlertCircle } from 'lucide-react'
 import { ThemeToggle } from '@shared/theme'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 // API Response types (different from internal types)
 interface PublicMessage {
@@ -66,7 +67,7 @@ export function PublicTicketView() {
     queryFn: async (): Promise<TokenValidationResponse> => {
       if (!ticketId) throw new Error('No ticketId provided')
       
-      const response = await fetch(`/api/public/tickets/${ticketId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/public/tickets/${ticketId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -94,7 +95,7 @@ export function PublicTicketView() {
     queryKey: ['public-messages', ticketId],
     queryFn: async () => {
       if (!ticketId) throw new Error('No token')
-      const resp = await fetch(`/api/public/tickets/${ticketId}/messages`)
+      const resp = await fetch(`${API_BASE_URL}/api/public/tickets/${ticketId}/messages`)
       if (!resp.ok) throw new Error('Failed to load messages')
   const json = await resp.json()
   // API may return either an array or an object { messages: [...] }
@@ -113,7 +114,7 @@ export function PublicTicketView() {
   const postMessage = useMutation({
     mutationFn: async (body: string) => {
       if (!ticketId) throw new Error('No token')
-      const resp = await fetch(`/api/public/tickets/${ticketId}/messages`, {
+      const resp = await fetch(`${API_BASE_URL}/api/public/tickets/${ticketId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body }),
