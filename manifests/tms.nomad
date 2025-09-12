@@ -3,7 +3,7 @@ job "tms-backend" {
   type        = "service"
 
   group "tms-backend-service" {
-    count = 1  # High availability with 5 replicas
+    count = 4  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
     # spread {

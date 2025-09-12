@@ -12,6 +12,7 @@ import {
   Check,
   X,
   Brain,
+  Palette,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
@@ -113,7 +114,7 @@ export function SettingsPage() {
     { id: 'projects' as SettingsTab, name: 'Projects', icon: Settings },
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
     { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
-    // { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
+    { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
     { id: 'knowledge' as SettingsTab, name: 'AI Knowledge Base', icon: Brain },
     // { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
