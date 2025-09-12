@@ -10,6 +10,7 @@ import (
 
 	"github.com/bareuptime/tms/internal/db"
 	"github.com/bareuptime/tms/internal/models"
+	"github.com/bareuptime/tms/internal/redis"
 	"github.com/bareuptime/tms/internal/repo"
 	"github.com/bareuptime/tms/internal/websocket"
 )
@@ -18,6 +19,7 @@ type ChatSessionService struct {
 	chatSessionRepo   *repo.ChatSessionRepo
 	chatMessageRepo   *repo.ChatMessageRepo
 	chatWidgetRepo    *repo.ChatWidgetRepo
+	redisService      *redis.Service
 	customerRepo      repo.CustomerRepository
 	ticketService     *TicketService
 	agentService      *AgentService
@@ -32,10 +34,12 @@ func NewChatSessionService(
 	ticketService *TicketService,
 	agentService *AgentService,
 	connectionManager *websocket.ConnectionManager,
+	redisService *redis.Service,
 ) *ChatSessionService {
 	return &ChatSessionService{
 		chatSessionRepo:   chatSessionRepo,
 		chatMessageRepo:   chatMessageRepo,
+		redisService:      redisService,
 		chatWidgetRepo:    chatWidgetRepo,
 		customerRepo:      customerRepo,
 		ticketService:     ticketService,
@@ -102,6 +106,13 @@ func (s *ChatSessionService) InitiateChat(ctx context.Context, widgetID uuid.UUI
 		return nil, fmt.Errorf("failed to create chat session: %w", err)
 	}
 
+	// Cache the new session in Redis for 1 hour
+	cacheKey := fmt.Sprintf("chat_session:client:%s", session.ClientSessionID)
+	sessionData, err := json.Marshal(session)
+	if err == nil {
+		s.redisService.GetClient().Set(ctx, cacheKey, sessionData, 1*time.Hour)
+	}
+
 	// Send initial message if provided
 	if req.InitialMessage != "" {
 		_, err = s.SendMessage(ctx, session, &models.SendChatMessageRequest{
@@ -127,7 +138,33 @@ func (s *ChatSessionService) GetChatSessionByID(ctx context.Context, tenantID, s
 }
 
 func (s *ChatSessionService) GetChatSessionByClientSessionID(ctx context.Context, clientSessionID string) (*models.ChatSession, error) {
-	return s.chatSessionRepo.GetChatSessionByClientSessionID(ctx, clientSessionID)
+	// First check Redis cache
+	cacheKey := fmt.Sprintf("chat_session:client:%s", clientSessionID)
+	cachedData, err := s.redisService.GetClient().Get(ctx, cacheKey).Result()
+	if err == nil && cachedData != "" {
+		// Parse the cached session data
+		var session models.ChatSession
+		if err := json.Unmarshal([]byte(cachedData), &session); err == nil {
+			return &session, nil
+		}
+		// If unmarshaling fails, continue to database lookup
+	}
+
+	// If not in Redis, check database
+	session, err := s.chatSessionRepo.GetChatSessionByClientSessionID(ctx, clientSessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if session != nil {
+		// Cache the session in Redis for 1 hour
+		sessionData, err := json.Marshal(session)
+		if err == nil {
+			s.redisService.GetClient().Set(ctx, cacheKey, sessionData, 1*time.Hour)
+		}
+	}
+
+	return session, nil
 }
 
 // ListChatSessions lists chat sessions for a project
@@ -156,6 +193,12 @@ func (s *ChatSessionService) AssignAgentWithSessionObj(ctx context.Context, tena
 	err := s.chatSessionRepo.UpdateChatSession(ctx, session)
 	if err != nil {
 		return fmt.Errorf("failed to assign agent: %w", err)
+	}
+
+	// Delete the Redis cache entry for the client session ID since the session has been assigned
+	if session.ClientSessionID != "" {
+		cacheKey := fmt.Sprintf("chat_session:client:%s", session.ClientSessionID)
+		s.redisService.GetClient().Del(ctx, cacheKey)
 	}
 
 	// Fetch agent details for the system message
