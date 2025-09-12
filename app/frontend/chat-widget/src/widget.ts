@@ -291,6 +291,10 @@ export class TMSChatWidget {
     const messagesContainer = document.getElementById('tms-chat-messages')
     if (!messagesContainer) return
 
+    if (messagesContainer.style.display === 'none') {
+      messagesContainer.style.display = 'block'
+    }
+
     const messageWrapper = document.createElement('div')
     messageWrapper.className = `tms-message-wrapper ${message.author_type}`
 
