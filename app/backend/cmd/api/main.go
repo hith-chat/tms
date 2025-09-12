@@ -240,12 +240,16 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 	publicRoutes := router.Group("/api/public")
 	{
 		publicRoutes.GET("/health", publicHandler.Health)
-		publicRoutes.GET("/tickets/:token", publicHandler.GetTicketByMagicLink)
-		publicRoutes.GET("/tickets/:token/messages", publicHandler.GetTicketMessagesByMagicLink)
-		publicRoutes.POST("/tickets/:token/messages", publicHandler.AddMessageByMagicLink)
+		publicRoutes.GET("/tickets/tokens/:token", publicHandler.GetTicketByMagicLink)
+		publicRoutes.GET("/tickets/tokens/:token/messages", publicHandler.GetTicketMessagesByMagicLink)
+		publicRoutes.POST("/tickets/tokens/:token/messages", publicHandler.AddMessageByMagicLink)
 		// Testing endpoint - remove in production
 		publicRoutes.POST("/generate-magic-link", publicHandler.GenerateMagicLink)
 
+		// Ticket ID based routes (without magic link)
+		publicRoutes.GET("/tickets/:ticketId", publicHandler.GetTicketByID)
+		publicRoutes.GET("/tickets/:ticketId/messages", publicHandler.GetTicketMessagesByID)
+		publicRoutes.POST("/tickets/:ticketId/messages", publicHandler.AddMessageByID)
 	}
 
 	// Auth routes (not protected by auth middleware)

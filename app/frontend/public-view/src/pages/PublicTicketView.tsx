@@ -56,17 +56,17 @@ interface TokenValidationResponse {
 }
 
 export function PublicTicketView() {
-  const { token } = useParams<{ token: string }>()
+  const { ticketId } = useParams<{ ticketId: string }>()
   const [newMessage, setNewMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Validate token and fetch ticket data
   const { data: tokenData, isLoading, error } = useQuery({
-    queryKey: ['public-ticket', token],
+    queryKey: ['public-ticket', ticketId],
     queryFn: async (): Promise<TokenValidationResponse> => {
-      if (!token) throw new Error('No token provided')
+      if (!ticketId) throw new Error('No ticketId provided')
       
-      const response = await fetch(`/api/public/tickets/${token}`, {
+      const response = await fetch(`/api/public/tickets/${ticketId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -82,7 +82,7 @@ export function PublicTicketView() {
 
       return response.json()
     },
-    enabled: !!token,
+    enabled: !!ticketId,
     retry: false
   })
 
@@ -91,10 +91,10 @@ export function PublicTicketView() {
   const queryClient = useQueryClient()
 
   const { data: messagesData } = useQuery<PublicMessage[]>({
-    queryKey: ['public-messages', token],
+    queryKey: ['public-messages', ticketId],
     queryFn: async () => {
-      if (!token) throw new Error('No token')
-      const resp = await fetch(`/api/public/tickets/${token}/messages`)
+      if (!ticketId) throw new Error('No token')
+      const resp = await fetch(`/api/public/tickets/${ticketId}/messages`)
       if (!resp.ok) throw new Error('Failed to load messages')
   const json = await resp.json()
   // API may return either an array or an object { messages: [...] }
@@ -102,7 +102,7 @@ export function PublicTicketView() {
   if (json && Array.isArray(json.messages)) return json.messages
   return []
     },
-    enabled: !!token && !!tokenData?.valid,
+    enabled: !!ticketId && !!tokenData?.valid,
     // Auto refetch every 30s and update the cache/UI
     refetchInterval: 30000,
   // Use messages included in token validation as initial data to avoid flash
@@ -112,8 +112,8 @@ export function PublicTicketView() {
   // Mutation for posting a message with optimistic update
   const postMessage = useMutation({
     mutationFn: async (body: string) => {
-      if (!token) throw new Error('No token')
-      const resp = await fetch(`/api/public/tickets/${token}/messages`, {
+      if (!ticketId) throw new Error('No token')
+      const resp = await fetch(`/api/public/tickets/${ticketId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body }),
@@ -123,8 +123,8 @@ export function PublicTicketView() {
     },
     // Optimistic update: append a temp message immediately
     onMutate: async (body) => {
-      await queryClient.cancelQueries({ queryKey: ['public-messages', token] })
-      const previous = queryClient.getQueryData<PublicMessage[]>(['public-messages', token])
+      await queryClient.cancelQueries({ queryKey: ['public-messages', ticketId] })
+      const previous = queryClient.getQueryData<PublicMessage[]>(['public-messages', ticketId])
 
       const optimistic: PublicMessage = {
         id: `optimistic-${Date.now()}`,
@@ -143,7 +143,7 @@ export function PublicTicketView() {
         },
       }
 
-      queryClient.setQueryData<PublicMessage[]>(['public-messages', token], (old) => {
+      queryClient.setQueryData<PublicMessage[]>(['public-messages', ticketId], (old) => {
         if (!old) return [optimistic]
         return [...old, optimistic]
       })
@@ -152,17 +152,17 @@ export function PublicTicketView() {
     },
     onError: (_err, _vars, context: any) => {
       if (context?.previous) {
-        queryClient.setQueryData(['public-messages', token], context.previous)
+        queryClient.setQueryData(['public-messages', ticketId], context.previous)
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['public-messages', token] })
-      queryClient.invalidateQueries({ queryKey: ['public-ticket', token] })
+      queryClient.invalidateQueries({ queryKey: ['public-messages', ticketId] })
+      queryClient.invalidateQueries({ queryKey: ['public-ticket', ticketId] })
     },
   })
 
   const handleSubmitMessage = () => {
-    if (!newMessage.trim() || !token || isSubmitting) return
+    if (!newMessage.trim() || !ticketId || isSubmitting) return
     setIsSubmitting(true)
     postMessage.mutate(newMessage.trim(), {
       onSuccess: () => setNewMessage(''),
@@ -171,7 +171,7 @@ export function PublicTicketView() {
   }
 
   // Redirect if no token
-  if (!token) {
+  if (!ticketId) {
     return <Navigate to="/" replace />
   }
 

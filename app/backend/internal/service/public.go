@@ -173,3 +173,73 @@ func (s *PublicService) GenerateMagicLinkToken(ticketID, customerID uuid.UUID) (
 	scope := []string{"read", "write"}
 	return s.jwtAuth.GeneratePublicToken(ticketID, customerID, scope)
 }
+
+// GetTicketByID retrieves a ticket using ticket ID
+func (s *PublicService) GetTicketByID(ctx context.Context, ticketID uuid.UUID) (*db.Ticket, error) {
+	// Get ticket directly by ID
+	ticket, err := s.ticketRepo.GetByID(ctx, ticketID)
+	if err != nil {
+		return nil, fmt.Errorf("ticket not found: %w", err)
+	}
+
+	return ticket, nil
+}
+
+// GetTicketMessagesByID retrieves public messages for a ticket using ticket ID
+func (s *PublicService) GetTicketMessagesByID(ctx context.Context, ticketID uuid.UUID, cursor string, limit int) ([]*MessageWithDetails, string, error) {
+	// Verify ticket exists
+	ticket, err := s.ticketRepo.GetByID(ctx, ticketID)
+	if err != nil {
+		return nil, "", fmt.Errorf("ticket not found: %w", err)
+	}
+
+	pagination := repo.PaginationParams{
+		Cursor: cursor,
+		Limit:  limit,
+	}
+
+	// Get public messages only (includePrivate = false)
+	messages, nextCursor, err := s.messageRepo.GetByTicketID(ctx, ticketID, false, pagination)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get messages: %w", err)
+	}
+
+	messagesWithDetails, err := s.messageService.UpdateMessageWithDetails(ctx, ticket.TenantID, messages)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to update message details: %w", err)
+	}
+
+	return messagesWithDetails, nextCursor, nil
+}
+
+// AddMessageByID adds a public message to a ticket using ticket ID
+func (s *PublicService) AddMessageByID(ctx context.Context, ticketID uuid.UUID, req AddPublicMessageRequest) (*db.TicketMessage, error) {
+	// Verify ticket exists and get the requester (customer) ID
+	ticket, err := s.ticketRepo.GetByID(ctx, ticketID)
+	if err != nil {
+		return nil, fmt.Errorf("ticket not found: %w", err)
+	}
+
+	// Use the ticket's requester as the customer ID
+	customerID := ticket.CustomerID
+
+	// Create message from customer
+	message := &db.TicketMessage{
+		ID:         uuid.New(),
+		TenantID:   ticket.TenantID,
+		ProjectID:  ticket.ProjectID,
+		TicketID:   ticketID,
+		AuthorType: "customer",
+		AuthorID:   &customerID,
+		Body:       req.Body,
+		IsPrivate:  false, // Customer messages are always public
+		CreatedAt:  time.Now(),
+	}
+
+	err = s.messageRepo.Create(ctx, message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create message: %w", err)
+	}
+
+	return message, nil
+}

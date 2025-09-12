@@ -169,6 +169,133 @@ func (h *PublicHandler) AddMessageByMagicLink(c *gin.Context) {
 	c.JSON(http.StatusCreated, publicMsg)
 }
 
+// GetTicketByID handles public ticket access via ticket ID
+func (h *PublicHandler) GetTicketByID(c *gin.Context) {
+	ticketIdStr := c.Param("ticketId")
+	if ticketIdStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ticket ID is required"})
+		return
+	}
+
+	ticketID, err := uuid.Parse(ticketIdStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ticket ID format"})
+		return
+	}
+
+	ticket, err := h.publicService.GetTicketByID(c.Request.Context(), ticketID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Also get messages for the combined response that the frontend expects
+	messages, _, err := h.publicService.GetTicketMessagesByID(c.Request.Context(), ticketID, "", 50)
+	if err != nil {
+		// If messages fail, just return the ticket without them
+		c.JSON(http.StatusOK, gin.H{
+			"valid":    true,
+			"ticket":   ticket,
+			"messages": []interface{}{},
+		})
+		return
+	}
+
+	publicMsgs := toPublicMessages(messages)
+
+	c.JSON(http.StatusOK, gin.H{
+		"valid":    true,
+		"ticket":   ticket,
+		"messages": publicMsgs,
+	})
+}
+
+// GetTicketMessagesByID handles public ticket messages access via ticket ID
+func (h *PublicHandler) GetTicketMessagesByID(c *gin.Context) {
+	ticketIdStr := c.Param("ticketId")
+	if ticketIdStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ticket ID is required"})
+		return
+	}
+
+	ticketID, err := uuid.Parse(ticketIdStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ticket ID format"})
+		return
+	}
+
+	// Parse query parameters
+	cursor := c.Query("cursor")
+	limit := 50 // default limit
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	messages, nextCursor, err := h.publicService.GetTicketMessagesByID(c.Request.Context(), ticketID, cursor, limit)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := gin.H{
+		"messages": toPublicMessages(messages),
+	}
+
+	if nextCursor != "" {
+		response["next_cursor"] = nextCursor
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// AddMessageByID handles adding a public message via ticket ID
+func (h *PublicHandler) AddMessageByID(c *gin.Context) {
+	ticketIdStr := c.Param("ticketId")
+	if ticketIdStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ticket ID is required"})
+		return
+	}
+
+	ticketID, err := uuid.Parse(ticketIdStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ticket ID format"})
+		return
+	}
+
+	var req service.AddPublicMessageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
+		return
+	}
+
+	message, err := h.publicService.AddMessageByID(c.Request.Context(), ticketID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Map to public response shape
+	publicMsg := PublicMessage{
+		ID:         message.ID,
+		TicketID:   message.TicketID,
+		AuthorType: message.AuthorType,
+		AuthorID:   message.AuthorID,
+		Body:       message.Body,
+		IsPrivate:  message.IsPrivate,
+		CreatedAt:  message.CreatedAt,
+	}
+
+	c.JSON(http.StatusCreated, publicMsg)
+}
+
 // GenerateMagicLink generates a magic link for testing purposes
 // This endpoint should be removed in production
 func (h *PublicHandler) GenerateMagicLink(c *gin.Context) {

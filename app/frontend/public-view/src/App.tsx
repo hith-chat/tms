@@ -7,7 +7,7 @@ function App() {
     <div className="min-h-screen bg-background">
       <Routes>
         <Route path="/" element={<NotFound />} />
-        <Route path="/tickets/:token" element={<PublicTicketView />} />
+        <Route path="/tickets/:ticketId" element={<PublicTicketView />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
