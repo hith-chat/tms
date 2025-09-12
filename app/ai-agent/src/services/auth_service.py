@@ -37,6 +37,7 @@ class AuthService:
             Authentication token or None if failed
         """
         cache_key = f"{tenant_id}:{project_id}"
+        logger.info("Using AI_AGENT_LOGIN_ACCESS_KEY: %s", self.agent_secret)
 
         # Check if we have a cached token
         token = self.auth_tokens.get(cache_key)
