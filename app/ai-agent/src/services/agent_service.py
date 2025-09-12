@@ -215,7 +215,7 @@ class AgentService:
                         self.sessions[session_id].context['ticket_id'] = ticket_id
                     
                     return (
-                        f"✅ I've created support ticket #{ticket_id}. "
+                        f"✅ I've created support ticket #{ticket_id}. **Here is the url: https://taral-tickets.bareuptime.co/tickets/{ticket_id} **"
                         f"We’ll reach out to {name} at {email} if we need anything else."
                     )
                

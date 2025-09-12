@@ -143,8 +143,14 @@ class TMSApiClient:
         result = await self._make_request("POST", endpoint, tenant_id, project_id, ticket_data)
         
         if result:
-            logger.info(f"Ticket created successfully: #{result.get('id', 'unknown')}")
+            logger.info(f"Ticket created successfully: #{result.get('id', 'unknown')}. ")
         
+        response = {
+            "success": result is not None,
+            "ticket": result,
+            "message": "A support ticket has been created. Our team will get back to you shortly. **Here is your ticket URL: https://taral-tickets.bareuptime.co/tickets/{} **".format(result.get("id")) if result else "Failed to create ticket."
+        }
+        logger.info(f"Create ticket response: {response}")
         return result
     
     
