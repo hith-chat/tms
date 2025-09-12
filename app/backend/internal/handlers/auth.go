@@ -22,6 +22,7 @@ type AuthHandler struct {
 
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService, aiAgentLoginAccessKey string) *AuthHandler {
+	fmt.Println("Initializing AuthHandler with AiAgentLoginAccessKey:", aiAgentLoginAccessKey)
 	return &AuthHandler{
 		authService:           authService,
 		publicService:         publicService,
