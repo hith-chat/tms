@@ -210,11 +210,11 @@ func (h *ChatWebSocketHandler) processVisitorChatMessage(ctx context.Context, se
 
 			if shouldRespondWithAI {
 				go func() {
-					_, err := h.aiService.ProcessMessage(ctx, session, content, connID)
-					if err != nil {
-						log.Printf("AI processing error for session %s: %v", session.ID, err)
-						return
-					}
+					// _, err := h.aiService.ProcessMessage(ctx, session, content, connID)
+					// if err != nil {
+					// 	log.Printf("AI processing error for session %s: %v", session.ID, err)
+					// 	return
+					// }
 					fmt.Println("Processing visitor message with AI agent client... ", content)
 					h.processVisitorResponseUsingAi(ctx, session, content, connID)
 				}()

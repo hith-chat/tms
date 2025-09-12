@@ -488,7 +488,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/sessions", chatSessionHandler.ListChatSessions)
 				chat.GET("/sessions/:session_id", chatSessionHandler.GetChatSession)
 				chat.POST("/sessions/:session_id/assign", chatSessionHandler.AssignAgent)
-				chat.POST("/sessions/:session_id/escalate", chatSessionHandler.EscalateSession)
+				chat.POST("/sessions/:session_id/escalate", middleware.TenantAdminMiddleware(), chatSessionHandler.EscalateSession)
 				chat.GET("/sessions/:session_id/messages", chatSessionHandler.GetChatMessages)
 				chat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkAgentMessagesAsRead)
 				chat.GET("/sessions/:session_id/client/status", chatSessionHandler.IsCustomerOnline)
