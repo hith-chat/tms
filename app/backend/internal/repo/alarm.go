@@ -26,11 +26,11 @@ func NewAlarmRepository(db *sqlx.DB) *AlarmRepository {
 func (r *AlarmRepository) CreateAlarm(ctx context.Context, alarm *models.Alarm) error {
 	query := `
 		INSERT INTO alarms (
-			id, tenant_id, project_id, assignment_id, agent_id, title, message, 
+			id, tenant_id, project_id, agent_id, title, message, 
 			priority, current_level, start_time, last_escalation, escalation_count,
 			is_acknowledged, config, metadata, created_at, updated_at
 		) VALUES (
-			:id, :tenant_id, :project_id, :assignment_id, :agent_id, :title, :message,
+			:id, :tenant_id, :project_id, :agent_id, :title, :message,
 			:priority, :current_level, :start_time, :last_escalation, :escalation_count,
 			:is_acknowledged, :config, :metadata, :created_at, :updated_at
 		)`
@@ -43,7 +43,7 @@ func (r *AlarmRepository) CreateAlarm(ctx context.Context, alarm *models.Alarm) 
 func (r *AlarmRepository) GetAlarmByID(ctx context.Context, tenantID, alarmID uuid.UUID) (*models.Alarm, error) {
 	var alarm models.Alarm
 	query := `
-		SELECT id, tenant_id, project_id, assignment_id, agent_id, title, message,
+		SELECT id, tenant_id, project_id, agent_id, title, message,
 			   priority, current_level, start_time, last_escalation, escalation_count,
 			   is_acknowledged, acknowledged_at, acknowledged_by, config, metadata,
 			   created_at, updated_at
@@ -61,7 +61,7 @@ func (r *AlarmRepository) GetAlarmByID(ctx context.Context, tenantID, alarmID uu
 func (r *AlarmRepository) GetActiveAlarms(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.Alarm, error) {
 	var alarms []*models.Alarm
 	query := `
-		SELECT id, tenant_id, project_id, assignment_id, agent_id, title, message,
+		SELECT id, tenant_id, project_id, agent_id, title, message,
 			   priority, current_level, start_time, last_escalation, escalation_count,
 			   is_acknowledged, acknowledged_at, acknowledged_by, config, metadata,
 			   created_at, updated_at
@@ -77,7 +77,7 @@ func (r *AlarmRepository) GetActiveAlarms(ctx context.Context, tenantID, project
 func (r *AlarmRepository) GetAllActiveAlarms(ctx context.Context, tenantID uuid.UUID) ([]*models.Alarm, error) {
 	var alarms []*models.Alarm
 	query := `
-		SELECT id, tenant_id, project_id, assignment_id, agent_id, title, message,
+		SELECT id, tenant_id, project_id, agent_id, title, message,
 			   priority, current_level, start_time, last_escalation, escalation_count,
 			   is_acknowledged, acknowledged_at, acknowledged_by, config, metadata,
 			   created_at, updated_at
@@ -124,7 +124,7 @@ func (r *AlarmRepository) UpdateAlarm(ctx context.Context, alarm *models.Alarm) 
 // AcknowledgeAlarm marks an alarm as acknowledged
 func (r *AlarmRepository) AcknowledgeAlarm(ctx context.Context, tenantID, alarmID, agentID uuid.UUID, response string) error {
 	now := time.Now()
-	
+
 	// Start transaction for both alarm update and acknowledgment record
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -173,13 +173,13 @@ func (r *AlarmRepository) AcknowledgeAlarm(ctx context.Context, tenantID, alarmI
 // GetAlarmStats gets alarm statistics for a project
 func (r *AlarmRepository) GetAlarmStats(ctx context.Context, tenantID, projectID uuid.UUID) (*models.AlarmStats, error) {
 	stats := &models.AlarmStats{}
-	
+
 	// Get active alarms count
 	activeQuery := `
 		SELECT COUNT(*) 
 		FROM alarms 
 		WHERE tenant_id = $1 AND project_id = $2 AND is_acknowledged = false`
-	
+
 	err := r.db.GetContext(ctx, &stats.ActiveCount, activeQuery, tenantID, projectID)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func (r *AlarmRepository) GetAlarmStats(ctx context.Context, tenantID, projectID
 		FROM alarms 
 		WHERE tenant_id = $1 AND project_id = $2 AND is_acknowledged = false 
 		AND current_level = 'critical'`
-	
+
 	err = r.db.GetContext(ctx, &stats.CriticalCount, criticalQuery, tenantID, projectID)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (r *AlarmRepository) GetAlarmStats(ctx context.Context, tenantID, projectID
 		FROM alarms 
 		WHERE tenant_id = $1 AND project_id = $2 
 		AND DATE(created_at) = CURRENT_DATE`
-	
+
 	err = r.db.GetContext(ctx, &stats.TotalToday, todayQuery, tenantID, projectID)
 	if err != nil {
 		return nil, err
@@ -218,7 +218,7 @@ func (r *AlarmRepository) GetAlarmStats(ctx context.Context, tenantID, projectID
 // DeleteAlarm deletes an alarm (soft delete could be implemented instead)
 func (r *AlarmRepository) DeleteAlarm(ctx context.Context, tenantID, alarmID uuid.UUID) error {
 	query := `DELETE FROM alarms WHERE id = $1 AND tenant_id = $2`
-	
+
 	result, err := r.db.ExecContext(ctx, query, alarmID, tenantID)
 	if err != nil {
 		return err
@@ -240,7 +240,7 @@ func (r *AlarmRepository) DeleteAlarm(ctx context.Context, tenantID, alarmID uui
 func (r *AlarmRepository) GetAlarmsForEscalation(ctx context.Context) ([]*models.Alarm, error) {
 	var alarms []*models.Alarm
 	query := `
-		SELECT id, tenant_id, project_id, assignment_id, agent_id, title, message,
+		SELECT id, tenant_id, project_id, agent_id, title, message,
 			   priority, current_level, start_time, last_escalation, escalation_count,
 			   is_acknowledged, acknowledged_at, acknowledged_by, config, metadata,
 			   created_at, updated_at
