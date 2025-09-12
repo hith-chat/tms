@@ -29,12 +29,33 @@ job "ai-agent" {
     network {
       mode = "bridge"
       port "http" {
+        to = 5000
       }
     }
 
     service {
       name = "ai-agent"
       port = "http"
+
+      connect {
+        sidecar_service {
+          proxy {
+            local_service_address = "127.0.0.1"
+            local_service_port = 5000
+
+            upstreams {
+              destination_name = "tms-backend"
+              local_bind_port  = 8081
+            }
+          }
+        }
+        sidecar_task {
+          resources {
+            cpu    = 50   # 0.05 CPU
+            memory = 64   # 64MB for sidecar proxy
+          }
+        }
+      }
       
       # Health checks
       check {
@@ -126,7 +147,6 @@ LOG_LEVEL={{ .Data.data.LOG_LEVEL }}
 AI_API_KEY={{ .Data.data.AI_API_KEY }}
 OPENAI_API_KEY={{ .Data.data.AI_API_KEY }}
 AI_AGENT_LOGIN_ACCESS_KEY={{ .Data.data.TMS_API_S2S_KEY }}
-TMS_API_BASE_URL=http://{{- range $i, $service := service "backend" -}}{{- if eq $i 0 }}{{ .Address }}:{{ .Port }}{{- end }}{{- end }}
 {{- end }}
 EOH
         destination = "secrets/config.env"
@@ -140,8 +160,9 @@ EOH
 CONSUL_HTTP_ADDR=http://{{ env "NOMAD_IP_http" }}:8500
 SERVICE_NAME=backend
 SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
-SERVER_PORT={{ env "NOMAD_PORT_http" }}
-PORT={{ env "NOMAD_PORT_http" }}
+SERVER_PORT=5000
+PORT=5000
+TMS_API_BASE_URL=https://tms.bareuptime.co
 EOH
         destination = "secrets/consul.env"
         env         = true

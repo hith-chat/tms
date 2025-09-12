@@ -2,7 +2,7 @@ job "tms-backend" {
   datacenters = ["dc1"]
   type        = "service"
 
-  group "tms-falkenstein" {
+  group "tms-backend-service" {
     count = 1  # High availability with 5 replicas
 
     # Spread across different nodes for better distribution
@@ -29,6 +29,7 @@ job "tms-backend" {
     network {
       mode = "bridge"
       port "http" {
+        to = 8080
       }
     }
 
@@ -41,6 +42,26 @@ job "tms-backend" {
     service {
       name = "tms-backend"
       port = "http"
+
+      connect {
+        sidecar_service {
+          proxy {
+            local_service_address = "127.0.0.1"
+            local_service_port = 8080
+
+            upstreams {
+              destination_name = "ai-agent"
+              local_bind_port  = 5000
+            }
+          }
+        }
+        sidecar_task {
+          resources {
+            cpu    = 50   # 0.05 CPU
+            memory = 64   # 64MB for sidecar proxy
+          }
+        }
+      }
       
       # Health checks
       check {
@@ -72,7 +93,6 @@ job "tms-backend" {
         "region=falkenstein",
         
         # Service configuration with load balancing
-        "traefik.http.services.tms-backend.loadbalancer.server.port=${NOMAD_PORT_http}",
         "traefik.http.services.tms-backend.loadbalancer.healthcheck.path=/api/public/health",
         "traefik.http.services.tms-backend.loadbalancer.healthcheck.interval=30s",
         "traefik.http.services.tms-backend.loadbalancer.healthcheck.timeout=10s",
@@ -138,7 +158,7 @@ job "tms-backend" {
     #   weight    = 50
     # }
     
-    task "backend" {
+    task "tms-backend" {
       driver = "docker"
 
       volume_mount {
@@ -237,8 +257,8 @@ EOH
 CONSUL_HTTP_ADDR=http://{{ env "NOMAD_IP_http" }}:8500
 SERVICE_NAME=backend
 SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
-SERVER_PORT={{ env "NOMAD_PORT_http" }}
-AI_AGENT_SERVICE_URL=http://{{- range $i, $service := service "ai-agent" -}}{{- if eq $i 0 }}{{ .Address }}:{{ .Port }}{{- end }}{{- end }}
+SERVER_PORT=8080
+AI_AGENT_SERVICE_URL=http://localhost:5000
 EOH
         destination = "secrets/consul.env"
         env         = true
