@@ -486,6 +486,13 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       border: 1px solid color-mix(in srgb, var(--tms-secondary-color) 80%, #fff);
     }
 
+    .tms-message-bubble.ai-agent {
+      background: var(--tms-secondary-color);
+      color: color-mix(in srgb, var(--tms-secondary-color) 15%, #000);
+      border-bottom-left-radius: 6px;
+      border: 1px solid color-mix(in srgb, var(--tms-secondary-color) 80%, #fff);
+    }
+
     .tms-message-bubble.system {
       background: #f3f4f6;
       color: #6b7280;

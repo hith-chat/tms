@@ -147,6 +147,8 @@ LOG_LEVEL={{ .Data.data.LOG_LEVEL }}
 AI_API_KEY={{ .Data.data.AI_API_KEY }}
 OPENAI_API_KEY={{ .Data.data.AI_API_KEY }}
 AI_AGENT_LOGIN_ACCESS_KEY={{ .Data.data.TMS_API_S2S_KEY }}
+AI_AGENT_EMAIL={{ .Data.data.AI_AGENT_EMAIL }}
+AI_AGENT_PASSWORD={{ .Data.data.AI_AGENT_PASSWORD }}
 {{- end }}
 EOH
         destination = "secrets/config.env"
