@@ -6,7 +6,7 @@ from typing import Dict, Optional, Any, List
 import httpx
 from datetime import datetime
 from cachetools import TTLCache
-
+import traceback
 from ..config import config
 from .agent_auth_service import AgentAuthService
 from .auth_service import auth_service
@@ -48,7 +48,6 @@ class TMSApiClient:
         """
         # Get authentication token
         token = await auth_service.authenticate(tenant_id, project_id)
-        logger.info(f"Obtained auth token for tenant {tenant_id}, project {project_id} with token: {token}")
         if not token:
             logger.error(f"Failed to get auth token for tenant {tenant_id}")
             return None
@@ -86,6 +85,9 @@ class TMSApiClient:
                 return response.json() if response.content else {}
                 
         except Exception as e:
+            traceback.print_exc()
+            logger.error(f"Exception during TMS API request: {e}")
+            logger.error(f"Request details: {method} {url} Data: {data} Params: {params}")
             logger.error(f"TMS API request error for {method} {endpoint}: {e}")
             return None
     
@@ -175,12 +177,12 @@ class TMSApiClient:
         escalation_data = {
             "reason": reason,
             "priority": priority,
-            "escalated_at": datetime.now().isoformat()
-        }
+            "message": f"Chat session {session_id} escalated. Reason: {reason}"
+        } 
         
         logger.info(f"Escalating session {session_id} for tenant {tenant_id}: {reason}")
         
-        result = await self._make_request("POST", endpoint, tenant_id, escalation_data)
+        result = await self._make_request("POST", endpoint, tenant_id, project_id, escalation_data)
         
         if result:
             logger.info(f"Session {session_id} escalated successfully")
@@ -196,7 +198,11 @@ class TMSApiClient:
                 category="escalation"
             )
         
-        return result
+        return {
+            "success": True,
+            "message": f"An agent will join the chat shortly in less than 20 seconds. Please wait.",
+            "details": result
+        }
     
     async def update_contact_info(
         self,
@@ -239,6 +245,8 @@ class TMSApiClient:
         try:
             await self._make_request("POST", endpoint, tenant_id, project_id, contact_data)
         except Exception as e:
+            logger.error("Error updating contact info:", contact_data)
+            traceback.print_exc()
             logger.error(f"Failed to update contact info for session {session_id}: {e}")
         return {"success": True}
 

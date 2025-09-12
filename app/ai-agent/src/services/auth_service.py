@@ -18,7 +18,6 @@ class AuthService:
     def __init__(self):
         self.base_url = os.getenv("TMS_API_BASE_URL", "http://172.17.0.1:8080")
         self.agent_secret = os.getenv("AI_AGENT_LOGIN_ACCESS_KEY", "your-super-ai-access-key")
-        logger.info("Using AI_AGENT_LOGIN_ACCESS_KEY: %s", self.agent_secret)
         self.ai_agent_email = os.getenv("AI_AGENT_EMAIL", "superai@acme.com")
         self.ai_agent_password = os.getenv("AI_AGENT_PASSWORD", "superai123")
         # Use an in-memory TTL cache to automatically expire tokens after 8 hours.
@@ -37,7 +36,6 @@ class AuthService:
             Authentication token or None if failed
         """
         cache_key = f"{tenant_id}:{project_id}"
-        logger.info("Using AI_AGENT_LOGIN_ACCESS_KEY: %s", self.agent_secret)
 
         # Check if we have a cached token
         token = self.auth_tokens.get(cache_key)

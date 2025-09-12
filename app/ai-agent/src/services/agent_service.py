@@ -116,6 +116,7 @@ class AgentService:
             """Search the knowledge base for relevant information."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
+                logger.info(f"Knowledge search requested for session {session_id} with params: {params}")
                 params: KnowledgeSearchParams = KnowledgeSearchParams.model_validate_json(params)
                 
                 # Search knowledge base
@@ -157,6 +158,7 @@ class AgentService:
             """Create a support ticket in the system."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
+                logger.info(f"Ticket requested for session {session_id} with params: {params}")
                 params: TicketParams = TicketParams.model_validate_json(params)
                 
                 # Get session context from agent session instead of auth service
@@ -237,6 +239,8 @@ class AgentService:
             """Escalate session to human agents via TMS API."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
+
+                logger.info(f"Escalation requested for session {session_id} with params: {params}")
 
                 params = EscalationParams.model_validate_json(params)
                 
