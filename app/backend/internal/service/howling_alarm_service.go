@@ -38,7 +38,7 @@ func NewHowlingAlarmService(cfg *config.Config, connectionMgr *ws.ConnectionMana
 }
 
 // TriggerAlarm triggers a new howling alarm
-func (s *HowlingAlarmService) TriggerAlarm(ctx context.Context, assignmentID, agentID, tenantID, projectID uuid.UUID,
+func (s *HowlingAlarmService) TriggerAlarm(ctx context.Context, tenantID, projectID uuid.UUID,
 	title, message string, priority models.NotificationPriority, metadata models.JSONMap) (*models.Alarm, error) {
 
 	// Create alarm configuration based on priority
@@ -49,8 +49,6 @@ func (s *HowlingAlarmService) TriggerAlarm(ctx context.Context, assignmentID, ag
 		ID:              uuid.New(),
 		TenantID:        tenantID,
 		ProjectID:       projectID,
-		AssignmentID:    &assignmentID,
-		AgentID:         &agentID,
 		Title:           title,
 		Message:         message,
 		Priority:        priority,
@@ -76,8 +74,8 @@ func (s *HowlingAlarmService) TriggerAlarm(ctx context.Context, assignmentID, ag
 	// Send initial notification
 	s.sendAlarmNotification(alarm)
 
-	log.Printf("Howling alarm triggered: ID=%s, Assignment=%s, Agent=%s, Level=%s",
-		alarm.ID, assignmentID, agentID, alarm.CurrentLevel)
+	log.Printf("Howling alarm triggered: ID=%s, Level=%s",
+		alarm.ID, alarm.CurrentLevel)
 
 	return alarm, nil
 }

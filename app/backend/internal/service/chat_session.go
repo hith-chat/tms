@@ -16,14 +16,15 @@ import (
 )
 
 type ChatSessionService struct {
-	chatSessionRepo   *repo.ChatSessionRepo
-	chatMessageRepo   *repo.ChatMessageRepo
-	chatWidgetRepo    *repo.ChatWidgetRepo
-	redisService      *redis.Service
-	customerRepo      repo.CustomerRepository
-	ticketService     *TicketService
-	agentService      *AgentService
-	connectionManager *websocket.ConnectionManager
+	chatSessionRepo     *repo.ChatSessionRepo
+	chatMessageRepo     *repo.ChatMessageRepo
+	chatWidgetRepo      *repo.ChatWidgetRepo
+	redisService        *redis.Service
+	customerRepo        repo.CustomerRepository
+	ticketService       *TicketService
+	agentService        *AgentService
+	connectionManager   *websocket.ConnectionManager
+	howlingAlarmService *HowlingAlarmService
 }
 
 func NewChatSessionService(
@@ -35,16 +36,18 @@ func NewChatSessionService(
 	agentService *AgentService,
 	connectionManager *websocket.ConnectionManager,
 	redisService *redis.Service,
+	howlingAlarmService *HowlingAlarmService,
 ) *ChatSessionService {
 	return &ChatSessionService{
-		chatSessionRepo:   chatSessionRepo,
-		chatMessageRepo:   chatMessageRepo,
-		redisService:      redisService,
-		chatWidgetRepo:    chatWidgetRepo,
-		customerRepo:      customerRepo,
-		ticketService:     ticketService,
-		agentService:      agentService,
-		connectionManager: connectionManager,
+		chatSessionRepo:     chatSessionRepo,
+		chatMessageRepo:     chatMessageRepo,
+		redisService:        redisService,
+		chatWidgetRepo:      chatWidgetRepo,
+		customerRepo:        customerRepo,
+		ticketService:       ticketService,
+		agentService:        agentService,
+		connectionManager:   connectionManager,
+		howlingAlarmService: howlingAlarmService,
 	}
 }
 
@@ -362,4 +365,50 @@ func (s *ChatSessionService) MarkVisitorMessagesAsRead(ctx context.Context, sess
 		return fmt.Errorf("invalid message ID")
 	}
 	return s.chatMessageRepo.MarkVisitorMessagesAsRead(ctx, sessionID, messageID, readerType)
+}
+
+// EscalateSession escalates a chat session to human agents with alarm notification
+func (s *ChatSessionService) EscalateSession(
+	ctx context.Context,
+	tenantID, projectID, sessionID uuid.UUID,
+	request *models.EscalateChatSessionRequest,
+	escalatedBy uuid.UUID,
+) (*models.EscalateChatSessionResponse, error) {
+
+	// 1. Create escalation title and message
+	escalationTitle := fmt.Sprintf("Chat Session Escalation - %s", sessionID)
+	escalationMessage := request.Message
+	if escalationMessage == "" {
+		escalationMessage = fmt.Sprintf("Chat session escalated: %s", request.Reason)
+	}
+
+	// 2. Create metadata with session and escalation context
+	metadata := models.JSONMap{
+		"session_id":     sessionID,
+		"escalated_by":   escalatedBy,
+		"handoff_reason": request.Reason,
+		"handoff_type":   "ai_to_human",
+	}
+
+	// 2. Trigger alarm via HowlingAlarmService
+	alarm, err := s.howlingAlarmService.TriggerAlarm(
+		ctx,
+		tenantID,
+		projectID,
+		escalationTitle,
+		escalationMessage,
+		request.Priority,
+		metadata,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to trigger alarm: %w", err)
+	}
+
+	// 6. Return success response
+	return &models.EscalateChatSessionResponse{
+		Success:   true,
+		AlarmID:   alarm.ID,
+		Message:   fmt.Sprintf("Session escalated successfully. Alarm ID: %s", alarm.ID),
+		Timestamp: time.Now(),
+	}, nil
 }

@@ -208,3 +208,38 @@ func (h *ChatSessionHandler) MarkVisitorMessagesAsRead(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Messages marked as read"})
 }
+
+// EscalateSession escalates a chat session to human agents with alarm notification
+func (h *ChatSessionHandler) EscalateSession(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+	agentID := middleware.GetAgentID(c) // Who is escalating
+
+	sessionIDStr := c.Param("session_id")
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID format"})
+		return
+	}
+
+	var req models.EscalateChatSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := h.chatSessionService.EscalateSession(
+		c.Request.Context(),
+		tenantID,
+		projectID,
+		sessionID,
+		&req,
+		agentID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to escalate session: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}

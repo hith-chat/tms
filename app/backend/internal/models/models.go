@@ -743,6 +743,21 @@ type AssignChatSessionRequest struct {
 	AgentID uuid.UUID `json:"agent_id" binding:"required"`
 }
 
+// EscalateChatSessionRequest represents a request to escalate a chat session
+type EscalateChatSessionRequest struct {
+	Reason   string               `json:"reason" binding:"required,max=500"`
+	Priority NotificationPriority `json:"priority" binding:"required"`
+	Message  string               `json:"message" binding:"omitempty,max=1000"`
+}
+
+// EscalateChatSessionResponse represents the response after escalation
+type EscalateChatSessionResponse struct {
+	Success   bool      `json:"success"`
+	AlarmID   uuid.UUID `json:"alarm_id"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // ChatSessionWithMessages represents a chat session with its messages
 type ChatSessionWithMessages struct {
 	Session      ChatSession              `json:"session"`
@@ -921,7 +936,6 @@ type Alarm struct {
 	ID              uuid.UUID             `db:"id" json:"id"`
 	TenantID        uuid.UUID             `db:"tenant_id" json:"tenant_id"`
 	ProjectID       uuid.UUID             `db:"project_id" json:"project_id"`
-	AssignmentID    *uuid.UUID            `db:"assignment_id" json:"assignment_id,omitempty"`
 	AgentID         *uuid.UUID            `db:"agent_id" json:"agent_id,omitempty"`
 	Title           string                `db:"title" json:"title"`
 	Message         string                `db:"message" json:"message"`

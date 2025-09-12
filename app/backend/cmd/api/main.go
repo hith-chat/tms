@@ -118,7 +118,10 @@ func main() {
 	connectionManager := websocket.NewConnectionManager(redisService.GetClient())
 	defer connectionManager.Shutdown()
 
-	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService)
+	// Alarm services (Phase 4 implementation) - needed by chat session service
+	howlingAlarmService := service.NewHowlingAlarmService(cfg, connectionManager, alarmRepo)
+
+	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService)
 
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
@@ -135,9 +138,6 @@ func main() {
 
 	// Notification service (needs connection manager for WebSocket delivery)
 	notificationService := service.NewNotificationService(notificationRepo, connectionManager)
-
-	// Alarm services (Phase 4 implementation)
-	howlingAlarmService := service.NewHowlingAlarmService(cfg, connectionManager, alarmRepo)
 	// Enhanced notification service for agentic behavior
 	// enhancedNotificationService := service.NewEnhancedNotificationService(notificationRepo, connectionManager, howlingAlarmService, cfg)
 
@@ -488,6 +488,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				chat.GET("/sessions", chatSessionHandler.ListChatSessions)
 				chat.GET("/sessions/:session_id", chatSessionHandler.GetChatSession)
 				chat.POST("/sessions/:session_id/assign", chatSessionHandler.AssignAgent)
+				chat.POST("/sessions/:session_id/escalate", chatSessionHandler.EscalateSession)
 				chat.GET("/sessions/:session_id/messages", chatSessionHandler.GetChatMessages)
 				chat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkAgentMessagesAsRead)
 				chat.GET("/sessions/:session_id/client/status", chatSessionHandler.IsCustomerOnline)
