@@ -79,7 +79,7 @@ export class TMSChatWidget {
       await this.restoreSession()
       
       // Get widget configuration
-      this.widget = await this.api.getWidgetByDomain(this.options.domain)
+      this.widget = await this.api.getWidgetById(this.options.widgetId)
       
       if (!this.widget) {
         throw new Error('Widget not found for domain')

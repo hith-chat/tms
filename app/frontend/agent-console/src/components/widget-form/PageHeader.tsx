@@ -40,7 +40,7 @@ export function PageHeader({ widgetId: _widgetId, error, domains }: PageHeaderPr
                 Verified domains ensure your widgets can only be embedded on authorized websites.
               </p>
               <Link 
-                to="/settings/domains" 
+                to="/settings?tab=domains" 
                 className="inline-flex items-center rounded-md bg-warning text-warning-foreground hover:bg-warning/90 px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Verify Domains in Settings

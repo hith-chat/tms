@@ -86,7 +86,6 @@ export interface WSMessage {
 export interface ChatWidgetOptions {
   apiUrl?: string
   widgetId: string
-  domain: string
   enableSessionPersistence?: boolean
   debugMode?: boolean
 }

@@ -25,6 +25,14 @@ export class ChatAPI {
     return response.json()
   }
 
+  async getWidgetById(widgetId: string): Promise<ChatWidget> {
+    const response = await fetch(`${this.baseUrl}/public/chat/widgets/${widgetId}`)
+    if (!response.ok) {
+      throw new Error(`Failed to get widget: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
   private async createSessionToken(widgetId: string, request: InitiateChatRequest): Promise<{ chatSessionToken: string, sessionId: string }> {
     const chatToken = localStorage.getItem('chat_session_token')
     if (chatToken) {

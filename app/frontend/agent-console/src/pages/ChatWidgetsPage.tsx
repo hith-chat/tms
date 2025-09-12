@@ -17,6 +17,17 @@ export function ChatWidgetsPage() {
     loadData()
   }, [])
 
+  // Redirect effect after widgets are loaded
+  useEffect(() => {
+    if (!loading && widgets.length > 0) {
+      // If there are widgets, redirect to the first widget
+      navigate(`/chat/widget/edit/${widgets[0].id}`)
+    } else if (!loading && widgets.length === 0) {
+      // If no widgets but domains are verified, redirect to create widget page
+      navigate('/chat/widget/create')
+    }
+  }, [loading, widgets, domains, navigate])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -92,16 +103,16 @@ export function ChatWidgetsPage() {
           </div>
         )}
 
-        {domains.length === 0 && (
+        {/* {domains.length === 0 && (
           <div className="mt-2 flex items-center gap-2 p-2 rounded-md bg-amber-50 border border-amber-200 dark:bg-amber-950/50 dark:border-amber-800">
             <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                Domain verification required. <a href="/settings" className="underline hover:no-underline font-medium">Go to Settings</a>
+                Domain verification required. <a href="/settings?tab=domains" className="underline hover:no-underline font-medium">Go to Settings</a>
               </p>
             </div>
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Content Area */}

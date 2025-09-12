@@ -28,6 +28,7 @@ export interface CreateChatWidgetRequest {
   show_powered_by?: boolean
   use_ai?: boolean
   auto_open_delay?: number
+  embed_code?: string
 }
 
 const defaultFormData: CreateChatWidgetRequest = {
@@ -98,7 +99,8 @@ export function useChatWidgetForm() {
           sound_enabled: widget.sound_enabled !== false,
           show_powered_by: widget.show_powered_by !== false,
           use_ai: widget.use_ai || false,
-          auto_open_delay: widget.auto_open_delay || 0
+          auto_open_delay: widget.auto_open_delay || 0,
+          embed_code: widget.embed_code || ''
         })
       }
     } catch (err: any) {

@@ -527,6 +527,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 		{
 			// Widget endpoints
 			publicChat.GET("/widgets/domain/:domain", chatWidgetHandler.GetChatWidgetByDomain)
+			publicChat.GET("/widgets/:widget_id", chatWidgetHandler.GetChatWidgetByPublicId)
 
 			// Public chat session endpoints (token-based auth)
 			publicChat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkVisitorMessagesAsRead)

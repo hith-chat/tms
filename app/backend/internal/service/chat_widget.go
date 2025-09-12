@@ -101,6 +101,10 @@ func (s *ChatWidgetService) GetChatWidget(ctx context.Context, tenantID, project
 	return s.chatWidgetRepo.GetChatWidget(ctx, tenantID, projectID, widgetID)
 }
 
+func (s *ChatWidgetService) GetChatWidgetById(ctx context.Context, widgetID uuid.UUID) (*models.ChatWidget, error) {
+	return s.chatWidgetRepo.GetChatWidgetById(ctx, widgetID)
+}
+
 // GetChatWidgetByDomain gets a chat widget by domain (for public access)
 func (s *ChatWidgetService) GetChatWidgetByDomain(ctx context.Context, domain string) (*models.ChatWidget, error) {
 	return s.chatWidgetRepo.GetChatWidgetByDomain(ctx, domain)
@@ -211,15 +215,14 @@ func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID, domain string)
 <script>
   (function() {
     window.TMSChatConfig = {
-      widgetId: '%s',
-      domain: '%s'
+      widgetId: '%s'
     };
     var script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/@taral/web-chat/dist/chat-widget.js';
     script.async = true;
     document.head.appendChild(script);
   })();
-</script>`, widgetID.String(), domain)
+</script>`, widgetID.String())
 }
 
 // generateSessionToken generates a secure session token

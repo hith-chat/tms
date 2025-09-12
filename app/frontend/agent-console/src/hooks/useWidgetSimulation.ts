@@ -8,7 +8,7 @@ interface SimulationMessage {
 }
 
 export function useWidgetSimulation(welcomeMessage?: string, agentName?: string) {
-  const [isWidgetOpen, setIsWidgetOpen] = useState(false)
+  const [isWidgetOpen, setIsWidgetOpen] = useState(true)
   const [isTyping, setIsTyping] = useState(false)
   const [simulationMessages, setSimulationMessages] = useState<SimulationMessage[]>([])
 

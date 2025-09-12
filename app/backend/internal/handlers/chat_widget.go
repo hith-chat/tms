@@ -155,3 +155,28 @@ func (h *ChatWidgetHandler) GetChatWidgetByDomain(c *gin.Context) {
 
 	c.JSON(http.StatusOK, widgetPublic)
 }
+
+
+func (h *ChatWidgetHandler) GetChatWidgetByPublicId(c *gin.Context) {
+	widgetIDStr := c.Param("widget_id")
+	widgetID, err := uuid.Parse(widgetIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid widget ID format"})
+		return
+	}
+
+	widget, err := h.chatWidgetService.GetChatWidgetById(c.Request.Context(), widgetID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get chat widget"})
+		return
+	}
+	if widget == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Chat widget not found for domain"})
+		return
+	}
+
+	//typecast widget to widgetPublic
+	widgetPublic := models.ChatWidgetPublic(*widget)
+
+	c.JSON(http.StatusOK, widgetPublic)
+}
