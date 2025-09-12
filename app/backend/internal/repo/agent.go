@@ -237,3 +237,34 @@ func (r *agentRepository) List(ctx context.Context, tenantID uuid.UUID, filters 
 
 	return agents, nextCursor, nil
 }
+
+// GetTenantAdmins retrieves all agents with tenant_admin role for a given tenant
+func (r *agentRepository) GetTenantAdmins(ctx context.Context, tenantID uuid.UUID) ([]*db.Agent, error) {
+	query := `
+		SELECT DISTINCT a.id, a.tenant_id, a.email, a.name, a.status, a.password_hash, a.created_at, a.updated_at
+		FROM agents a
+		INNER JOIN agent_project_roles apr ON a.id = apr.agent_id
+		WHERE a.tenant_id = $1 AND apr.role = 'tenant_admin' AND a.status = 'active'
+		ORDER BY a.name ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tenant admins: %w", err)
+	}
+	defer rows.Close()
+
+	var agents []*db.Agent
+	for rows.Next() {
+		var agent db.Agent
+		err := rows.Scan(
+			&agent.ID, &agent.TenantID, &agent.Email, &agent.Name,
+			&agent.Status, &agent.PasswordHash, &agent.CreatedAt, &agent.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan agent: %w", err)
+		}
+		agents = append(agents, &agent)
+	}
+
+	return agents, nil
+}

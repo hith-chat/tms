@@ -63,6 +63,7 @@ type AgentRepository interface {
 	Update(ctx context.Context, agent *db.Agent) error
 	Delete(ctx context.Context, tenantID, agentID uuid.UUID) error
 	List(ctx context.Context, tenantID uuid.UUID, filters AgentFilters, pagination PaginationParams) ([]*db.Agent, string, error)
+	GetTenantAdmins(ctx context.Context, tenantID uuid.UUID) ([]*db.Agent, error)
 }
 
 // CustomerRepository interface

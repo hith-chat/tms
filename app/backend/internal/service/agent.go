@@ -352,3 +352,8 @@ func (s *AgentService) GetAgentProjectsList(ctx context.Context, tenantID, agent
 
 	return projectIDs, nil
 }
+
+// GetTenantAdmins retrieves all tenant admin agents for a given tenant
+func (s *AgentService) GetTenantAdmins(ctx context.Context, tenantID uuid.UUID) ([]*db.Agent, error) {
+	return s.agentRepo.GetTenantAdmins(ctx, tenantID)
+}

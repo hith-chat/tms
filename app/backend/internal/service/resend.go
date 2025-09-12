@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bareuptime/tms/internal/config"
+	"github.com/bareuptime/tms/internal/db"
 	"github.com/resend/resend-go/v2"
 )
 
@@ -119,6 +120,267 @@ TMS - Ticket Management System
 	_, err := s.client.Emails.Send(params)
 	if err != nil {
 		return fmt.Errorf("failed to send verification email via Resend: %w", err)
+	}
+
+	return nil
+}
+
+// SendTicketCreatedNotification sends email notification when a new ticket is created
+func (s *ResendService) SendTicketCreatedNotification(ctx context.Context, ticket *db.Ticket, customer *db.Customer, toEmail, recipientName, recipientType string) error {
+	if s.environment == "development" {
+		fmt.Printf("Development mode: Would send ticket created notification to %s (%s)\n", toEmail, recipientType)
+		return nil
+	}
+
+	var subject, htmlBody, textBody string
+
+	if recipientType == "tenant_admin" {
+		subject = fmt.Sprintf("New Ticket Created: %s", ticket.Subject)
+		htmlBody = fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Ticket Created</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 40px 20px; text-align: center; }
+        .content { padding: 40px 20px; }
+        .ticket-info { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }
+        .btn { display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>New Ticket Created</h1>
+        </div>
+        <div class="content">
+            <p>Dear %s,</p>
+            <p>A new support ticket has been created in your system.</p>
+            
+            <div class="ticket-info">
+                <h3>Ticket Details</h3>
+                <p><strong>Subject:</strong> %s</p>
+                <p><strong>Priority:</strong> %s</p>
+                <p><strong>Type:</strong> %s</p>
+                <p><strong>Customer:</strong> %s (%s)</p>
+                <p><strong>Status:</strong> %s</p>
+                <p><strong>Source:</strong> %s</p>
+            </div>
+            
+            <p>Please review and assign this ticket to the appropriate agent.</p>
+            
+            <a href="#" class="btn">View Ticket</a>
+        </div>
+        <div class="footer">
+            <p>This notification was sent to %s</p>
+            <p>TMS - Ticket Management System</p>
+        </div>
+    </div>
+</body>
+</html>
+		`, recipientName, ticket.Subject, ticket.Priority, ticket.Type, customer.Name, customer.Email, ticket.Status, ticket.Source, toEmail)
+
+		textBody = fmt.Sprintf(`
+New Ticket Created
+
+Dear %s,
+
+A new support ticket has been created in your system.
+
+Ticket Details:
+- Subject: %s
+- Priority: %s
+- Type: %s
+- Customer: %s (%s)
+- Status: %s
+- Source: %s
+
+Please review and assign this ticket to the appropriate agent.
+
+Best regards,
+TMS Team
+
+This notification was sent to %s
+TMS - Ticket Management System
+		`, recipientName, ticket.Subject, ticket.Priority, ticket.Type, customer.Name, customer.Email, ticket.Status, ticket.Source, toEmail)
+	} else {
+		// Customer notification
+		subject = fmt.Sprintf("Your support ticket has been created: %s", ticket.Subject)
+		htmlBody = fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Ticket Created</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 40px 20px; text-align: center; }
+        .content { padding: 40px 20px; }
+        .ticket-info { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Support Ticket Created</h1>
+        </div>
+        <div class="content">
+            <p>Dear %s,</p>
+            <p>Thank you for contacting us. Your support ticket has been successfully created and assigned a priority level of <strong>%s</strong>.</p>
+            
+            <div class="ticket-info">
+                <h3>Your Ticket Details</h3>
+                <p><strong>Subject:</strong> %s</p>
+                <p><strong>Priority:</strong> %s</p>
+                <p><strong>Status:</strong> %s</p>
+            </div>
+            
+            <p>Our support team will review your request and respond according to the priority level. You will receive email updates when there are any changes to your ticket.</p>
+            
+            <p>If you need to add additional information, please reply to this email.</p>
+        </div>
+        <div class="footer">
+            <p>This email was sent to %s</p>
+            <p>TMS - Ticket Management System</p>
+        </div>
+    </div>
+</body>
+</html>
+		`, customer.Name, ticket.Priority, ticket.Subject, ticket.Priority, ticket.Status, customer.Email)
+
+		textBody = fmt.Sprintf(`
+Support Ticket Created
+
+Dear %s,
+
+Thank you for contacting us. Your support ticket has been successfully created and assigned a priority level of %s.
+
+Your Ticket Details:
+- Subject: %s
+- Priority: %s
+- Status: %s
+
+Our support team will review your request and respond according to the priority level. You will receive email updates when there are any changes to your ticket.
+
+If you need to add additional information, please reply to this email.
+
+Best regards,
+TMS Team
+
+This email was sent to %s
+TMS - Ticket Management System
+		`, customer.Name, ticket.Priority, ticket.Subject, ticket.Priority, ticket.Status, customer.Email)
+	}
+
+	params := &resend.SendEmailRequest{
+		From:    s.fromEmail,
+		To:      []string{toEmail},
+		Subject: subject,
+		Html:    htmlBody,
+		Text:    textBody,
+	}
+
+	_, err := s.client.Emails.Send(params)
+	if err != nil {
+		return fmt.Errorf("failed to send ticket created notification via Resend: %w", err)
+	}
+
+	return nil
+}
+
+// SendTicketUpdatedNotification sends email notification when a ticket is updated
+func (s *ResendService) SendTicketUpdatedNotification(ctx context.Context, ticket *db.Ticket, customer *db.Customer, toEmail, recipientName, updateType, updateDetails string) error {
+	if s.environment == "development" {
+		fmt.Printf("Development mode: Would send ticket updated notification to %s\n", toEmail)
+		return nil
+	}
+
+	subject := fmt.Sprintf("Ticket Updated: %s", ticket.Subject)
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Updated</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 40px 20px; text-align: center; }
+        .content { padding: 40px 20px; }
+        .update-info { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Ticket Updated</h1>
+        </div>
+        <div class="content">
+            <p>Dear %s,</p>
+            <p>Your support ticket has been updated.</p>
+            
+            <div class="update-info">
+                <h3>Update Details</h3>
+                <p><strong>Ticket Subject:</strong> %s</p>
+                <p><strong>Update Type:</strong> %s</p>
+                <p><strong>Current Status:</strong> %s</p>
+                <p><strong>Details:</strong> %s</p>
+            </div>
+            
+            <p>If you have any questions or need to provide additional information, please reply to this email.</p>
+        </div>
+        <div class="footer">
+            <p>This email was sent to %s</p>
+            <p>TMS - Ticket Management System</p>
+        </div>
+    </div>
+</body>
+</html>
+	`, recipientName, ticket.Subject, updateType, ticket.Status, updateDetails, toEmail)
+
+	textBody := fmt.Sprintf(`
+Ticket Updated
+
+Dear %s,
+
+Your support ticket has been updated.
+
+Update Details:
+- Ticket Subject: %s
+- Update Type: %s
+- Current Status: %s
+- Details: %s
+
+If you have any questions or need to provide additional information, please reply to this email.
+
+Best regards,
+TMS Team
+
+This email was sent to %s
+TMS - Ticket Management System
+	`, recipientName, ticket.Subject, updateType, ticket.Status, updateDetails, toEmail)
+
+	params := &resend.SendEmailRequest{
+		From:    s.fromEmail,
+		To:      []string{toEmail},
+		Subject: subject,
+		Html:    htmlBody,
+		Text:    textBody,
+	}
+
+	_, err := s.client.Emails.Send(params)
+	if err != nil {
+		return fmt.Errorf("failed to send ticket updated notification via Resend: %w", err)
 	}
 
 	return nil

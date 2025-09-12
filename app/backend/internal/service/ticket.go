@@ -23,6 +23,7 @@ type TicketService struct {
 	rbacService   *rbac.Service
 	mailService   *mail.Service
 	publicService *PublicService
+	resendService *ResendService
 }
 
 // TicketWithDetails represents a ticket with populated customer and agent details
@@ -55,6 +56,7 @@ func NewTicketService(
 	rbacService *rbac.Service,
 	mailService *mail.Service,
 	publicService *PublicService,
+	resendService *ResendService,
 ) *TicketService {
 	return &TicketService{
 		ticketRepo:    ticketRepo,
@@ -64,6 +66,7 @@ func NewTicketService(
 		rbacService:   rbacService,
 		mailService:   mailService,
 		publicService: publicService,
+		resendService: resendService,
 	}
 }
 
@@ -146,6 +149,11 @@ func (s *TicketService) CreateTicket(ctx context.Context, tenantID, projectID, a
 		return nil, fmt.Errorf("failed to create initial message: %w", err)
 	}
 
+	// Send email notifications asynchronously
+	go func() {
+		s.sendTicketCreatedNotifications(context.Background(), ticket, customer)
+	}()
+
 	return ticket, nil
 }
 
@@ -166,20 +174,38 @@ func (s *TicketService) UpdateTicket(ctx context.Context, tenantID, projectID, t
 		return nil, fmt.Errorf("ticket not found: %w", err)
 	}
 
+	// Track changes for notifications
+	var statusChanged bool
+	var oldStatus, newStatus string
+	var priorityChanged bool
+	var oldPriority, newPriority string
+	var assignmentChanged bool
+
 	// Update fields if provided
 	if req.Subject != nil {
 		ticket.Subject = *req.Subject
 	}
 	if req.Status != nil {
+		if ticket.Status != *req.Status {
+			oldStatus = ticket.Status
+			newStatus = *req.Status
+			statusChanged = true
+		}
 		ticket.Status = *req.Status
 	}
 	if req.Priority != nil {
+		if ticket.Priority != *req.Priority {
+			oldPriority = ticket.Priority
+			newPriority = *req.Priority
+			priorityChanged = true
+		}
 		ticket.Priority = *req.Priority
 	}
 	if req.Type != nil {
 		ticket.Type = *req.Type
 	}
 	if req.AssigneeAgentID != nil {
+		assignmentChanged = true
 		if *req.AssigneeAgentID == "" {
 			ticket.AssigneeAgentID = nil
 		} else {
@@ -194,6 +220,25 @@ func (s *TicketService) UpdateTicket(ctx context.Context, tenantID, projectID, t
 	err = s.ticketRepo.Update(ctx, ticket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update ticket: %w", err)
+	}
+
+	// Send notifications for significant changes
+	if statusChanged || priorityChanged || assignmentChanged {
+		go func() {
+			var updateType, updateDetails string
+			if statusChanged {
+				updateType = "Status Change"
+				updateDetails = fmt.Sprintf("Status changed from '%s' to '%s'", oldStatus, newStatus)
+			} else if priorityChanged {
+				updateType = "Priority Change"
+				updateDetails = fmt.Sprintf("Priority changed from '%s' to '%s'", oldPriority, newPriority)
+			} else if assignmentChanged {
+				updateType = "Assignment Change"
+				updateDetails = "Ticket has been reassigned"
+			}
+			
+			s.sendTicketUpdatedNotifications(context.Background(), ticket, updateType, updateDetails)
+		}()
 	}
 
 	return ticket, nil
@@ -376,6 +421,18 @@ func (s *TicketService) AddMessage(ctx context.Context, tenantID, projectID, tic
 	err = s.messageRepo.Create(ctx, message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message: %w", err)
+	}
+
+	// If this is not a private message, send notifications
+	if !req.IsPrivate {
+		// Get the ticket for notification context
+		ticket, err := s.ticketRepo.GetByTenantAndProjectID(ctx, tenantID, projectID, ticketID)
+		if err == nil {
+			// Send notification asynchronously
+			go func() {
+				s.sendTicketUpdatedNotifications(context.Background(), ticket, "New Message", req.Body)
+			}()
+		}
 	}
 
 	return message, nil
@@ -601,4 +658,49 @@ func (s *TicketService) DeleteTicket(ctx context.Context, tenantID, projectID, t
 	log.Printf("Ticket %s deleted by agent %s", ticketID, agentID)
 
 	return nil
+}
+
+// sendTicketCreatedNotifications sends email notifications when a ticket is created
+func (s *TicketService) sendTicketCreatedNotifications(ctx context.Context, ticket *db.Ticket, customer *db.Customer) {
+	// Send notification to customer
+	err := s.resendService.SendTicketCreatedNotification(ctx, ticket, customer, customer.Email, customer.Name, "customer")
+	if err != nil {
+		log.Printf("Failed to send ticket created notification to customer %s: %v", customer.Email, err)
+	} else {
+		log.Printf("Sent ticket created notification to customer: %s", customer.Email)
+	}
+
+	// Send notification to tenant admins
+	tenantAdmins, err := s.agentRepo.GetTenantAdmins(ctx, ticket.TenantID)
+	if err != nil {
+		log.Printf("Failed to get tenant admins for ticket notification: %v", err)
+		return
+	}
+
+	for _, admin := range tenantAdmins {
+		err := s.resendService.SendTicketCreatedNotification(ctx, ticket, customer, admin.Email, admin.Name, "tenant_admin")
+		if err != nil {
+			log.Printf("Failed to send ticket created notification to tenant admin %s: %v", admin.Email, err)
+		} else {
+			log.Printf("Sent ticket created notification to tenant admin: %s", admin.Email)
+		}
+	}
+}
+
+// sendTicketUpdatedNotifications sends email notifications when a ticket is updated
+func (s *TicketService) sendTicketUpdatedNotifications(ctx context.Context, ticket *db.Ticket, updateType, updateDetails string) {
+	// Get customer information
+	customer, err := s.customerRepo.GetByID(ctx, ticket.TenantID, ticket.CustomerID)
+	if err != nil {
+		log.Printf("Failed to get customer for ticket update notification: %v", err)
+		return
+	}
+
+	// Send notification to customer
+	err = s.resendService.SendTicketUpdatedNotification(ctx, ticket, customer, customer.Email, customer.Name, updateType, updateDetails)
+	if err != nil {
+		log.Printf("Failed to send ticket updated notification to customer %s: %v", customer.Email, err)
+	} else {
+		log.Printf("Sent ticket updated notification to customer: %s", customer.Email)
+	}
 }
