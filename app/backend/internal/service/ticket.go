@@ -236,7 +236,7 @@ func (s *TicketService) UpdateTicket(ctx context.Context, tenantID, projectID, t
 				updateType = "Assignment Change"
 				updateDetails = "Ticket has been reassigned"
 			}
-			
+
 			s.sendTicketUpdatedNotifications(context.Background(), ticket, updateType, updateDetails)
 		}()
 	}
