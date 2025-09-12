@@ -198,12 +198,19 @@ func Load() (*Config, error) {
 	viper.BindEnv("database.dbname", "DB_NAME")
 	viper.BindEnv("database.url", "DATABASE_URL")
 	viper.BindEnv("database.sslmode", "DB_SSLMODE")
+
+	// Connection pool settings
 	viper.BindEnv("redis.sentinels", "REDIS_SENTINELS")
 	viper.BindEnv("redis.url", "REDIS_URL")
 	viper.BindEnv("redis.password", "REDIS_PASSWORD")
 	viper.BindEnv("redis.sentinel_password", "REDIS_SENTINEL_PASSWORD")
 	viper.BindEnv("redis.master_name", "REDIS_MASTER_NAME")
 	viper.BindEnv("redis.environment", "APP_ENV")
+
+	// JWT
+	viper.BindEnv("jwt.secret", "JWT_SECRET_KEY")
+	viper.BindEnv("jwt.access_token_expiry", "JWT_TOKEN_EXPIRY")
+	viper.BindEnv("jwt.refresh_token_expiry", "JWT_REFRESH_TOKEN_EXPIRY")
 
 	// AI configuration bindings
 	viper.BindEnv("ai.enabled", "AI_ENABLED")
