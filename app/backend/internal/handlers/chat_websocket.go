@@ -206,7 +206,7 @@ func (h *ChatWebSocketHandler) processVisitorChatMessage(ctx context.Context, se
 			fmt.Println("should respond with AI: h.agentClient != nil ->", h.aiAgentClient != nil)
 			fmt.Println("should respond with AI: session.UseAI ->", session.UseAI)
 			fmt.Println("should respond with AI: session.AssignedAgentID == nil ->", session.AssignedAgentID == nil)
-			fmt.Println("should respond with AI: overall ->", shouldRespondWithAI)
+			fmt.Println("should respond with AI: overall okay ->", shouldRespondWithAI)
 
 			if shouldRespondWithAI {
 				go func() {

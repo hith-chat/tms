@@ -77,7 +77,7 @@ func (s *EnhancedNotificationService) CreateAgentAssignmentNotification(ctx cont
 			"assignment_type": "agent_assignment",
 		}
 
-		_, err = s.howlingAlarmSvc.TriggerAlarm(ctx, assignmentID, agentID, tenantID, projectID,
+		_, err = s.howlingAlarmSvc.TriggerAlarm(ctx, tenantID, projectID,
 			title, message, priority, alarmMetadata)
 		if err != nil {
 			log.Printf("Failed to trigger alarm for assignment %s: %v", assignmentID, err)
@@ -118,14 +118,13 @@ func (s *EnhancedNotificationService) CreateUrgentRequestNotification(ctx contex
 		}
 
 		// Trigger alarm for urgent requests
-		assignmentID := uuid.New() // Generate temporary assignment ID
 		alarmMetadata := models.JSONMap{
 			"notification_id": notification.ID,
 			"customer_info":   customerInfo,
 			"request_type":    "urgent_support",
 		}
 
-		_, err = s.howlingAlarmSvc.TriggerAlarm(ctx, assignmentID, agentID, tenantID, projectID,
+		_, err = s.howlingAlarmSvc.TriggerAlarm(ctx, tenantID, projectID,
 			title, message, models.NotificationPriorityUrgent, alarmMetadata)
 		if err != nil {
 			log.Printf("Failed to trigger alarm for urgent request: %v", err)

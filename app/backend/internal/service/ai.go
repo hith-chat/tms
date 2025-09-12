@@ -398,8 +398,6 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 		// Trigger the alarm with high priority for human agent requests
 		alarm, alarmErr := s.howlingAlarmService.TriggerAlarm(
 			ctx,
-			uuid.New(), // assignment ID - generate a new one for this handoff
-			uuid.Nil,   // agent ID - no specific agent yet
 			session.TenantID,
 			session.ProjectID,
 			"Human Agent Requested",
