@@ -259,6 +259,7 @@ SERVICE_NAME=backend
 SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
 SERVER_PORT=8080
 AI_AGENT_SERVICE_URL=http://localhost:5000
+PUBLIC_TICKET_URL="https://taral-tickets.bareuptime.co"
 EOH
         destination = "secrets/consul.env"
         env         = true

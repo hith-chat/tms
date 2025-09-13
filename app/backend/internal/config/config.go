@@ -34,6 +34,7 @@ type ServerConfig struct {
 	IdleTimeout           time.Duration `mapstructure:"idle_timeout"`
 	Environment           string        `mapstructure:"environment"` // "development", "production", etc.
 	AiAgentLoginAccessKey string        `mapstructure:"ai_agent_login_access_key"`
+	PublicTicketUrl       string        `mapstructure:"public_ticket_url"`
 }
 
 // CORSConfig represents CORS configuration
@@ -191,6 +192,7 @@ func Load() (*Config, error) {
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("server.environment", "APP_ENV")
 	viper.BindEnv("server.ai_agent_login_access_key", "TMS_API_S2S_KEY")
+	viper.BindEnv("server.public_ticket_url", "PUBLIC_TICKET_URL")
 	viper.BindEnv("database.host", "DB_HOST")
 	viper.BindEnv("database.port", "DB_PORT")
 	viper.BindEnv("database.user", "DB_USER")
@@ -291,6 +293,7 @@ func setDefaults() {
 	viper.SetDefault("server.read_timeout", "30s")
 	viper.SetDefault("server.write_timeout", "30s")
 	viper.SetDefault("server.idle_timeout", "120s")
+	viper.SetDefault("server.public_ticket_url", "http://localhost:3001")
 
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")

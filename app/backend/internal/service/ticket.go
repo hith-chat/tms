@@ -16,14 +16,15 @@ import (
 
 // TicketService handles ticket operations
 type TicketService struct {
-	ticketRepo    repo.TicketRepository
-	customerRepo  repo.CustomerRepository
-	agentRepo     repo.AgentRepository
-	messageRepo   repo.TicketMessageRepository
-	rbacService   *rbac.Service
-	mailService   *mail.Service
-	publicService *PublicService
-	resendService *ResendService
+	ticketRepo      repo.TicketRepository
+	customerRepo    repo.CustomerRepository
+	agentRepo       repo.AgentRepository
+	messageRepo     repo.TicketMessageRepository
+	rbacService     *rbac.Service
+	mailService     *mail.Service
+	publicService   *PublicService
+	resendService   *ResendService
+	publicTicketUrl string
 }
 
 // TicketWithDetails represents a ticket with populated customer and agent details
@@ -57,17 +58,30 @@ func NewTicketService(
 	mailService *mail.Service,
 	publicService *PublicService,
 	resendService *ResendService,
+	publicTicketUrl string,
 ) *TicketService {
 	return &TicketService{
-		ticketRepo:    ticketRepo,
-		customerRepo:  customerRepo,
-		agentRepo:     agentRepo,
-		messageRepo:   messageRepo,
-		rbacService:   rbacService,
-		mailService:   mailService,
-		publicService: publicService,
-		resendService: resendService,
+		ticketRepo:      ticketRepo,
+		customerRepo:    customerRepo,
+		agentRepo:       agentRepo,
+		messageRepo:     messageRepo,
+		rbacService:     rbacService,
+		mailService:     mailService,
+		publicService:   publicService,
+		resendService:   resendService,
+		publicTicketUrl: publicTicketUrl,
 	}
+}
+
+// populateTicketURL sets the TicketURL field based on configured host
+func (s *TicketService) populateTicketURL(ticket *db.Ticket) {
+	if ticket == nil {
+		return
+	}
+
+	host := s.publicTicketUrl
+	url := fmt.Sprintf("%s/tickets/%s", host, ticket.ID.String())
+	ticket.TicketURL = &url
 }
 
 // CreateTicketRequest represents a ticket creation request
@@ -153,6 +167,9 @@ func (s *TicketService) CreateTicket(ctx context.Context, tenantID, projectID, a
 	go func() {
 		s.sendTicketCreatedNotifications(context.Background(), ticket, customer)
 	}()
+
+	// populate URL for API responses
+	s.populateTicketURL(ticket)
 
 	return ticket, nil
 }
@@ -241,6 +258,9 @@ func (s *TicketService) UpdateTicket(ctx context.Context, tenantID, projectID, t
 		}()
 	}
 
+	// populate URL for API responses
+	s.populateTicketURL(ticket)
+
 	return ticket, nil
 }
 
@@ -254,6 +274,9 @@ func (s *TicketService) GetTicket(ctx context.Context, tenantID, projectID, tick
 	ticketDetail := &TicketWithDetails{
 		Ticket: ticket,
 	}
+
+	// populate URL for API responses
+	s.populateTicketURL(ticketDetail.Ticket)
 
 	// Fetch customer details and populate struct safely
 	customer, err := s.customerRepo.GetByID(ctx, tenantID, ticket.CustomerID)
@@ -366,6 +389,9 @@ func (s *TicketService) ListTickets(ctx context.Context, tenantID, projectID, ag
 		}
 
 		ticketsWithDetails[i] = ticketDetail
+
+		// populate URL for each ticket
+		s.populateTicketURL(ticket)
 	}
 
 	return ticketsWithDetails, nextCursor, nil
@@ -511,6 +537,9 @@ func (s *TicketService) ReassignTicket(ctx context.Context, tenantID, projectID,
 		// Log error but don't fail the reassignment
 		log.Printf("Failed to create system message for ticket reassignment: %v", err)
 	}
+
+	// populate URL for API responses
+	s.populateTicketURL(ticket)
 
 	return ticket, nil
 }
