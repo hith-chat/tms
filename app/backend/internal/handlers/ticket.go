@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -76,14 +77,13 @@ func (h *TicketHandler) UpdateTicket(c *gin.Context) {
 	}
 
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	agentID := middleware.GetAgentID(c)
 
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 
-	ticket, err := h.ticketService.UpdateTicket(c.Request.Context(), tenantID, projectUUID, ticketUUID, agentID, req)
+	ticket, err := h.ticketService.UpdateTicket(c.Request.Context(), tenantID, projectID, ticketUUID, agentID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -95,14 +95,13 @@ func (h *TicketHandler) UpdateTicket(c *gin.Context) {
 // GetTicket handles ticket retrieval
 func (h *TicketHandler) GetTicket(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	agentID := middleware.GetAgentID(c)
 
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 
-	ticket, err := h.ticketService.GetTicket(c.Request.Context(), tenantID, projectUUID, ticketUUID, agentID)
+	ticket, err := h.ticketService.GetTicket(c.Request.Context(), tenantID, projectID, ticketUUID, agentID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -114,10 +113,11 @@ func (h *TicketHandler) GetTicket(c *gin.Context) {
 // ListTickets handles ticket listing
 func (h *TicketHandler) ListTickets(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	fmt.Println("Tenant ID:", tenantID)
+	projectID := middleware.GetProjectID(c)
+	fmt.Println("Project ID:", projectID)
 	agentID := middleware.GetAgentID(c)
-
-	projectUUID, _ := uuid.Parse(projectID)
+	fmt.Println("Agent ID:", agentID)
 
 	// Parse query parameters
 	req := service.ListTicketsRequest{
@@ -144,7 +144,7 @@ func (h *TicketHandler) ListTickets(c *gin.Context) {
 		}
 	}
 
-	tickets, nextCursor, err := h.ticketService.ListTickets(c.Request.Context(), tenantID, projectUUID, agentID, req)
+	tickets, nextCursor, err := h.ticketService.ListTickets(c.Request.Context(), tenantID, projectID, agentID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -175,14 +175,13 @@ func (h *TicketHandler) AddMessage(c *gin.Context) {
 	}
 
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	agentID := middleware.GetAgentID(c)
 
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 
-	message, err := h.ticketService.AddMessage(c.Request.Context(), tenantID, projectUUID, ticketUUID, agentID, req)
+	message, err := h.ticketService.AddMessage(c.Request.Context(), tenantID, projectID, ticketUUID, agentID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -194,7 +193,7 @@ func (h *TicketHandler) AddMessage(c *gin.Context) {
 // GetTicketMessages handles retrieving messages for a ticket
 func (h *TicketHandler) GetTicketMessages(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	agentID := middleware.GetAgentID(c)
 
@@ -209,10 +208,9 @@ func (h *TicketHandler) GetTicketMessages(c *gin.Context) {
 		}
 	}
 
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 
-	messages, nextCursor, err := h.messageService.GetTicketMessages(c.Request.Context(), tenantID, projectUUID, ticketUUID, agentID, includePrivate, cursor, limit)
+	messages, nextCursor, err := h.messageService.GetTicketMessages(c.Request.Context(), tenantID, projectID, ticketUUID, agentID, includePrivate, cursor, limit)
 
 	// get CustomerId and AgentId from messages in set and than fetch their details to be injected in tickets
 
@@ -246,14 +244,13 @@ func (h *TicketHandler) UpdateMessage(c *gin.Context) {
 	}
 
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	messageID := c.Param("message_id")
 	agentID := middleware.GetAgentID(c)
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 	messageUUID, _ := uuid.Parse(messageID)
-	message, err := h.messageService.UpdateMessage(c.Request.Context(), tenantID, projectUUID, ticketUUID, messageUUID, agentID, req)
+	message, err := h.messageService.UpdateMessage(c.Request.Context(), tenantID, projectID, ticketUUID, messageUUID, agentID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -265,16 +262,15 @@ func (h *TicketHandler) UpdateMessage(c *gin.Context) {
 // DeleteMessage handles deleting a message
 func (h *TicketHandler) DeleteMessage(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	messageID := c.Param("message_id")
 	agentID := middleware.GetAgentID(c)
 
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 	messageUUID, _ := uuid.Parse(messageID)
 
-	err := h.messageService.DeleteMessage(c.Request.Context(), tenantID, projectUUID, ticketUUID, messageUUID, agentID)
+	err := h.messageService.DeleteMessage(c.Request.Context(), tenantID, projectID, ticketUUID, messageUUID, agentID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -297,14 +293,13 @@ func (h *TicketHandler) ReassignTicket(c *gin.Context) {
 	}
 
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
 	agentID := middleware.GetAgentID(c)
 
-	projectUUID, _ := uuid.Parse(projectID)
 	ticketUUID, _ := uuid.Parse(ticketID)
 
-	ticket, err := h.ticketService.ReassignTicket(c.Request.Context(), tenantID, projectUUID, ticketUUID, agentID, req)
+	ticket, err := h.ticketService.ReassignTicket(c.Request.Context(), tenantID, projectID, ticketUUID, agentID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -316,14 +311,8 @@ func (h *TicketHandler) ReassignTicket(c *gin.Context) {
 // ValidateCustomer handles customer validation via OTP
 func (h *TicketHandler) ValidateCustomer(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
-
-	projectUUID, err := uuid.Parse(projectID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project_id"})
-		return
-	}
 
 	ticketUUID, err := uuid.Parse(ticketID)
 	if err != nil {
@@ -331,7 +320,7 @@ func (h *TicketHandler) ValidateCustomer(c *gin.Context) {
 		return
 	}
 
-	result, err := h.ticketService.SendCustomerValidationOTP(c.Request.Context(), tenantID, projectUUID, ticketUUID)
+	result, err := h.ticketService.SendCustomerValidationOTP(c.Request.Context(), tenantID, projectID, ticketUUID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -343,14 +332,8 @@ func (h *TicketHandler) ValidateCustomer(c *gin.Context) {
 // SendMagicLink handles sending magic link to customer
 func (h *TicketHandler) SendMagicLink(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectID := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketID := c.Param("ticket_id")
-
-	projectUUID, err := uuid.Parse(projectID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project_id"})
-		return
-	}
 
 	ticketUUID, err := uuid.Parse(ticketID)
 	if err != nil {
@@ -358,7 +341,7 @@ func (h *TicketHandler) SendMagicLink(c *gin.Context) {
 		return
 	}
 
-	result, err := h.ticketService.SendMagicLinkToCustomer(c.Request.Context(), tenantID, projectUUID, ticketUUID)
+	result, err := h.ticketService.SendMagicLinkToCustomer(c.Request.Context(), tenantID, projectID, ticketUUID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -370,15 +353,9 @@ func (h *TicketHandler) SendMagicLink(c *gin.Context) {
 // DeleteTicket handles ticket deletion
 func (h *TicketHandler) DeleteTicket(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	projectIDStr := c.Param("project_id")
+	projectID := middleware.GetProjectID(c)
 	ticketIDStr := c.Param("ticket_id")
 	agentID := middleware.GetAgentID(c)
-
-	projectID, err := uuid.Parse(projectIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project_id"})
-		return
-	}
 
 	ticketID, err := uuid.Parse(ticketIDStr)
 	if err != nil {

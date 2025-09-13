@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -77,6 +78,7 @@ func ApiKeyOrJWTAuthMiddleware(apiKeyRepo repo.ApiKeyRepository, jwtAuth *auth.S
 		// Check for API key first
 		apiKey := c.GetHeader("x-api-key")
 		if apiKey != "" {
+			fmt.Println("API Key Auth Middleware: x-api-key header found")
 			// Use API key authentication
 			handleApiKeyAuth(c, apiKeyRepo, apiKey)
 			return
@@ -135,6 +137,8 @@ func handleApiKeyAuth(c *gin.Context, apiKeyRepo repo.ApiKeyRepository, apiKey s
 	go func() {
 		_ = apiKeyRepo.UpdateLastUsed(c.Request.Context(), apiKeyRecord.ID)
 	}()
+
+	fmt.Println("API Key Auth Middleware: API key validated successfully")
 
 	c.Next()
 }

@@ -545,5 +545,19 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		flexibleTickets.DELETE("/:ticket_id/messages/:message_id", ticketHandler.DeleteMessage)
 	}
 
+	simpleTicketUrls := router.Group("/v1/tickets")
+	simpleTicketUrls.Use(middleware.ApiKeyOrJWTAuthMiddleware(apiKeyRepo, jwtAuth))
+	{
+		simpleTicketUrls.GET("", ticketHandler.ListTickets)
+		simpleTicketUrls.POST("", ticketHandler.CreateTicket)
+		simpleTicketUrls.GET("/:ticket_id", ticketHandler.GetTicket)
+
+		// Apply reassignment middleware for update operations
+		simpleTicketUrls.PATCH("/:ticket_id", middleware.TicketReassignmentMiddleware(), ticketHandler.UpdateTicket)
+
+		// Delete ticket (requires admin permissions)
+		simpleTicketUrls.DELETE("/:ticket_id", middleware.ProjectAdminMiddleware(), ticketHandler.DeleteTicket)
+	}
+
 	return router
 }

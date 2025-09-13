@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -12,6 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// contextKey is a private type for context keys to avoid collisions
+type contextKey string
+
+const tenantIDContextKey contextKey = "tenant_id"
 
 // AuthMiddleware handles JWT authentication
 func AuthMiddleware(jwtAuth *auth.Service) gin.HandlerFunc {
@@ -249,8 +253,8 @@ func TenantMiddleware(db *sql.DB) gin.HandlerFunc {
 				return
 			}
 
-			// Set RLS context in database
-			ctx := context.WithValue(c.Request.Context(), "tenant_id", tenantID)
+			// Set RLS context in database using a typed context key to avoid collisions
+			ctx := context.WithValue(c.Request.Context(), tenantIDContextKey, tenantID)
 			c.Request = c.Request.WithContext(ctx)
 
 			// Execute SET statement for RLS
@@ -357,9 +361,9 @@ func GetTenantID(c *gin.Context) uuid.UUID {
 			return tenantUUID
 		}
 	}
-	// raise error
-	err := errors.New("tenant ID not found")
-	panic(err)
+	// Abort with 400 and return so callers don't continue
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "tenant_id not found in context"})
+	return uuid.Nil
 }
 
 func GetAgentID(c *gin.Context) uuid.UUID {
@@ -369,9 +373,8 @@ func GetAgentID(c *gin.Context) uuid.UUID {
 			return agentUUID
 		}
 	}
-	// raise error
-	err := errors.New("agent ID not found")
-	panic(err)
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "agent_id not found in context"})
+	return uuid.Nil
 }
 
 func GetProjectID(c *gin.Context) uuid.UUID {
@@ -379,9 +382,14 @@ func GetProjectID(c *gin.Context) uuid.UUID {
 		projectUUID, _ := uuid.Parse(projectID)
 		return projectUUID
 	}
-	// raise error
-	err := errors.New("project ID not found")
-	panic(err)
+	if projectIDFromContext, exists := c.Get("project_id"); exists {
+		if id, ok := projectIDFromContext.(string); ok {
+			projectUUID, _ := uuid.Parse(id)
+			return projectUUID
+		}
+	}
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "project_id parameter not found"})
+	return uuid.Nil
 }
 
 func GetWidgetID(c *gin.Context) uuid.UUID {
@@ -389,9 +397,8 @@ func GetWidgetID(c *gin.Context) uuid.UUID {
 		widgetUUID, _ := uuid.Parse(widgetID)
 		return widgetUUID
 	}
-	// raise error
-	err := errors.New("widget ID not found")
-	panic(err)
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "widget_id parameter not found"})
+	return uuid.Nil
 }
 
 func GetSessionID(c *gin.Context) uuid.UUID {
@@ -399,18 +406,16 @@ func GetSessionID(c *gin.Context) uuid.UUID {
 		sessionUUID, _ := uuid.Parse(sessionID)
 		return sessionUUID
 	}
-	// raise error
-	err := errors.New("session ID not found")
-	panic(err)
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "session_id parameter not found"})
+	return uuid.Nil
 }
 
 func GetSessionToken(c *gin.Context) string {
 	if sessionToken, exists := c.Params.Get("session_token"); exists {
 		return sessionToken
 	}
-	// raise error
-	err := errors.New("session token not found")
-	panic(err)
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "session_token parameter not found"})
+	return ""
 }
 
 func GetEmail(c *gin.Context) uuid.UUID {
@@ -420,9 +425,8 @@ func GetEmail(c *gin.Context) uuid.UUID {
 			return emailUUID
 		}
 	}
-	// raise error
-	err := errors.New("email not found")
-	panic(err)
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "email not found in context"})
+	return uuid.Nil
 }
 
 func IsTenantAdmin(c *gin.Context) bool {
