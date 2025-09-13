@@ -30,7 +30,7 @@ func (r *apiKeyRepository) Create(ctx context.Context, apiKey *db.ApiKey) error 
 	query := `
 		INSERT INTO api_keys (
 			id, tenant_id, project_id, name, key_hash, key_prefix, 
-			scopes, expires_at, is_active, created_by, created_at, updated_at
+			scopes, expires_at, is_active, agent_id, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		)`
@@ -57,7 +57,7 @@ func (r *apiKeyRepository) Create(ctx context.Context, apiKey *db.ApiKey) error 
 func (r *apiKeyRepository) GetByID(ctx context.Context, tenantID uuid.UUID, keyID uuid.UUID) (*db.ApiKey, error) {
 	query := `
 		SELECT id, tenant_id, project_id, name, key_hash, key_prefix,
-			   scopes, last_used_at, expires_at, is_active, created_by, created_at, updated_at
+			   scopes, last_used_at, expires_at, is_active, agent_id, created_at, updated_at
 		FROM api_keys 
 		WHERE id = $1 AND tenant_id = $2`
 
@@ -77,7 +77,7 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, tenantID uuid.UUID, keyI
 func (r *apiKeyRepository) GetByHash(ctx context.Context, keyHash string) (*db.ApiKey, error) {
 	query := `
 		SELECT id, tenant_id, project_id, name, key_hash, key_prefix,
-			   scopes, last_used_at, expires_at, is_active, created_by, created_at, updated_at
+			   scopes, last_used_at, expires_at, is_active, agent_id, created_at, updated_at
 		FROM api_keys 
 		WHERE key_hash = $1 AND is_active = true 
 		AND (expires_at IS NULL OR expires_at > NOW())`
@@ -95,28 +95,17 @@ func (r *apiKeyRepository) GetByHash(ctx context.Context, keyHash string) (*db.A
 }
 
 // List retrieves all API keys for a tenant/project
-func (r *apiKeyRepository) List(ctx context.Context, tenantID uuid.UUID, projectID *uuid.UUID) ([]*db.ApiKey, error) {
+func (r *apiKeyRepository) List(ctx context.Context, tenantID uuid.UUID, projectID uuid.UUID) ([]*db.ApiKey, error) {
 	var query string
 	var args []interface{}
 
-	if projectID != nil {
-		query = `
-			SELECT id, tenant_id, project_id, name, key_hash, key_prefix,
-				   scopes, last_used_at, expires_at, is_active, created_by, created_at, updated_at
-			FROM api_keys 
-			WHERE tenant_id = $1 AND project_id = $2 
-			ORDER BY created_at DESC`
-		args = []interface{}{tenantID, *projectID}
-	} else {
-		query = `
-			SELECT id, tenant_id, project_id, name, key_hash, key_prefix,
-				   scopes, last_used_at, expires_at, is_active, created_by, created_at, updated_at
-			FROM api_keys 
-			WHERE tenant_id = $1 AND project_id IS NULL 
-			ORDER BY created_at DESC`
-		args = []interface{}{tenantID}
-	}
-
+	query = `
+		SELECT id, tenant_id, project_id, name, key_hash, key_prefix,
+				scopes, last_used_at, expires_at, is_active, agent_id, created_at, updated_at
+		FROM api_keys 
+		WHERE tenant_id = $1 AND project_id = $2 
+		ORDER BY created_at DESC`
+	args = []interface{}{tenantID, projectID}
 	var apiKeys []*db.ApiKey
 	err := r.db.SelectContext(ctx, &apiKeys, query, args...)
 	if err != nil {

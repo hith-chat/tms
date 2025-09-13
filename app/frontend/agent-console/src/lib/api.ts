@@ -523,8 +523,7 @@ class APIClient {
         // Tenant-level endpoints: /tenants/{tenant_id}/* (projects, agents, api-keys at tenant level)
         else if ((
           config.url.startsWith('/projects') || 
-          config.url.startsWith('/agents') || 
-          config.url.startsWith('/api-keys')
+          config.url.startsWith('/agents')
         ) && !config.url.includes('/tenants/')) {
           config.url = `/tenants/${tenantId}${config.url}`
         }
@@ -538,6 +537,7 @@ class APIClient {
           config.url.startsWith('/chat') ||
           config.url.startsWith('/notifications') ||
           config.url.startsWith('/knowledge') ||
+          config.url.startsWith('/api-keys') ||
           config.url.startsWith('/alarms')
         ) && !config.url.includes('/tenants/')) {
           config.url = `/tenants/${tenantId}/projects/${projectId}${config.url}`

@@ -129,7 +129,7 @@ type ApiKeyRepository interface {
 	Create(ctx context.Context, apiKey *db.ApiKey) error
 	GetByID(ctx context.Context, tenantID uuid.UUID, keyID uuid.UUID) (*db.ApiKey, error)
 	GetByHash(ctx context.Context, keyHash string) (*db.ApiKey, error)
-	List(ctx context.Context, tenantID uuid.UUID, projectID *uuid.UUID) ([]*db.ApiKey, error)
+	List(ctx context.Context, tenantID uuid.UUID, projectID uuid.UUID) ([]*db.ApiKey, error)
 	Update(ctx context.Context, apiKey *db.ApiKey) error
 	Delete(ctx context.Context, tenantID uuid.UUID, keyID uuid.UUID) error
 	UpdateLastUsed(ctx context.Context, keyID uuid.UUID) error

@@ -49,9 +49,10 @@ type ApiKeyWithValueResponse struct {
 // ListApiKeys handles GET /tenants/:tenant_id/api-keys
 func (h *ApiKeyHandler) ListApiKeys(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c) // Get from middleware context
+	projectID := middleware.GetProjectID(c)
 
 	// List tenant-level API keys (project_id = NULL)
-	apiKeys, err := h.apiKeyRepo.List(c.Request.Context(), tenantID, nil)
+	apiKeys, err := h.apiKeyRepo.List(c.Request.Context(), tenantID, projectID)
 	if err != nil {
 		debug.PrintStack()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list API keys"})

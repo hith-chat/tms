@@ -181,7 +181,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -219,7 +219,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -339,35 +339,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 		// Project-scoped endpoints
 		projects := api.Group("/projects/:project_id")
 		{
-			// Tickets
-			tickets := projects.Group("/tickets")
-			tickets.Use(middleware.TicketAccessMiddleware())
-			{
-				tickets.GET("", ticketHandler.ListTickets)
-				tickets.POST("", ticketHandler.CreateTicket)
-				tickets.GET("/:ticket_id", ticketHandler.GetTicket)
-
-				// Apply reassignment middleware for update operations
-				tickets.PATCH("/:ticket_id", middleware.TicketReassignmentMiddleware(), ticketHandler.UpdateTicket)
-
-				// Dedicated reassignment endpoint (requires admin permissions)
-				tickets.POST("/:ticket_id/reassign", middleware.ProjectAdminMiddleware(), ticketHandler.ReassignTicket)
-
-				// Delete ticket (requires admin permissions)
-				tickets.DELETE("/:ticket_id", middleware.ProjectAdminMiddleware(), ticketHandler.DeleteTicket)
-
-				// Customer validation and magic links
-				tickets.POST("/:ticket_id/validate-customer", ticketHandler.ValidateCustomer)
-				tickets.POST("/:ticket_id/send-magic-link", ticketHandler.SendMagicLink)
-
-				// Ticket messages
-				tickets.GET("/:ticket_id/messages", ticketHandler.GetTicketMessages)
-				tickets.POST("/:ticket_id/messages", ticketHandler.AddMessage)
-				tickets.PATCH("/:ticket_id/messages/:message_id", ticketHandler.UpdateMessage)
-				tickets.DELETE("/:ticket_id/messages/:message_id", ticketHandler.DeleteMessage)
-
-			}
-
 			apiKeys := projects.Group("/api-keys")
 			{
 				apiKeys.GET("", apiKeyHandler.ListApiKeys)
@@ -543,6 +514,35 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 			// WebSocket endpoint for visitors
 			publicChat.GET("/ws/widgets/:widget_id/chat/:session_token", chatWebSocketHandler.HandleWebSocketPublic)
 		}
+	}
+
+	// Tickets with flexible authentication (JWT or API key) - separate from api group to avoid inheriting AuthMiddleware
+	flexibleTickets := router.Group("/v1/tenants/:tenant_id/projects/:project_id/tickets")
+	flexibleTickets.Use(middleware.ApiKeyOrJWTAuthMiddleware(apiKeyRepo, jwtAuth))
+	flexibleTickets.Use(middleware.TicketAccessMiddleware())
+	{
+		flexibleTickets.GET("", ticketHandler.ListTickets)
+		flexibleTickets.POST("", ticketHandler.CreateTicket)
+		flexibleTickets.GET("/:ticket_id", ticketHandler.GetTicket)
+
+		// Apply reassignment middleware for update operations
+		flexibleTickets.PATCH("/:ticket_id", middleware.TicketReassignmentMiddleware(), ticketHandler.UpdateTicket)
+
+		// Dedicated reassignment endpoint (requires admin permissions)
+		flexibleTickets.POST("/:ticket_id/reassign", middleware.ProjectAdminMiddleware(), ticketHandler.ReassignTicket)
+
+		// Delete ticket (requires admin permissions)
+		flexibleTickets.DELETE("/:ticket_id", middleware.ProjectAdminMiddleware(), ticketHandler.DeleteTicket)
+
+		// Customer validation and magic links
+		flexibleTickets.POST("/:ticket_id/validate-customer", ticketHandler.ValidateCustomer)
+		flexibleTickets.POST("/:ticket_id/send-magic-link", ticketHandler.SendMagicLink)
+
+		// Ticket messages
+		flexibleTickets.GET("/:ticket_id/messages", ticketHandler.GetTicketMessages)
+		flexibleTickets.POST("/:ticket_id/messages", ticketHandler.AddMessage)
+		flexibleTickets.PATCH("/:ticket_id/messages/:message_id", ticketHandler.UpdateMessage)
+		flexibleTickets.DELETE("/:ticket_id/messages/:message_id", ticketHandler.DeleteMessage)
 	}
 
 	return router

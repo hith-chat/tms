@@ -123,8 +123,16 @@ func AuthMiddleware(jwtAuth *auth.Service) gin.HandlerFunc {
 // TicketAccessMiddleware ensures agents can only access tickets they have permission for
 // Rules: tenant_admin and project_admin can access all tickets in their scope
 // Regular agents can only access tickets assigned to them
+// For API key auth, we allow access since the API key is scoped to a specific tenant/project
 func TicketAccessMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Check if this is API key authentication
+		if isApiKeyAuth, exists := c.Get("api_key_auth"); exists && isApiKeyAuth.(bool) {
+			// For API key authentication, we allow access since the key is already scoped to the tenant/project
+			c.Next()
+			return
+		}
+
 		claims := GetClaims(c)
 		if claims == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid claims found"})
@@ -182,8 +190,17 @@ func TicketAccessMiddleware() gin.HandlerFunc {
 }
 
 // TicketReassignmentMiddleware ensures only tenant_admin and project_admin can reassign tickets
+// For API key auth, we allow reassignment since API keys have project-level permissions
 func TicketReassignmentMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Check if this is API key authentication
+		if isApiKeyAuth, exists := c.Get("api_key_auth"); exists && isApiKeyAuth.(bool) {
+			// For API key authentication, we allow reassignment since the key has project-level permissions
+			c.Set("allow_reassignment", true)
+			c.Next()
+			return
+		}
+
 		claims := GetClaims(c)
 		if claims == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid claims found"})
@@ -457,8 +474,16 @@ func TenantAdminMiddleware() gin.HandlerFunc {
 }
 
 // ProjectAdminMiddleware ensures only project admins can access the endpoint
+// For API key auth, we allow access since API keys have project-level permissions
 func ProjectAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Check if this is API key authentication
+		if isApiKeyAuth, exists := c.Get("api_key_auth"); exists && isApiKeyAuth.(bool) {
+			// For API key authentication, we allow access since the key has project-level permissions
+			c.Next()
+			return
+		}
+
 		claims := GetClaims(c)
 		if claims == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "No valid claims found"})
