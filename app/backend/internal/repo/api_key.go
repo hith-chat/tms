@@ -45,7 +45,7 @@ func (r *apiKeyRepository) Create(ctx context.Context, apiKey *db.ApiKey) error 
 		pq.Array(apiKey.Scopes),
 		apiKey.ExpiresAt,
 		apiKey.IsActive,
-		apiKey.CreatedBy,
+		apiKey.AgentID,
 		apiKey.CreatedAt,
 		apiKey.UpdatedAt,
 	)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bareuptime/tms/internal/db"
+	"github.com/bareuptime/tms/internal/middleware"
 	"github.com/bareuptime/tms/internal/repo"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -47,15 +48,7 @@ type ApiKeyWithValueResponse struct {
 
 // ListApiKeys handles GET /tenants/:tenant_id/api-keys
 func (h *ApiKeyHandler) ListApiKeys(c *gin.Context) {
-	tenantIDParam := c.Param("tenant_id")
-
-	// Debug: log the tenant ID parameter and stack trace if error
-	tenantID, err := uuid.Parse(tenantIDParam)
-	if err != nil {
-		println("Debug: UUID parse error:", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c) // Get from middleware context
 
 	// List tenant-level API keys (project_id = NULL)
 	apiKeys, err := h.apiKeyRepo.List(c.Request.Context(), tenantID, nil)
@@ -84,22 +77,9 @@ func (h *ApiKeyHandler) ListApiKeys(c *gin.Context) {
 
 // CreateApiKey handles POST /tenants/:tenant_id/api-keys
 func (h *ApiKeyHandler) CreateApiKey(c *gin.Context) {
-	tenantIDParam := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDParam)
-	if err != nil {
-		println("Debug: UUID parse error in CreateApiKey:", err.Error())
-		debug.PrintStack()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
-
-	agentID := c.GetString("agent_id") // Get from middleware context
-	if agentID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Agent ID required"})
-		return
-	}
-
-	agentUUID, _ := uuid.Parse(agentID)
+	tenantID := middleware.GetTenantID(c)   // Get from middleware context
+	agentID := middleware.GetAgentID(c)     // Get from middleware context
+	projectID := middleware.GetProjectID(c) // Get from middleware context
 
 	var req ApiKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -119,13 +99,13 @@ func (h *ApiKeyHandler) CreateApiKey(c *gin.Context) {
 	keyRecord := &db.ApiKey{
 		ID:        uuid.New(),
 		TenantID:  tenantID,
-		ProjectID: nil, // Tenant-level API keys
+		ProjectID: projectID, // Tenant-level API keys
 		Name:      req.Name,
 		KeyHash:   repo.HashApiKey(apiKey),
 		KeyPrefix: apiKey[:12] + "...", // Store preview
 		Scopes:    pq.StringArray{},    // Default empty scopes as pq.StringArray
 		IsActive:  true,
-		CreatedBy: agentUUID,
+		AgentID:   agentID,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -155,12 +135,7 @@ func (h *ApiKeyHandler) CreateApiKey(c *gin.Context) {
 
 // GetApiKey handles GET /tenants/:tenant_id/api-keys/:key_id
 func (h *ApiKeyHandler) GetApiKey(c *gin.Context) {
-	tenantID, err := uuid.Parse(c.Param("tenant_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
-
+	tenantID := middleware.GetTenantID(c) // Get from middleware context
 	keyID, err := uuid.Parse(c.Param("key_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid key ID"})
@@ -187,11 +162,7 @@ func (h *ApiKeyHandler) GetApiKey(c *gin.Context) {
 
 // UpdateApiKey handles PUT /tenants/:tenant_id/api-keys/:key_id
 func (h *ApiKeyHandler) UpdateApiKey(c *gin.Context) {
-	tenantID, err := uuid.Parse(c.Param("tenant_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c) // Get from middleware context
 
 	keyID, err := uuid.Parse(c.Param("key_id"))
 	if err != nil {
@@ -245,11 +216,7 @@ func (h *ApiKeyHandler) UpdateApiKey(c *gin.Context) {
 
 // DeleteApiKey handles DELETE /tenants/:tenant_id/api-keys/:key_id
 func (h *ApiKeyHandler) DeleteApiKey(c *gin.Context) {
-	tenantID, err := uuid.Parse(c.Param("tenant_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
-		return
-	}
+	tenantID := middleware.GetTenantID(c) // Get from middleware context
 
 	keyID, err := uuid.Parse(c.Param("key_id"))
 	if err != nil {
@@ -272,5 +239,5 @@ func generateApiKey() (string, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	return "tms_" + hex.EncodeToString(bytes), nil
+	return "taral_" + hex.EncodeToString(bytes), nil
 }

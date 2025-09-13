@@ -234,9 +234,10 @@ type RoleBinding struct {
 
 // ApiKey represents an API key for tenant/project access
 type ApiKey struct {
-	ID         uuid.UUID      `db:"id" json:"id"`
-	TenantID   uuid.UUID      `db:"tenant_id" json:"tenant_id"`
-	ProjectID  *uuid.UUID     `db:"project_id" json:"project_id,omitempty"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	TenantID  uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id,omitempty"`
+
 	Name       string         `db:"name" json:"name" validate:"required,min=1,max=255"`
 	KeyHash    string         `db:"key_hash" json:"-"`             // Never expose the hash
 	KeyPrefix  string         `db:"key_prefix" json:"key_preview"` // For display
@@ -244,7 +245,7 @@ type ApiKey struct {
 	LastUsedAt *time.Time     `db:"last_used_at" json:"last_used,omitempty"`
 	ExpiresAt  *time.Time     `db:"expires_at" json:"expires_at,omitempty"`
 	IsActive   bool           `db:"is_active" json:"is_active"`
-	CreatedBy  uuid.UUID      `db:"created_by" json:"created_by"`
+	AgentID    uuid.UUID      `db:"agent_id" json:"agent_id"`
 	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time      `db:"updated_at" json:"updated_at"`
 }

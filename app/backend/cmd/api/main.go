@@ -335,13 +335,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 		}
 
 		// API Key management endpoints
-		{
-			api.GET("/api-keys", apiKeyHandler.ListApiKeys)
-			api.POST("/api-keys", apiKeyHandler.CreateApiKey)
-			api.GET("/api-keys/:key_id", apiKeyHandler.GetApiKey)
-			api.PATCH("/api-keys/:key_id", apiKeyHandler.UpdateApiKey)
-			api.DELETE("/api-keys/:key_id", apiKeyHandler.DeleteApiKey)
-		}
 
 		// Project-scoped endpoints
 		projects := api.Group("/projects/:project_id")
@@ -373,6 +366,15 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, corsConfig *config.COR
 				tickets.PATCH("/:ticket_id/messages/:message_id", ticketHandler.UpdateMessage)
 				tickets.DELETE("/:ticket_id/messages/:message_id", ticketHandler.DeleteMessage)
 
+			}
+
+			apiKeys := projects.Group("/api-keys")
+			{
+				apiKeys.GET("", apiKeyHandler.ListApiKeys)
+				apiKeys.POST("", apiKeyHandler.CreateApiKey)
+				apiKeys.GET("/:key_id", apiKeyHandler.GetApiKey)
+				apiKeys.PATCH("/:key_id", apiKeyHandler.UpdateApiKey)
+				apiKeys.DELETE("/:key_id", apiKeyHandler.DeleteApiKey)
 			}
 
 			// Settings endpoints
