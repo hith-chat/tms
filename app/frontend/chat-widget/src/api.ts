@@ -75,7 +75,15 @@ export class ChatAPI {
   public async verifySessionToken(widgetId: string, token: string): Promise<boolean> {
     try {
       const secret = new TextEncoder().encode(widgetId)
-      await jwtVerify(token, secret)
+      const response = await jwtVerify(token, secret)
+
+      if(!(response && response.payload && response.payload.exp)){
+        return false
+      } 
+      if (response?.payload?.exp > Math.floor(Date.now() / 1000)) {
+        return false
+      }
+      
       return true
     } catch (error) {
       return false
