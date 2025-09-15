@@ -113,7 +113,7 @@ export function SettingsPage() {
   const tabs = [
     { id: 'projects' as SettingsTab, name: 'Projects', icon: Settings },
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
-    { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
+    // { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
     { id: 'knowledge' as SettingsTab, name: 'AI Knowledge Base', icon: Brain },
     // { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
