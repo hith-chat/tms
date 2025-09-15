@@ -481,7 +481,7 @@ export function SettingsPage() {
                 type="text"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                 placeholder="Customer Support"
               />
             </div>
@@ -491,7 +491,7 @@ export function SettingsPage() {
                 type="text"
                 value={newProjectKey}
                 onChange={(e) => setNewProjectKey(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                 placeholder="SUPPORT"
                 maxLength={10}
               />
@@ -683,7 +683,7 @@ export function SettingsPage() {
                   type="text"
                   value={newAgentName}
                   onChange={(e) => setNewAgentName(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="John Doe"
                   required
                 />
@@ -695,7 +695,7 @@ export function SettingsPage() {
                   type="email"
                   value={newAgentEmail}
                   onChange={(e) => setNewAgentEmail(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="john@company.com"
                   required
                 />
@@ -707,7 +707,7 @@ export function SettingsPage() {
                   type="password"
                   value={newAgentPassword}
                   onChange={(e) => setNewAgentPassword(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="••••••••"
                   required
                 />
@@ -986,7 +986,7 @@ export function SettingsPage() {
                   type="text"
                   value={brandingSettings.company_name}
                   onChange={(e) => setBrandingSettings(prev => ({ ...prev, company_name: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="Your Company Name"
                 />
               </div>
@@ -996,7 +996,7 @@ export function SettingsPage() {
                   type="url"
                   value={brandingSettings.support_url}
                   onChange={(e) => setBrandingSettings(prev => ({ ...prev, support_url: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="https://support.company.com"
                 />
               </div>
@@ -1008,7 +1008,7 @@ export function SettingsPage() {
               <textarea
                 value={brandingSettings.about}
                 onChange={(e) => setBrandingSettings(prev => ({ ...prev, about: e.target.value }))}
-                className="w-full h-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)] resize-none"
+                className="w-full h-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] resize-none"
                 placeholder="Brief description about your company..."
                 rows={4}
               />
@@ -1029,7 +1029,7 @@ export function SettingsPage() {
                   type="url"
                   value={brandingSettings.logo_url}
                   onChange={(e) => setBrandingSettings(prev => ({ ...prev, logo_url: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="https://example.com/logo.png"
                 />
               </div>
@@ -1220,7 +1220,7 @@ export function SettingsPage() {
                 <textarea
                   value={automationSettings.auto_reply_template}
                   onChange={(e) => setAutomationSettings(prev => ({ ...prev, auto_reply_template: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   rows={4}
                   placeholder="Thank you for contacting our support team. We have received your ticket and will respond within 24 hours."
                 />
@@ -1522,7 +1522,7 @@ export function SettingsPage() {
                   type="text"
                   value={newDomainName}
                   onChange={(e) => setNewDomainName(e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)] placeholder:text-[color:var(--muted-foreground)]"
+                  className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-[var(--card)] text-[var(--card-fg)]"
                   placeholder="example.com"
                 />
                 <button

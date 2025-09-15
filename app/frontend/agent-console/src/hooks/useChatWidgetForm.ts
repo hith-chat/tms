@@ -111,10 +111,6 @@ export function useChatWidgetForm() {
   }
 
   const submitForm = async () => {
-    if (!formData.domain_id) {
-      setError('Please select a domain')
-      return false
-    }
 
     try {
       setSubmitting(true)

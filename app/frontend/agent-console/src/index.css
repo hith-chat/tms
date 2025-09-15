@@ -316,6 +316,25 @@
     border-color: hsl(var(--input-border));
     color: hsl(var(--fg));
   }
+
+  /* Make placeholder text less prominent across the app. Use HSL with alpha for
+     consistent results and include vendor fallbacks for broad browser support. */
+  input::placeholder,
+  textarea::placeholder {
+    color: hsl(var(--muted-foreground) / 0.6);
+    opacity: 1; /* ensure alpha from HSL is used instead of inherited opacity */
+  }
+
+  /* Vendor fallbacks */
+  input::-webkit-input-placeholder,
+  textarea::-webkit-input-placeholder {
+    color: hsl(var(--muted-foreground) / 0.6);
+  }
+
+  input:-ms-input-placeholder,
+  textarea:-ms-input-placeholder {
+    color: hsl(var(--muted-foreground) / 0.6);
+  }
   
   /* Sidebar styles */
   .sidebar {
