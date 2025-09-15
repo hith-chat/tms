@@ -27,17 +27,6 @@ func NewChatWidgetService(chatWidgetRepo *repo.ChatWidgetRepo, domainRepo *repo.
 
 // CreateChatWidget creates a new chat widget
 func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, projectID uuid.UUID, req *models.CreateChatWidgetRequest) (*models.ChatWidget, error) {
-	// Verify domain exists and is verified
-	domain, err := s.domainRepo.GetDomainByID(ctx, tenantID, req.DomainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get domain: %w", err)
-	}
-	if domain == nil {
-		return nil, fmt.Errorf("domain not found")
-	}
-	if domain.Status != models.DomainValidationStatusVerified {
-		return nil, fmt.Errorf("domain must be verified before creating chat widget")
-	}
 
 	// Set defaults
 	if req.PrimaryColor == "" {
@@ -61,13 +50,28 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 	if req.BusinessHours == nil {
 		req.BusinessHours = models.JSONMap{"enabled": false}
 	}
+	if req.AgentName == "" {
+		req.AgentName = "Support Agent"
+	}
+	if req.ChatBubbleStyle == "" {
+		req.ChatBubbleStyle = "modern"
+	}
+	if req.WidgetShape == "" {
+		req.WidgetShape = "rounded"
+	}
 
 	widget := &models.ChatWidget{
 		ID:               uuid.New(),
 		TenantID:         tenantID,
 		ProjectID:        projectID,
-		DomainID:         req.DomainID,
-		Name:             req.Name,
+		DomainID:         uuid.Nil,
+		Name:             req.AgentName,
+		AgentAvatarURL:   req.AgentAvatarURL,
+		AgentName:        req.AgentName,
+		CustomGreeting:   req.CustomGreeting,
+		ChatBubbleStyle:  req.ChatBubbleStyle,
+		WidgetShape:      req.WidgetShape,
+		UseAI:            req.UseAI,
 		IsActive:         true,
 		PrimaryColor:     req.PrimaryColor,
 		SecondaryColor:   req.SecondaryColor,
@@ -84,35 +88,60 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 		UpdatedAt:        time.Now(),
 	}
 
-	// Generate embed code
-	embedCode := s.generateEmbedCode(widget.ID, domain.Domain)
-	widget.EmbedCode = &embedCode
-
-	err = s.chatWidgetRepo.CreateChatWidget(ctx, widget)
+	err := s.chatWidgetRepo.CreateChatWidget(ctx, widget)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chat widget: %w", err)
 	}
 
+	// Generate embed code
+	embedCode := s.generateEmbedCode(widget.ID)
+	widget.EmbedCode = &embedCode
 	return widget, nil
 }
 
 // GetChatWidget gets a chat widget by ID
 func (s *ChatWidgetService) GetChatWidget(ctx context.Context, tenantID, projectID, widgetID uuid.UUID) (*models.ChatWidget, error) {
-	return s.chatWidgetRepo.GetChatWidget(ctx, tenantID, projectID, widgetID)
+	widget, err := s.chatWidgetRepo.GetChatWidget(ctx, tenantID, projectID, widgetID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat widget: %w", err)
+	}
+	embedCode := s.generateEmbedCode(widget.ID)
+	widget.EmbedCode = &embedCode
+	return widget, nil
 }
 
 func (s *ChatWidgetService) GetChatWidgetById(ctx context.Context, widgetID uuid.UUID) (*models.ChatWidget, error) {
-	return s.chatWidgetRepo.GetChatWidgetById(ctx, widgetID)
+	widget, err := s.chatWidgetRepo.GetChatWidgetById(ctx, widgetID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat widget: %w", err)
+	}
+	embedCode := s.generateEmbedCode(widget.ID)
+	widget.EmbedCode = &embedCode
+	return widget, nil
 }
 
 // GetChatWidgetByDomain gets a chat widget by domain (for public access)
 func (s *ChatWidgetService) GetChatWidgetByDomain(ctx context.Context, domain string) (*models.ChatWidget, error) {
-	return s.chatWidgetRepo.GetChatWidgetByDomain(ctx, domain)
+	widget, err := s.chatWidgetRepo.GetChatWidgetByDomain(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat widget: %w", err)
+	}
+	embedCode := s.generateEmbedCode(widget.ID)
+	widget.EmbedCode = &embedCode
+	return widget, nil
 }
 
 // ListChatWidgets lists all chat widgets for a project
 func (s *ChatWidgetService) ListChatWidgets(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.ChatWidget, error) {
-	return s.chatWidgetRepo.ListChatWidgets(ctx, tenantID, projectID)
+	widgetList, err := s.chatWidgetRepo.ListChatWidgets(ctx, tenantID, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat widget: %w", err)
+	}
+	for _, widget := range widgetList {
+		embedCode := s.generateEmbedCode(widget.ID)
+		widget.EmbedCode = &embedCode
+	}
+	return widgetList, nil
 }
 
 // UpdateChatWidget updates a chat widget
@@ -126,8 +155,8 @@ func (s *ChatWidgetService) UpdateChatWidget(ctx context.Context, tenantID, proj
 	}
 
 	// Update fields
-	if req.Name != nil {
-		widget.Name = *req.Name
+	if req.AgentName != nil {
+		widget.Name = *req.AgentName
 	}
 	if req.IsActive != nil {
 		widget.IsActive = *req.IsActive
@@ -165,7 +194,7 @@ func (s *ChatWidgetService) UpdateChatWidget(ctx context.Context, tenantID, proj
 		widget.RequireName = *req.RequireName
 	}
 
-	if req.AgentAvatarURL != nil {
+	if req.AgentAvatarURL != nil && *req.AgentAvatarURL != "" {
 		widget.AgentAvatarURL = req.AgentAvatarURL
 	}
 
@@ -196,10 +225,17 @@ func (s *ChatWidgetService) UpdateChatWidget(ctx context.Context, tenantID, proj
 		widget.UseAI = *req.UseAI
 	}
 
+	// update timestamp to reflect modification
+	widget.UpdatedAt = time.Now()
+
 	err = s.chatWidgetRepo.UpdateChatWidget(ctx, widget)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update chat widget: %w", err)
 	}
+
+	// regenerate embed code so returned widget matches Create/Get behavior
+	embedCode := s.generateEmbedCode(widget.ID)
+	widget.EmbedCode = &embedCode
 
 	return widget, nil
 }
@@ -210,7 +246,7 @@ func (s *ChatWidgetService) DeleteChatWidget(ctx context.Context, tenantID, proj
 }
 
 // generateEmbedCode generates the JavaScript embed code for the chat widget
-func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID, domain string) string {
+func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
 	return fmt.Sprintf(`<!-- TMS Chat Widget -->
 <script>
   (function() {

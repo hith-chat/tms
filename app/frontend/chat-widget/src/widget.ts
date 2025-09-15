@@ -34,6 +34,9 @@ export class TMSChatWidget {
   private reconnectDelay: number = 3000
   private isConnected: boolean = false
   private poweredBadge: HTMLElement | null = null
+  
+  // Session timeout in milliseconds (1 hour)
+  private readonly SESSION_TIMEOUT_MS = 60 * 60 * 1000
 
   constructor(private options: ChatWidgetOptions) {
     this.api = new ChatAPI(options.apiUrl)
@@ -106,9 +109,26 @@ export class TMSChatWidget {
     }
   }
 
+  private isSessionExpired(lastActivity: string): boolean {
+    if (!lastActivity) return true
+    
+    const lastActivityTime = new Date(lastActivity).getTime()
+    const currentTime = Date.now()
+    const timeDiff = currentTime - lastActivityTime
+    
+    return timeDiff > this.SESSION_TIMEOUT_MS
+  }
+
   private async restoreSession() {
     const existingSession = this.storage.getSession()
     if (existingSession) {
+      // Check if session has expired (older than 1 hour)
+      if (this.isSessionExpired(existingSession.last_activity)) {
+        console.log('Session expired, clearing and starting fresh')
+        this.storage.clearSession()
+        return
+      }
+      
       this.session = {
         id: existingSession.session_id,
         token: existingSession.token,
@@ -259,8 +279,8 @@ export class TMSChatWidget {
     // Show initial message if we have cached messages
     if (this.messages.length > 0) {
       this.messages.forEach(msg => this.displayMessage(msg))
-    } else if (!this.session) {
-      // Show welcome message for new visitors
+    } else {
+      // Always show welcome message for new or cleared sessions
       this.showWelcomeMessage()
     }
   }
@@ -268,12 +288,9 @@ export class TMSChatWidget {
   private showWelcomeMessage() {
     if (!this.widget) return
     
-    // If no session exists, show visitor form instead of welcome message
-    if (!this.session) {
-      return
-    }
-    
     const welcomeMsg = this.widget.custom_greeting || this.widget.welcome_message
+    if (!welcomeMsg) return
+    
     const message: ChatMessage = {
       id: 'welcome-' + Date.now(),
       content: welcomeMsg,
@@ -553,21 +570,8 @@ export class TMSChatWidget {
     this.hideVisitorForm()
     
     // Show welcome message now that we have visitor info
-    if (this.widget) {
-      const welcomeMsg = this.widget.custom_greeting || this.widget.welcome_message
-      const message: ChatMessage = {
-        id: 'welcome-' + Date.now(),
-        content: welcomeMsg,
-        author_type: 'system',
-        author_name: this.widget.agent_name,
-        created_at: new Date().toISOString(),
-        message_type: 'text',
-        is_private: false
-      }
-      
-      this.displayMessage(message)
-      console.log("8")
-    }
+    this.showWelcomeMessage()
+    console.log("8")
     console.log("9")
     // Start the chat session with visitor info
     await this.startChatSessionWithVisitorInfo({ name, email })

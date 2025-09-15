@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Copy, CheckCircle, Code } from 'lucide-react'
 import { useChatWidgetForm } from '../hooks/useChatWidgetForm'
 import { PageHeader } from '../components/widget-form/PageHeader'
-import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
+// import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
 import { AgentPersonalizationSection } from '../components/widget-form/AgentPersonalizationSection'
 import { FeaturesSection } from '../components/widget-form/FeaturesSection'
 import { AppearanceSection } from '../components/widget-form/AppearanceSection'
@@ -79,12 +79,12 @@ export function CreateChatWidgetPage() {
             
             {/* Left Column - Form Sections */}
             <div className="xl:col-span-7 space-y-6">
-              <BasicInformationSection
+              {/* <BasicInformationSection
                 formData={formData}
                 domains={domains}
                 widgetId={widgetId}
                 onUpdate={updateFormData}
-              />
+              /> */}
 
               <AgentPersonalizationSection
                 formData={formData}

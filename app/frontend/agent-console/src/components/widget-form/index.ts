@@ -1,5 +1,5 @@
 // Widget Form Components
-export { BasicInformationSection } from './BasicInformationSection'
+// export { BasicInformationSection } from './BasicInformationSection'
 export { AgentPersonalizationSection } from './AgentPersonalizationSection'
 export { FeaturesSection } from './FeaturesSection'
 export { AppearanceSection } from './AppearanceSection'

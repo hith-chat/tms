@@ -14,7 +14,7 @@ export function AgentPersonalizationSection({
     <div className="rounded border border-border bg-card p-4">
       <div className="flex items-center gap-2 mb-3">
         <User className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-medium text-foreground">Agent Personalization</h3>
+        <h3 className="text-sm font-medium text-foreground">Personalization</h3>
       </div>
       
       <div className="space-y-3">

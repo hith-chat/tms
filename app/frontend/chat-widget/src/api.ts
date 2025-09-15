@@ -77,10 +77,11 @@ export class ChatAPI {
       const secret = new TextEncoder().encode(widgetId)
       const response = await jwtVerify(token, secret)
 
-      if(!(response && response.payload && response.payload.exp)){
+      if (!(response && response.payload && response.payload.exp)) {
         return false
       } 
-      if (response?.payload?.exp > Math.floor(Date.now() / 1000)) {
+      // Check if token is expired (exp is in seconds, Date.now() is in milliseconds)
+      if (response.payload.exp < Math.floor(Date.now() / 1000)) {
         return false
       }
       
