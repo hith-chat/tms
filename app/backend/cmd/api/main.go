@@ -505,7 +505,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		publicChat := router.Group("/api/public/chat")
 		{
 			// Widget endpoints
-			publicChat.GET("/widgets/domain/:domain", chatWidgetHandler.GetChatWidgetByDomain)
 			publicChat.GET("/widgets/:widget_id", chatWidgetHandler.GetChatWidgetByPublicId)
 
 			// Public chat session endpoints (token-based auth)

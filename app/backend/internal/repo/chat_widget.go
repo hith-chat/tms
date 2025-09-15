@@ -23,7 +23,7 @@ func NewChatWidgetRepo(db *sqlx.DB) *ChatWidgetRepo {
 func (r *ChatWidgetRepo) CreateChatWidget(ctx context.Context, widget *models.ChatWidget) error {
 	query := `
 		INSERT INTO chat_widgets (
-			id, tenant_id, project_id, domain_id, name, is_active,
+			id, tenant_id, project_id, name, is_active,
 			primary_color, secondary_color, background_color, position, widget_shape, chat_bubble_style,
 			widget_size, animation_style, custom_css,
 			welcome_message, offline_message, custom_greeting, away_message,
@@ -32,7 +32,7 @@ func (r *ChatWidgetRepo) CreateChatWidget(ctx context.Context, widget *models.Ch
 			sound_enabled, show_powered_by, use_ai,
 			business_hours, embed_code, created_at, updated_at
 		) VALUES (
-			:id, :tenant_id, :project_id, :domain_id, :name, :is_active,
+			:id, :tenant_id, :project_id, :name, :is_active,
 			:primary_color, :secondary_color, :background_color, :position, :widget_shape, :chat_bubble_style,
 			:widget_size, :animation_style, :custom_css,
 			:welcome_message, :offline_message, :custom_greeting, :away_message,
@@ -49,17 +49,15 @@ func (r *ChatWidgetRepo) CreateChatWidget(ctx context.Context, widget *models.Ch
 // GetChatWidget gets a chat widget by ID
 func (r *ChatWidgetRepo) GetChatWidget(ctx context.Context, tenantID, projectID, widgetID uuid.UUID) (*models.ChatWidget, error) {
 	query := `
-		SELECT cw.id, cw.tenant_id, cw.project_id, cw.domain_id, cw.name, cw.is_active,
+		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active,
 			   cw.primary_color, cw.secondary_color, cw.background_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
 			   cw.widget_size, cw.animation_style, cw.custom_css,
 			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
 			   cw.agent_name, cw.agent_avatar_url,
 			   cw.auto_open_delay, cw.show_agent_avatars, cw.allow_file_uploads, cw.require_email, cw.require_name,
 			   cw.sound_enabled, cw.show_powered_by, cw.use_ai,
-			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at,
-			   edv.domain as domain_name
+			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at
 		FROM chat_widgets cw
-		LEFT JOIN email_domain_validations edv ON cw.domain_id = edv.id
 		WHERE cw.tenant_id = $1 AND cw.project_id = $2 AND cw.id = $3
 	`
 
@@ -76,17 +74,15 @@ func (r *ChatWidgetRepo) GetChatWidget(ctx context.Context, tenantID, projectID,
 
 func (r *ChatWidgetRepo) GetChatWidgetById(ctx context.Context, widgetID uuid.UUID) (*models.ChatWidget, error) {
 	query := `
-		SELECT cw.id, cw.tenant_id, cw.project_id, cw.domain_id, cw.name, cw.is_active,
+		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active,
 			   cw.primary_color, cw.secondary_color, cw.background_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
 			   cw.widget_size, cw.animation_style, cw.custom_css,
 			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
 			   cw.agent_name, cw.agent_avatar_url,
 			   cw.auto_open_delay, cw.show_agent_avatars, cw.allow_file_uploads, cw.require_email,
 			   cw.require_name, cw.sound_enabled, cw.show_powered_by, cw.use_ai,
-			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at,
-			   edv.domain as domain_name
+			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at
 		FROM chat_widgets cw
-		LEFT JOIN email_domain_validations edv ON cw.domain_id = edv.id
 		WHERE cw.id = $1
 	`
 
@@ -111,10 +107,8 @@ func (r *ChatWidgetRepo) GetChatWidgetByDomain(ctx context.Context, domain strin
 			   cw.agent_name, cw.agent_avatar_url,
 			   cw.auto_open_delay, cw.show_agent_avatars, cw.allow_file_uploads, cw.require_email,
 			   cw.require_name, cw.sound_enabled, cw.show_powered_by, cw.use_ai,
-			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at,
-			   edv.domain as domain_name
+			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at
 		FROM chat_widgets cw
-		JOIN email_domain_validations edv ON cw.domain_id = edv.id
 		WHERE edv.domain = $1 AND cw.is_active = true AND edv.status = 'verified'
 		LIMIT 1
 	`
@@ -133,17 +127,15 @@ func (r *ChatWidgetRepo) GetChatWidgetByDomain(ctx context.Context, domain strin
 // ListChatWidgets lists all chat widgets for a project
 func (r *ChatWidgetRepo) ListChatWidgets(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.ChatWidget, error) {
 	query := `
-		SELECT cw.id, cw.tenant_id, cw.project_id, cw.domain_id, cw.name, cw.is_active,
+		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active,
 			   cw.primary_color, cw.secondary_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
 			   cw.widget_size, cw.animation_style, cw.custom_css,
 			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
 			   cw.agent_name, cw.agent_avatar_url,
 			   cw.auto_open_delay, cw.show_agent_avatars, cw.allow_file_uploads, cw.require_email,
 			   cw.sound_enabled, cw.show_powered_by, cw.use_ai,
-			   cw.require_name, cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at,
-			   edv.domain as domain_name
+			   cw.require_name, cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at
 		FROM chat_widgets cw
-		LEFT JOIN email_domain_validations edv ON cw.domain_id = edv.id
 		WHERE cw.tenant_id = $1 AND cw.project_id = $2
 		ORDER BY cw.created_at DESC
 	`

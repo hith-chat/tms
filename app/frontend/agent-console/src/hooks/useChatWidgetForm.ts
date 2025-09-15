@@ -115,6 +115,9 @@ export function useChatWidgetForm() {
     try {
       setSubmitting(true)
       setError(null)
+      if(formData.agent_avatar_url === '') {
+        formData.agent_avatar_url = undefined
+      }
       
       if (widgetId) {
         await apiClient.updateChatWidget(widgetId, formData)

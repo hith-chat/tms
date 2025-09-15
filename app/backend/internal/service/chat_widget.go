@@ -60,11 +60,14 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 		req.WidgetShape = "rounded"
 	}
 
+	if req.AgentAvatarURL == nil || *req.AgentAvatarURL == "" {
+		req.AgentAvatarURL = nil
+	}
+
 	widget := &models.ChatWidget{
 		ID:               uuid.New(),
 		TenantID:         tenantID,
 		ProjectID:        projectID,
-		DomainID:         uuid.Nil,
 		Name:             req.AgentName,
 		AgentAvatarURL:   req.AgentAvatarURL,
 		AgentName:        req.AgentName,
@@ -112,17 +115,6 @@ func (s *ChatWidgetService) GetChatWidget(ctx context.Context, tenantID, project
 
 func (s *ChatWidgetService) GetChatWidgetById(ctx context.Context, widgetID uuid.UUID) (*models.ChatWidget, error) {
 	widget, err := s.chatWidgetRepo.GetChatWidgetById(ctx, widgetID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chat widget: %w", err)
-	}
-	embedCode := s.generateEmbedCode(widget.ID)
-	widget.EmbedCode = &embedCode
-	return widget, nil
-}
-
-// GetChatWidgetByDomain gets a chat widget by domain (for public access)
-func (s *ChatWidgetService) GetChatWidgetByDomain(ctx context.Context, domain string) (*models.ChatWidget, error) {
-	widget, err := s.chatWidgetRepo.GetChatWidgetByDomain(ctx, domain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chat widget: %w", err)
 	}

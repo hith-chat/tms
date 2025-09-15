@@ -132,31 +132,6 @@ func (h *ChatWidgetHandler) DeleteChatWidget(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-// GetChatWidgetByDomain gets a chat widget by domain (public endpoint)
-func (h *ChatWidgetHandler) GetChatWidgetByDomain(c *gin.Context) {
-	domain := c.Param("domain")
-	if domain == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Domain is required"})
-		return
-	}
-
-	widget, err := h.chatWidgetService.GetChatWidgetByDomain(c.Request.Context(), domain)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get chat widget"})
-		return
-	}
-	if widget == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Chat widget not found for domain"})
-		return
-	}
-
-	//typecast widget to widgetPublic
-	widgetPublic := models.ChatWidgetPublic(*widget)
-
-	c.JSON(http.StatusOK, widgetPublic)
-}
-
-
 func (h *ChatWidgetHandler) GetChatWidgetByPublicId(c *gin.Context) {
 	widgetIDStr := c.Param("widget_id")
 	widgetID, err := uuid.Parse(widgetIDStr)

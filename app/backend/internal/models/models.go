@@ -491,10 +491,10 @@ type SuccessResponse struct {
 
 // ChatWidget represents a chat widget configuration
 type ChatWidget struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	TenantID  uuid.UUID `db:"tenant_id" json:"tenant_id"`
-	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
-	DomainID  uuid.UUID `db:"domain_id" json:"domain_id"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	TenantID  uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	ProjectID uuid.UUID  `db:"project_id" json:"project_id"`
+	DomainID  *uuid.UUID `db:"domain_id" json:"domain_id,omitempty"`
 
 	// Widget configuration
 	Name     string `db:"name" json:"name"`
@@ -539,16 +539,13 @@ type ChatWidget struct {
 
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-
-	// Joined fields
-	DomainName string `db:"domain_name" json:"domain_name,omitempty"`
 }
 
 type ChatWidgetPublic struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	TenantID  uuid.UUID `db:"tenant_id" json:"-"`
-	ProjectID uuid.UUID `db:"project_id" json:"-"`
-	DomainID  uuid.UUID `db:"domain_id" json:"-"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	TenantID  uuid.UUID  `db:"tenant_id" json:"-"`
+	ProjectID uuid.UUID  `db:"project_id" json:"-"`
+	DomainID  *uuid.UUID `db:"domain_id" json:"-"`
 
 	// Widget configuration
 	Name     string `db:"name" json:"name"`
@@ -593,9 +590,6 @@ type ChatWidgetPublic struct {
 
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-
-	// Joined fields
-	DomainName string `db:"domain_name" json:"domain_name,omitempty"`
 }
 
 // ChatSession represents a chat conversation session
