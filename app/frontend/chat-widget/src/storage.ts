@@ -76,6 +76,7 @@ export class SessionStorage {
 
   clearSession(): void {
     if (!this.isStorageAvailable()) return
+    console.log('Clearing session storage for widget:', this.storagePrefix)
 
     try {
       localStorage.removeItem(this.getKey(STORAGE_KEYS.SESSION))

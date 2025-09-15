@@ -376,7 +376,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       50% { opacity: 0.5; }
     }
 
-    .tms-header-close {
+    .tms-header-clear {
       background: rgba(255, 255, 255, 0.1);
       border: none;
       color: white;
@@ -387,18 +387,19 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 24px;
       font-weight: 300;
+      padding-left: 10px;
       transition: all 0.2s ease;
       backdrop-filter: blur(10px);
     }
 
-    .tms-header-close:hover {
+    .tms-header-clear:hover {
       background: rgba(255, 255, 255, 0.2);
       transform: scale(1.05);
     }
 
-    .tms-header-close:active {
+    .tms-header-clear:active {
       transform: scale(0.95);
     }
 
@@ -562,7 +563,6 @@ export function generateWidgetCSS(widget: ChatWidget): string {
     /* Input Area */
     .tms-input-area {
       background: transparent;
-      border-top: 1px solid rgba(var(--tms-secondary-color-rgb), 0.2);
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -583,7 +583,6 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       flex: 1;
       display: flex;
       background: var(--tms-background-color);
-      border-top: 2px solid rgba(var(--tms-secondary-color-rgb), 0.8);
       padding: 8px 12px;
       transition: all 0.2s ease;
     }

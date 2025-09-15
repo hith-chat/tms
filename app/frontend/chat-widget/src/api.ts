@@ -12,7 +12,7 @@ export class ChatAPI {
     // 4. development default -> http://localhost:8080/api
     // const viteEnv = (import.meta as any)?.env
     // const envUrl: string | undefined = viteEnv?.VITE_API_URL
-    const mode: string | undefined = 'production' // viteEnv?.MODE
+    const mode: string | undefined = 'production1' // viteEnv?.MODE
     const defaultUrl = mode === 'production' ? 'https://tms.bareuptime.co/api' : 'http://localhost:8080/api'
     this.baseUrl = defaultUrl
   }
@@ -34,6 +34,7 @@ export class ChatAPI {
   }
 
   private async createSessionToken(widgetId: string, request: InitiateChatRequest): Promise<{ chatSessionToken: string, sessionId: string }> {
+    console.log("Creating session token for widgetId:", widgetId, "with request:", request)
     const chatToken = localStorage.getItem('chat_session_token')
     if (chatToken) {
       try {
@@ -57,7 +58,7 @@ export class ChatAPI {
       visitor_info: request.visitor_info,
       timestamp: Date.now(),
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours expiration
+      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days expiration
     }
     
     const secret = new TextEncoder().encode(widgetId)

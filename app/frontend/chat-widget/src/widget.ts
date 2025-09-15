@@ -36,7 +36,7 @@ export class TMSChatWidget {
   private poweredBadge: HTMLElement | null = null
   
   // Session timeout in milliseconds (1 hour)
-  private readonly SESSION_TIMEOUT_MS = 60 * 60 * 1000
+  private readonly SESSION_TIMEOUT_MS = 7 * 24 * 60 *60 * 1000 // 7 days
 
   constructor(private options: ChatWidgetOptions) {
     this.api = new ChatAPI(options.apiUrl)
@@ -76,7 +76,6 @@ export class TMSChatWidget {
   }
 
   private async init() {
-    console
     try {
       // Check for existing session first
       await this.restoreSession()
@@ -123,8 +122,13 @@ export class TMSChatWidget {
     const existingSession = this.storage.getSession()
     if (existingSession) {
       // Check if session has expired (older than 1 hour)
+
+      if( await this.api.verifySessionToken(existingSession.widget_id, existingSession.token)) {
+        this.storage.clearSession()
+        return
+      }
+
       if (this.isSessionExpired(existingSession.last_activity)) {
-        console.log('Session expired, clearing and starting fresh')
         this.storage.clearSession()
         return
       }
@@ -168,14 +172,11 @@ export class TMSChatWidget {
             </div>
           </div>
         </div>
-        <button class="tms-header-close" aria-label="Close chat">×</button>
+        <button class="tms-header-clear" aria-label="Clear chat">⟳</button>
       </div>
     `
 
-    // Create modern body with enhanced messages area
-    const bodyHTML = `
-      <div class="tms-chat-body">
-        <div id="tms-visitor-info-form" class="tms-visitor-info-form" style="display: none;">
+    const visitorForm = `<div id="tms-visitor-info-form" class="tms-visitor-info-form" style="display: none;">
           <div class="tms-visitor-info-title">Start a conversation</div>
           <form id="tms-visitor-form">
           ${this.widget.require_name ? `
@@ -207,8 +208,12 @@ export class TMSChatWidget {
               <button type="submit" id="tms-visitor-start" class="tms-visitor-form-button primary">Start Chat</button>
             </div>`:``}
           </form>
-        </div>
-        
+        </div>`
+
+    // Create modern body with enhanced messages area
+    const bodyHTML = `
+      <div class="tms-chat-body">
+        ${this.widget.require_name || this.widget.require_email ? visitorForm : ''}
         <div class="tms-messages-container" id="tms-chat-messages"></div>
         
         <div class="tms-typing-indicator" id="tms-chat-typing" style="display: none;">
@@ -354,7 +359,7 @@ export class TMSChatWidget {
   private attachEventListeners() {
     if (!this.container || !this.toggleButton) return
 
-    const closeButton = this.container.querySelector('.tms-header-close')
+    const clearButton = this.container.querySelector('.tms-header-clear')
     const input = this.container.querySelector('#tms-chat-input') as HTMLElement
     const fileInput = this.container.querySelector('#tms-file-input') as HTMLInputElement
     const thumbUpBtn = this.container.querySelector('#tms-thumb-up') as HTMLButtonElement
@@ -370,7 +375,7 @@ export class TMSChatWidget {
     this.toggleButton.addEventListener('click', () => this.toggle())
 
     // Close button
-    closeButton?.addEventListener('click', () => this.close())
+    clearButton?.addEventListener('click', () => this.clear())
 
     // Visitor form submission
     visitorForm?.addEventListener('submit', (e) => {
@@ -759,6 +764,26 @@ export class TMSChatWidget {
     setTimeout(() => {
       this.container?.classList.remove('opening', 'closing')
     }, 300)
+  }
+
+  private clear() {
+    this.storage.clearSession()
+    this.session = null
+    this.messages = []
+    this.unreadCount = 0
+
+    // Clear messages from UI
+    const messagesContainer = document.getElementById('tms-chat-messages')
+    if (messagesContainer) {
+      messagesContainer.innerHTML = ''
+      messagesContainer.style.display = 'none'
+    }
+
+    // Show visitor form again
+    this.showVisitorForm()
+    console.log("cleared session")
+    this.close()
+    
   }
 
   private toggle() {
