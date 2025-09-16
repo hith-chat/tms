@@ -24,6 +24,7 @@ type Config struct {
 	AI            AIConfig            `mapstructure:"ai"`
 	Knowledge     KnowledgeConfig     `mapstructure:"knowledge"`
 	Resend        ResendConfig        `mapstructure:"resend"`
+	Payment       PaymentConfig       `mapstructure:"payment"`
 }
 
 // ServerConfig represents server configuration
@@ -171,6 +172,22 @@ type KnowledgeConfig struct {
 	ScrapeUserAgent      string        `mapstructure:"scrape_user_agent"`
 	ScrapeTimeout        time.Duration `mapstructure:"scrape_timeout"`
 	EmbeddingTimeout     time.Duration `mapstructure:"embedding_timeout"`
+}
+
+// PaymentConfig represents payment gateway configuration
+type PaymentConfig struct {
+	Stripe   StripeConfig   `mapstructure:"stripe"`
+	Cashfree CashfreeConfig `mapstructure:"cashfree"`
+}
+
+// StripeConfig represents Stripe configuration
+type StripeConfig struct {
+	WebhookSecret string `mapstructure:"webhook_secret"`
+}
+
+// CashfreeConfig represents Cashfree configuration
+type CashfreeConfig struct {
+	WebhookSecret string `mapstructure:"webhook_secret"`
 }
 
 // Load loads configuration from environment variables and config files

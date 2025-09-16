@@ -13,6 +13,7 @@ import {
   X,
   Brain,
   Palette,
+  CreditCard,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
@@ -21,7 +22,7 @@ import { AlertsSettings } from '../components/AlertsSettings'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 
 // Tab types for settings navigation
-type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge' | 'alerts'
+type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge' | 'alerts' | 'credits'
 
 interface ApiKey {
   id: string
@@ -110,12 +111,20 @@ export function SettingsPage() {
   // Project assignment states
   const [agentProjects, setAgentProjects] = useState<Record<string, AgentProject[]>>({})
 
+  // AI Messages state (simplified from credits)
+  const [currentMessages, setCurrentMessages] = useState<number>(0)
+  const [messageTransactions, setMessageTransactions] = useState<any[]>([])
+  const [processingPayment, setProcessingPayment] = useState(false)
+  const [userCurrency, setUserCurrency] = useState<string>('USD')
+  const [userCountry, setUserCountry] = useState<string>('')
+
   const tabs = [
     { id: 'projects' as SettingsTab, name: 'Projects', icon: Settings },
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
     // { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
     { id: 'knowledge' as SettingsTab, name: 'AI Knowledge Base', icon: Brain },
+    { id: 'credits' as SettingsTab, name: 'AI Messages', icon: CreditCard },
     // { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
     { id: 'api-keys' as SettingsTab, name: 'API Keys', icon: Key },
@@ -129,6 +138,28 @@ export function SettingsPage() {
   useEffect(() => {
     loadData()
   }, [activeTab])
+
+  // Handle payment status from URL parameters (when user returns from payment gateway)
+  useEffect(() => {
+    const handlePaymentReturn = () => {
+      const paymentStatus = searchParams.get('payment')
+      if (paymentStatus === 'success') {
+        setSuccessMessage('Payment completed successfully! Your AI messages have been added to your account.')
+        // Clear the URL parameter
+        setSearchParams({ tab: activeTab })
+        // Reload current messages balance
+        if (activeTab === 'credits') {
+          loadData()
+        }
+      } else if (paymentStatus === 'cancelled') {
+        setError('Payment was cancelled. No charges were made to your account.')
+        // Clear the URL parameter
+        setSearchParams({ tab: activeTab })
+      }
+    }
+
+    handlePaymentReturn()
+  }, [searchParams, activeTab, setSearchParams])
 
   const loadData = async () => {
     setLoading(true)
@@ -191,6 +222,38 @@ export function SettingsPage() {
             setAutomationSettings(automationConfig)
           } catch (err) {
             console.log('Automation settings not available, using defaults')
+          }
+          break
+        case 'credits':
+          try {
+            // Load current AI messages and transaction history
+            // For now, we'll use mock data since the backend endpoints might not be ready yet
+            setCurrentMessages(250) // Mock messages value (equivalent to $5 package)
+            setMessageTransactions([]) // Mock empty transactions
+            
+            // Load user location for currency display
+            try {
+              const locationResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'}/api/ip/my-details`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                },
+              })
+              
+              if (locationResponse.ok) {
+                const locationData = await locationResponse.json()
+                if (locationData.success && locationData.data) {
+                  setUserCountry(locationData.data.country || '')
+                  setUserCurrency(locationData.data.currency || 'USD')
+                }
+              }
+            } catch (locationErr) {
+              console.log('Could not load user location, using defaults')
+            }
+          } catch (err) {
+            console.log('Credits data not available, using defaults')
+            setCurrentMessages(0)
+            setMessageTransactions([])
           }
           break
         case 'api-keys':
@@ -452,6 +515,103 @@ export function SettingsPage() {
       setError('Failed to save automation settings')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // AI Messages purchase handler with geolocation-based payment gateway selection
+  const handleAddMessages = async (amount: number) => {
+    try {
+      setProcessingPayment(true)
+      setError(null)
+      
+      // Get user's location using the geolocation service
+      const locationResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'}/api/ip/my-details`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      })
+      
+      let paymentGateway = 'stripe' // Default to Stripe
+      let currency = 'USD' // Default currency
+      
+      if (locationResponse.ok) {
+        const locationData = await locationResponse.json()
+        console.log('User location data:', locationData)
+        
+        // Use Cashfree for India, Stripe for other countries
+        if (locationData.success && locationData.data) {
+          const country = locationData.data.country
+          currency = locationData.data.currency || 'USD'
+          
+          if (country === 'India' || country === 'IN') {
+            paymentGateway = 'cashfree'
+            currency = 'INR'
+          }
+        }
+      }
+      
+      // Calculate equivalent amount in local currency if needed
+      let localAmount = amount
+      if (currency === 'INR') {
+        localAmount = Math.round(amount * 83) // Rough USD to INR conversion
+      }
+      
+      // Call backend API to create payment session and get redirect URL
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'}/payments/create-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({
+          amount: localAmount,
+          currency: currency,
+          type: 'ai_messages',
+          gateway: paymentGateway,
+          success_url: window.location.origin + '/settings?tab=credits&payment=success',
+          cancel_url: window.location.origin + '/settings?tab=credits&payment=cancelled'
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to create payment session')
+      }
+      
+      const paymentData = await response.json()
+      
+      // Check if we got a payment URL from the backend
+      if (paymentData.payment_url) {
+        // Open payment URL in new tab
+        const paymentWindow = window.open(paymentData.payment_url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes')
+        
+        // Calculate messages based on original USD amount
+        const messagesToAdd = amount * 50
+        
+        // Show user-friendly message
+        setSuccessMessage(
+          `Payment window opened for ${currency} ${localAmount} (≈$${amount}) via ${paymentGateway.charAt(0).toUpperCase() + paymentGateway.slice(1)}. ` +
+          `Complete the payment to add ${messagesToAdd} AI messages to your account.`
+        )
+        
+        // Check if popup was blocked
+        if (!paymentWindow || paymentWindow.closed || typeof paymentWindow.closed === 'undefined') {
+          // Popup blocked, provide fallback
+          setError('Payment popup was blocked. Please allow popups and try again, or click the link below.')
+          // You could show a direct link as fallback
+        }
+        
+        console.log('Payment session created:', paymentData)
+      } else {
+        throw new Error('No payment URL received from server')
+      }
+      
+    } catch (err) {
+      console.error('Payment error:', err)
+      setError(`Failed to initiate payment: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setProcessingPayment(false)
     }
   }
 
@@ -1686,6 +1846,146 @@ export function SettingsPage() {
     )
   }
 
+  const renderCreditsTab = () => {
+    // Base packages in USD
+    const basePackages = [
+      { amount: 5, messages: 250 },
+      { amount: 10, messages: 550 },
+      { amount: 20, messages: 1200 },
+      { amount: 50, messages: 3250 }
+    ]
+
+    // Convert to local currency if user is in India
+    const messagePackages = basePackages.map(pkg => {
+      let localAmount = pkg.amount
+      let currencySymbol = '$'
+      
+      if (userCountry === 'India' || userCountry === 'IN') {
+        localAmount = Math.round(pkg.amount * 83) // USD to INR conversion
+        currencySymbol = '₹'
+      }
+      
+      return {
+        ...pkg,
+        localAmount,
+        currencySymbol,
+        currency: userCountry === 'India' || userCountry === 'IN' ? 'INR' : 'USD'
+      }
+    })
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">AI Messages</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Purchase AI messages to use our intelligent features. Each package gives you a set number of AI responses.
+              {userCountry && (
+                <span className="block mt-1">
+                  Pricing shown for {userCountry} ({userCurrency})
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Current Messages Display */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-blue-900 dark:text-blue-100">Available Messages</h3>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{currentMessages} messages</p>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                Ready to use for AI-powered responses
+              </p>
+            </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <CreditCard className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Message Packages */}
+        <div>
+          <h3 className="text-lg font-medium mb-4">Add AI Messages</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {messagePackages.map((pkg) => (
+              <div key={pkg.amount} className="border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">
+                    {pkg.currencySymbol}{pkg.localAmount}
+                  </div>
+                  {pkg.currency === 'INR' && (
+                    <div className="text-xs text-muted-foreground">≈ ${pkg.amount} USD</div>
+                  )}
+                  <div className="text-lg font-medium mt-1">{pkg.messages} messages</div>
+                  <div className="text-xs text-muted-foreground">
+                    {pkg.currencySymbol}{(pkg.localAmount / pkg.messages).toFixed(3)} per message
+                  </div>
+                  <button
+                    onClick={() => handleAddMessages(pkg.amount)} // Always pass USD amount to handler
+                    disabled={processingPayment}
+                    className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  >
+                    {processingPayment ? 'Processing...' : 'Purchase'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Usage Information */}
+        <div className="bg-muted/50 rounded-lg p-4">
+          <h4 className="font-medium mb-2">How AI Messages Work</h4>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>• Each AI response consumes 1 message from your balance</li>
+            <li>• Messages are shared across all projects in your account</li>
+            <li>• Messages never expire and roll over monthly</li>
+            <li>• Payment processing is handled securely through our payment partners</li>
+            <li>• Better value packages offer more messages per dollar</li>
+            {userCountry === 'India' && (
+              <li>• Indian users are automatically routed to Cashfree for local payment methods</li>
+            )}
+          </ul>
+        </div>
+
+        {/* Transaction History (if available) */}
+        {messageTransactions.length > 0 && (
+          <div>
+            <h3 className="text-lg font-medium mb-4">Recent Purchases</h3>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Type</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Messages</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {messageTransactions.map((transaction: any, index: number) => (
+                    <tr key={index} className="border-t border-border">
+                      <td className="px-4 py-3 text-sm">{new Date(transaction.created_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm">{transaction.type}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={transaction.messages > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {transaction.messages > 0 ? '+' : ''}{transaction.messages}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">${transaction.amount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'projects':
@@ -1698,6 +1998,8 @@ export function SettingsPage() {
         return renderBrandingTab()
       case 'knowledge':
         return renderKnowledgeTab()
+      case 'credits':
+        return renderCreditsTab()
       case 'alerts':
         return renderAlertsTab()
       case 'automations':
