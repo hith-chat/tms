@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/bareuptime/tms/internal/models"
@@ -248,4 +249,81 @@ type ApiKey struct {
 	AgentID    uuid.UUID      `db:"agent_id" json:"agent_id"`
 	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// Credits represents the credit balance for a tenant
+type Credits struct {
+	ID                int64      `db:"id" json:"id"`
+	TenantID          uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	Balance           int64      `db:"balance" json:"balance"`
+	TotalEarned       int64      `db:"total_earned" json:"total_earned"`
+	TotalSpent        int64      `db:"total_spent" json:"total_spent"`
+	LastTransactionAt *time.Time `db:"last_transaction_at" json:"last_transaction_at,omitempty"`
+	CreatedAt         time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time  `db:"updated_at" json:"updated_at"`
+}
+
+// CreditTransaction represents a single credit transaction for audit trail
+type CreditTransaction struct {
+	ID              int64     `db:"id" json:"id"`
+	TenantID        uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	Amount          int64     `db:"amount" json:"amount"`
+	TransactionType string    `db:"transaction_type" json:"transaction_type"`
+	PaymentGateway  *string   `db:"payment_gateway" json:"payment_gateway,omitempty"`
+	PaymentEventID  *string   `db:"payment_event_id" json:"payment_event_id,omitempty"`
+	Description     *string   `db:"description" json:"description,omitempty"`
+	BalanceBefore   int64     `db:"balance_before" json:"balance_before"`
+	BalanceAfter    int64     `db:"balance_after" json:"balance_after"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+}
+
+// PaymentWebhookEvent represents a webhook event received from payment gateways
+type PaymentWebhookEvent struct {
+	ID             int64           `db:"id" json:"id"`
+	EventID        string          `db:"event_id" json:"event_id"`
+	EventType      string          `db:"event_type" json:"event_type"`
+	ObjectID       string          `db:"object_id" json:"object_id"`
+	TenantEmail    string          `db:"tenant_email" json:"tenant_email"`
+	TenantID       *uuid.UUID      `db:"tenant_id" json:"tenant_id,omitempty"`
+	Amount         *int64          `db:"amount" json:"amount,omitempty"`
+	Currency       string          `db:"currency" json:"currency"`
+	Status         string          `db:"status" json:"status"`
+	PayloadData    json.RawMessage `db:"payload_data" json:"payload_data"`
+	ProcessedAt    *time.Time      `db:"processed_at" json:"processed_at,omitempty"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+	Error          *string         `db:"error" json:"error,omitempty"`
+	PaymentGateway string          `db:"payment_gateway" json:"payment_gateway"`
+}
+
+// PreCreate sets default values before creation
+func (w *PaymentWebhookEvent) PreCreate() {
+	now := time.Now()
+	w.CreatedAt = now
+	w.UpdatedAt = now
+
+	if w.Status == "" {
+		w.Status = "pending"
+	}
+}
+
+// MarkProcessed marks the webhook event as successfully processed
+func (w *PaymentWebhookEvent) MarkProcessed() {
+	now := time.Now()
+	w.Status = "processed"
+	w.ProcessedAt = &now
+	w.UpdatedAt = now
+}
+
+// MarkFailed marks the webhook event as failed with an error message
+func (w *PaymentWebhookEvent) MarkFailed(errorMsg string) {
+	w.Status = "failed"
+	w.Error = &errorMsg
+	w.UpdatedAt = time.Now()
+}
+
+// MarkIgnored marks the webhook event as ignored (e.g., event type not handled)
+func (w *PaymentWebhookEvent) MarkIgnored() {
+	w.Status = "ignored"
+	w.UpdatedAt = time.Now()
 }

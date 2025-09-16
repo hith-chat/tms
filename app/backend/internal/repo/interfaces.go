@@ -134,3 +134,23 @@ type ApiKeyRepository interface {
 	Delete(ctx context.Context, tenantID uuid.UUID, keyID uuid.UUID) error
 	UpdateLastUsed(ctx context.Context, keyID uuid.UUID) error
 }
+
+// CreditsRepository interface
+type CreditsRepository interface {
+	Create(ctx context.Context, credits *db.Credits) error
+	GetByTenantID(ctx context.Context, tenantID uuid.UUID) (*db.Credits, error)
+	Update(ctx context.Context, credits *db.Credits) error
+	AddCredits(ctx context.Context, tenantID uuid.UUID, amount int64, transactionType, paymentGateway, paymentEventID, description string) (*db.CreditTransaction, error)
+	DeductCredits(ctx context.Context, tenantID uuid.UUID, amount int64, transactionType, description string) (*db.CreditTransaction, error)
+	CreateTransaction(ctx context.Context, transaction *db.CreditTransaction) error
+	GetTransactionsByTenantID(ctx context.Context, tenantID uuid.UUID, pagination PaginationParams) ([]*db.CreditTransaction, string, error)
+	GetTransactionByPaymentEventID(ctx context.Context, paymentEventID string) (*db.CreditTransaction, error)
+}
+
+// PaymentWebhookRepository interface
+type PaymentWebhookRepository interface {
+	Create(event *db.PaymentWebhookEvent) error
+	FindByPaymentEventID(eventID string) (*db.PaymentWebhookEvent, error)
+	Update(event *db.PaymentWebhookEvent) error
+	FindTenantByEmail(email string) (*db.Tenant, error)
+}
