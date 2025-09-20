@@ -1,0 +1,51 @@
+# Node
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build output
+dist/
+build/
+.vite/
+.esbuild/
+.cache/
+coverage/
+
+# Environment files
+.env
+.env.*.local
+.env.local
+
+# Logs
+logs/
+*.log
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-* 
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Misc
+*.tgz
+*.zip
+
+# Local system files
+/.pnp/
+.pnp.js
+
+# Vite / Rollup caches
+node_modules/.vite
+
+# Optional: lockfiles often should be committed for apps, remove if you want to keep them
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
