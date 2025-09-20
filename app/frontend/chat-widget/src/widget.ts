@@ -158,7 +158,7 @@ export class TMSChatWidget {
     const headerHTML = `
       <div class="tms-chat-header">
         <div class="tms-agent-info">
-          ${this.widget.show_agent_avatars && this.widget.agent_avatar_url ? 
+          ${this.widget.show_agent_avatars && this.widget.agent_avatar_url ?
             `<div class="tms-agent-avatar">
               <img src="${this.widget.agent_avatar_url}" alt="${this.widget.agent_name}" />
             </div>` :
@@ -168,11 +168,24 @@ export class TMSChatWidget {
             <div class="tms-agent-name">${this.widget.agent_name}</div>
             <div class="tms-agent-status">
               <div class="tms-status-indicator"></div>
-              ${this.isBusinessHoursOpen ? 'Online now' : 'Away'}
+              <span class="tms-status-text">${this.isBusinessHoursOpen ? 'Online now' : 'Away'}</span>
             </div>
           </div>
         </div>
-        <button class="tms-header-clear" aria-label="Clear chat">⟳</button>
+        <div class="tms-header-controls">
+          <button class="tms-header-minimize" aria-label="Minimize chat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </button>
+          <button class="tms-header-clear" aria-label="Clear chat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18"/>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+            </svg>
+          </button>
+        </div>
       </div>
     `
 
@@ -226,15 +239,25 @@ export class TMSChatWidget {
         </div>
         
         <div class="tms-input-area">
-          <div class="tms-input-controls">
-            ${this.widget.allow_file_uploads ? `
-              <label class="tms-file-upload-btn" for="tms-file-input" title="Attach file">
-                📎
-                <input id="tms-file-input" type="file" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt" />
-              </label>
-            ` : ''}
-          </div>
           <div class="tms-input-wrapper">
+            <div class="tms-input-controls">
+              ${this.widget.allow_file_uploads ? `
+                <label class="tms-file-upload-btn" for="tms-file-input" title="Attach file">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                  <input id="tms-file-input" type="file" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt" />
+                </label>
+              ` : ''}
+              <button class="tms-emoji-btn" title="Add emoji">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                  <line x1="9" y1="9" x2="9.01" y2="9"/>
+                  <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
+              </button>
+            </div>
             <div
               id="tms-chat-input"
               class="tms-message-input tms-editable"
@@ -243,6 +266,34 @@ export class TMSChatWidget {
               aria-multiline="true"
               data-placeholder="Type your message and press Enter..."
             ></div>
+            <button class="tms-send-btn" id="tms-send-btn" title="Send message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22,2 15,22 11,13 2,9"/>
+              </svg>
+            </button>
+          </div>
+          <div class="tms-emoji-picker" id="tms-emoji-picker" style="display: none;">
+            <div class="tms-emoji-grid">
+              <button class="tms-emoji-item" data-emoji="😀">😀</button>
+              <button class="tms-emoji-item" data-emoji="😃">😃</button>
+              <button class="tms-emoji-item" data-emoji="😄">😄</button>
+              <button class="tms-emoji-item" data-emoji="😁">😁</button>
+              <button class="tms-emoji-item" data-emoji="😊">😊</button>
+              <button class="tms-emoji-item" data-emoji="😍">😍</button>
+              <button class="tms-emoji-item" data-emoji="🤔">🤔</button>
+              <button class="tms-emoji-item" data-emoji="😎">😎</button>
+              <button class="tms-emoji-item" data-emoji="😂">😂</button>
+              <button class="tms-emoji-item" data-emoji="🥺">🥺</button>
+              <button class="tms-emoji-item" data-emoji="😢">😢</button>
+              <button class="tms-emoji-item" data-emoji="😡">😡</button>
+              <button class="tms-emoji-item" data-emoji="👍">👍</button>
+              <button class="tms-emoji-item" data-emoji="👎">👎</button>
+              <button class="tms-emoji-item" data-emoji="❤️">❤️</button>
+              <button class="tms-emoji-item" data-emoji="🎉">🎉</button>
+              <button class="tms-emoji-item" data-emoji="🔥">🔥</button>
+              <button class="tms-emoji-item" data-emoji="💯">💯</button>
+            </div>
           </div>
         </div>
       </div>
@@ -360,7 +411,12 @@ export class TMSChatWidget {
     if (!this.container || !this.toggleButton) return
 
     const clearButton = this.container.querySelector('.tms-header-clear')
+    const minimizeButton = this.container.querySelector('.tms-header-minimize')
     const input = this.container.querySelector('#tms-chat-input') as HTMLElement
+    const sendBtn = this.container.querySelector('#tms-send-btn') as HTMLButtonElement
+    const emojiBtn = this.container.querySelector('.tms-emoji-btn') as HTMLButtonElement
+    const emojiPicker = this.container.querySelector('#tms-emoji-picker') as HTMLElement
+    const emojiItems = this.container.querySelectorAll('.tms-emoji-item')
     const fileInput = this.container.querySelector('#tms-file-input') as HTMLInputElement
     const thumbUpBtn = this.container.querySelector('#tms-thumb-up') as HTMLButtonElement
     const thumbDownBtn = this.container.querySelector('#tms-thumb-down') as HTMLButtonElement
@@ -374,8 +430,9 @@ export class TMSChatWidget {
     // Toggle button
     this.toggleButton.addEventListener('click', () => this.toggle())
 
-    // Close button
+    // Header controls
     clearButton?.addEventListener('click', () => this.clear())
+    minimizeButton?.addEventListener('click', () => this.close())
 
     // Visitor form submission
     visitorForm?.addEventListener('submit', (e) => {
@@ -419,6 +476,52 @@ export class TMSChatWidget {
     // Stop typing when input loses focus
     input?.addEventListener('blur', () => {
       this.stopTyping()
+    })
+
+    // Send button
+    sendBtn?.addEventListener('click', () => this.sendMessage())
+
+    // Emoji picker
+    emojiBtn?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      if (emojiPicker) {
+        emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'block' : 'none'
+      }
+    })
+
+    // Emoji selection
+    emojiItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+
+        const emoji = item.getAttribute('data-emoji')
+        if (emoji && input) {
+          // Simple approach: append emoji to current text content
+          const currentText = input.textContent || ''
+          input.textContent = currentText + emoji
+
+          // Move cursor to end
+          const range = document.createRange()
+          const selection = window.getSelection()
+          range.selectNodeContents(input)
+          range.collapse(false)
+          selection?.removeAllRanges()
+          selection?.addRange(range)
+
+          input.focus()
+          if (emojiPicker) {
+            emojiPicker.style.display = 'none'
+          }
+        }
+      })
+    })
+
+    // Close emoji picker when clicking outside
+    document.addEventListener('click', (e) => {
+      if (emojiPicker && !emojiPicker.contains(e.target as Node) && e.target !== emojiBtn) {
+        emojiPicker.style.display = 'none'
+      }
     })
 
   // File upload
@@ -1127,15 +1230,12 @@ export class TMSChatWidget {
   }
 
   private updateStatus(status: string) {
-    const statusEl = this.container?.querySelector('.tms-agent-status')
-    if (statusEl) {
-      // Update the status text while keeping the indicator
-      const indicator = statusEl.querySelector('.tms-status-indicator')
-      statusEl.innerHTML = ''
-      if (indicator) statusEl.appendChild(indicator)
-      statusEl.appendChild(document.createTextNode(status))
+    const statusTextEl = this.container?.querySelector('.tms-status-text')
+    if (statusTextEl) {
+      statusTextEl.textContent = status
     }
   }
+
 
   private sendReadReceipt(messageId: string) {
     if (!this.isConnected || !this.websocket || !this.session) return

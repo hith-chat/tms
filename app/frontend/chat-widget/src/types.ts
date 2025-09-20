@@ -25,10 +25,10 @@ export interface ChatWidget {
   primary_color: string
   secondary_color: string
   background_color: string
-  position: 'bottom-right' | 'bottom-left'
+  position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
   widget_shape: 'rounded' | 'square' | 'minimal' | 'professional' | 'modern' | 'classic'
   chat_bubble_style: 'modern' | 'classic' | 'minimal' | 'rounded'
-  widget_size: 'small' | 'medium' | 'large'
+  widget_size: 'small' | 'medium' | 'large' | 'auto'
   animation_style: 'smooth' | 'bounce' | 'fade' | 'slide'
   custom_css?: string
   welcome_message: string
@@ -46,6 +46,11 @@ export interface ChatWidget {
   show_powered_by: boolean
   use_ai: boolean
   business_hours: Record<string, any>
+  font_family?: string
+  border_radius?: string
+  shadow_intensity?: 'light' | 'medium' | 'heavy'
+  enable_gradient?: boolean
+  text_size?: 'small' | 'medium' | 'large'
 }
 
 export interface WidgetTheme {
