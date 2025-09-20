@@ -67,7 +67,8 @@ export const WIDGET_THEMES: Record<string, WidgetTheme> = {
 export const WIDGET_SIZES = {
   small: { width: '300px', height: '400px' },
   medium: { width: '350px', height: '500px' },
-  large: { width: '400px', height: '600px' }
+  large: { width: '400px', height: '600px' },
+  auto: { width: '380px', height: '550px' }
 }
 
 export const ANIMATIONS = {
@@ -84,13 +85,13 @@ export const ANIMATIONS = {
     exit: 'scale(0.8) translateY(100%)'
   },
   fade: {
-    transition: 'all 0.2s ease-in-out',
+    transition: 'all 0.25s ease-in-out',
     transform: 'opacity(1)',
     entry: 'opacity(0)',
     exit: 'opacity(0)'
   },
   slide: {
-    transition: 'all 0.4s ease-out',
+    transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
     transform: 'translateX(0)',
     entry: 'translateX(100%)',
     exit: 'translateX(100%)'
@@ -148,12 +149,76 @@ function hexToRgb(hex: string): string {
 function hexToRgbNumbers(hex: string): { r: number, g: number, b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return { r: 59, g: 130, b: 246 } // Default blue
-  
+
   return {
     r: parseInt(result[1], 16),
     g: parseInt(result[2], 16),
     b: parseInt(result[3], 16)
   }
+}
+
+// Helper function to get position styles for toggle button
+function getPositionStyles(position: string): string {
+  switch (position) {
+    case 'bottom-left':
+      return 'left: 24px; bottom: 24px;'
+    case 'top-right':
+      return 'right: 24px; top: 24px;'
+    case 'top-left':
+      return 'left: 24px; top: 24px;'
+    case 'bottom-right':
+    default:
+      return 'right: 24px; bottom: 24px;'
+  }
+}
+
+// Helper function to get position styles for widget container
+function getWidgetPositionStyles(position: string): string {
+  switch (position) {
+    case 'bottom-left':
+      return 'left: 24px; bottom: 96px;'
+    case 'top-right':
+      return 'right: 24px; top: 96px;'
+    case 'top-left':
+      return 'left: 24px; top: 96px;'
+    case 'bottom-right':
+    default:
+      return 'right: 24px; bottom: 96px;'
+  }
+}
+
+// Helper function to get shadow intensity
+function getShadowIntensity(intensity?: string): string {
+  switch (intensity) {
+    case 'light':
+      return '0 4px 12px rgba(0, 0, 0, 0.08)'
+    case 'heavy':
+      return '0 20px 60px rgba(0, 0, 0, 0.3)'
+    case 'medium':
+    default:
+      return '0 8px 32px rgba(0, 0, 0, 0.15)'
+  }
+}
+
+// Helper function to get text size styles
+function getTextSizeStyles(size?: string): string {
+  switch (size) {
+    case 'small':
+      return '--tms-text-size: 13px; --tms-heading-size: 15px;'
+    case 'large':
+      return '--tms-text-size: 16px; --tms-heading-size: 18px;'
+    case 'medium':
+    default:
+      return '--tms-text-size: 14px; --tms-heading-size: 16px;'
+  }
+}
+
+// Helper function to get font family
+function getFontFamily(fontFamily?: string): string {
+  if (fontFamily) {
+    return fontFamily
+  }
+  return '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif'
 }
 
 // Calculate luminance to determine if color is light or dark
@@ -194,6 +259,12 @@ export function generateWidgetCSS(widget: ChatWidget): string {
     widget.secondary_color || '#6b7280'
   )
 
+  // Get customization values
+  const customShadow = getShadowIntensity(widget.shadow_intensity)
+  const customFont = getFontFamily(widget.font_family)
+  const customBorderRadius = widget.border_radius || theme.borderRadius
+  const textSizeVars = getTextSizeStyles(widget.text_size)
+
   return `
     :root {
       --tms-primary-color: ${widget.primary_color};
@@ -206,32 +277,33 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       --tms-placeholder-color: ${placeholderColor};
       --tms-widget-width: ${size.width};
       --tms-widget-height: ${size.height};
-      --tms-border-radius: ${theme.borderRadius};
-      --tms-shadow: ${theme.shadow};
+      --tms-border-radius: ${customBorderRadius};
+      --tms-shadow: ${customShadow};
       --tms-animation: ${animation.transition};
       --tms-bubble-border-radius: ${bubbleStyle.borderRadius};
       --tms-bubble-padding: ${bubbleStyle.padding};
       --tms-bubble-max-width: ${bubbleStyle.maxWidth};
+      --tms-font-family: ${customFont};
+      ${textSizeVars}
     }
 
     /* Main Widget Container */
     .tms-widget-container {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      font-family: var(--tms-font-family);
+      font-size: var(--tms-text-size);
       position: fixed;
-      ${widget.position === 'bottom-right' ? 'right: 24px;' : 'left: 24px;'}
-      bottom: 96px;
+      ${getWidgetPositionStyles(widget.position)}
       width: var(--tms-widget-width);
       height: var(--tms-widget-height);
       z-index: 2147483647;
-      border-radius: 16px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      border-radius: var(--tms-border-radius);
+      box-shadow: var(--tms-shadow), 0 0 0 1px rgba(255, 255, 255, 0.05);
       overflow: hidden;
-      background: #ffffff;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: ${widget.enable_gradient ? `linear-gradient(135deg, var(--tms-background-color) 0%, color-mix(in srgb, var(--tms-background-color) 95%, var(--tms-primary-color)) 100%)` : 'var(--tms-background-color)'};
+      transition: var(--tms-animation);
       display: none;
       flex-direction: column;
       backdrop-filter: blur(20px);
-      background: var(--tms-background-color);
     }
 
     .tms-widget-container.open {
@@ -348,7 +420,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
 
     .tms-agent-name {
       font-weight: 600;
-      font-size: 16px;
+      font-size: var(--tms-heading-size);
       margin: 0 0 2px 0;
       color: white;
       line-height: 1.2;
@@ -376,6 +448,14 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       50% { opacity: 0.5; }
     }
 
+    .tms-header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+
+    .tms-header-minimize,
     .tms-header-clear {
       background: rgba(255, 255, 255, 0.1);
       border: none;
@@ -387,18 +467,17 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      font-weight: 300;
-      padding-left: 10px;
       transition: all 0.2s ease;
       backdrop-filter: blur(10px);
     }
 
+    .tms-header-minimize:hover,
     .tms-header-clear:hover {
       background: rgba(255, 255, 255, 0.2);
       transform: scale(1.05);
     }
 
+    .tms-header-minimize:active,
     .tms-header-clear:active {
       transform: scale(0.95);
     }
@@ -441,32 +520,47 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       margin-bottom: 16px;
       display: flex;
       flex-direction: column;
+      animation: message-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     .tms-message-wrapper.visitor {
       align-items: flex-end;
     }
 
-    .tms-message-wrapper.agent {
+    .tms-message-wrapper.agent,
+    .tms-message-wrapper.ai-agent {
       align-items: flex-start;
+    }
+
+    .tms-message-wrapper.system {
+      align-items: center;
     }
 
     .tms-message-bubble {
       position: relative;
-      border-radius: 18px;
-      padding: 12px 16px;
-      max-width: 280px;
+      border-radius: var(--tms-bubble-border-radius);
+      padding: var(--tms-bubble-padding);
+      max-width: var(--tms-bubble-max-width);
       word-wrap: break-word;
       line-height: 1.4;
-      font-size: 14px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-      animation: message-appear 0.3s ease-out;
+      font-size: var(--tms-text-size);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
     }
 
-    @keyframes message-appear {
+    .tms-message-bubble:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(-1px);
+    }
+
+    @keyframes message-slide-in {
       0% {
         opacity: 0;
-        transform: translateY(10px) scale(0.9);
+        transform: translateY(20px) scale(0.95);
+      }
+      60% {
+        opacity: 0.8;
+        transform: translateY(-2px) scale(1.02);
       }
       100% {
         opacity: 1;
@@ -474,34 +568,100 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       }
     }
 
+    /* Advanced hover effects for interactive elements */
+    .tms-message-bubble,
+    .tms-toggle-button,
+    .tms-send-btn,
+    .tms-file-upload-btn,
+    .tms-emoji-btn {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tms-message-bubble::after,
+    .tms-toggle-button::after,
+    .tms-send-btn::after,
+    .tms-file-upload-btn::after,
+    .tms-emoji-btn::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+      pointer-events: none;
+    }
+
+    .tms-message-bubble:active::after,
+    .tms-toggle-button:active::after,
+    .tms-send-btn:active::after,
+    .tms-file-upload-btn:active::after,
+    .tms-emoji-btn:active::after {
+      width: 300px;
+      height: 300px;
+    }
+
     .tms-message-bubble.visitor {
       background: linear-gradient(135deg, var(--tms-primary-color) 0%, color-mix(in srgb, var(--tms-primary-color) 90%, #000) 100%);
       color: white;
       border-bottom-right-radius: 6px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .tms-message-bubble.agent {
-      background: var(--tms-secondary-color);
-      color: color-mix(in srgb, var(--tms-secondary-color) 15%, #000);
-      border-bottom-left-radius: 6px;
-      border: 1px solid color-mix(in srgb, var(--tms-secondary-color) 80%, #fff);
+    .tms-message-bubble.visitor::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s ease;
     }
 
+    .tms-message-bubble.visitor:hover::before {
+      left: 100%;
+    }
+
+    .tms-message-bubble.agent,
     .tms-message-bubble.ai-agent {
       background: var(--tms-secondary-color);
       color: color-mix(in srgb, var(--tms-secondary-color) 15%, #000);
       border-bottom-left-radius: 6px;
       border: 1px solid color-mix(in srgb, var(--tms-secondary-color) 80%, #fff);
+      position: relative;
+    }
+
+    .tms-message-bubble.ai-agent::after {
+      content: '🤖';
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      font-size: 12px;
+      background: var(--tms-primary-color);
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
     }
 
     .tms-message-bubble.system {
-      background: #f3f4f6;
-      color: #6b7280;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      color: #64748b;
       font-style: italic;
       text-align: center;
       border-radius: 12px;
       font-size: 13px;
-      max-width: 100%;
+      max-width: 90%;
+      border: 1px solid #e2e8f0;
     }
 
     .tms-message-time {
@@ -565,54 +725,55 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       background: transparent;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      min-height: 100px; /* Ensure adequate space for input */
-  /* Keep input area anchored at the bottom while header stays static */
-  margin-top: auto;
+      margin-top: auto;
+      padding: 16px;
+    }
+
+    .tms-input-wrapper {
+      display: flex;
+      align-items: flex-end;
+      background: color-mix(in srgb, var(--tms-secondary-color) 5%, var(--tms-background-color));
+      border: 1px solid color-mix(in srgb, var(--tms-secondary-color) 15%, var(--tms-background-color));
+      border-radius: 24px;
+      padding: 8px 12px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .tms-input-wrapper:focus-within {
+      border-color: var(--tms-primary-color);
+      background: var(--tms-background-color);
+      box-shadow: 0 0 0 3px rgba(var(--tms-primary-color-rgb), 0.1);
     }
 
     .tms-input-controls {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      position: relative; /* allow absolute centering of reactions */
-  width: 100%;
+      gap: 8px;
+      margin-right: 8px;
     }
 
-    .tms-input-wrapper {
-      flex: 1;
-      display: flex;
-      background: var(--tms-background-color);
-      padding: 8px 12px;
-      transition: all 0.2s ease;
-    }
-
-    .tms-input-wrapper:focus-within {
-      /* border: 2px solid color-mix(in srgb, var(--tms-secondary-color) 100%, var(--tms-background-color)); */
-      /* Use a subtle ring mixed from background and black for better theme contrast */
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--tms-background-color) 95%, #000 5%)
-    }
-
-    .tms-file-upload-btn {
+    .tms-file-upload-btn,
+    .tms-emoji-btn {
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background: rgba(var(--tms-secondary-color-rgb), 0.1);
-      border: 1px solid rgba(var(--tms-secondary-color-rgb), 0.2);
+      background: transparent;
+      border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      color: rgba(var(--tms-secondary-color-rgb), 0.7);
+      color: color-mix(in srgb, var(--tms-secondary-color) 30%, #000);
       transition: all 0.2s ease;
       flex-shrink: 0;
     }
 
-    .tms-file-upload-btn:hover {
-      background: rgba(var(--tms-secondary-color-rgb), 0.15);
+    .tms-file-upload-btn:hover,
+    .tms-emoji-btn:hover {
+      background: color-mix(in srgb, var(--tms-primary-color) 10%, var(--tms-background-color));
       color: var(--tms-primary-color);
-      border-color: var(--tms-primary-color);
+      transform: scale(1.05);
     }
 
     .tms-message-input {
@@ -620,15 +781,79 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       border: none;
       outline: none;
       background: transparent;
-      font-size: 14px;
-      font-family: inherit;
-      /* min-height: 60px;  Larger input area  */
+      font-size: var(--tms-text-size);
+      font-family: var(--tms-font-family);
+      min-height: 20px;
       max-height: 120px;
       line-height: 1.5;
-      padding: 4px 0;
+      padding: 8px 4px;
       overflow-y: auto;
       resize: none;
-      color: black;
+      color: color-mix(in srgb, var(--tms-secondary-color) 15%, #000);
+    }
+
+    .tms-send-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--tms-primary-color);
+      border: none;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .tms-send-btn:hover {
+      background: color-mix(in srgb, var(--tms-primary-color) 90%, #000);
+      transform: scale(1.05);
+    }
+
+    .tms-send-btn:active {
+      transform: scale(0.95);
+    }
+
+    .tms-emoji-picker {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      background: var(--tms-background-color);
+      border: 1px solid color-mix(in srgb, var(--tms-secondary-color) 20%, var(--tms-background-color));
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+      z-index: 10;
+      margin-bottom: 8px;
+    }
+
+    .tms-emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+
+    .tms-emoji-item {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s ease;
+    }
+
+    .tms-emoji-item:hover {
+      background: color-mix(in srgb, var(--tms-primary-color) 10%, var(--tms-background-color));
+      transform: scale(1.1);
     }
 
     /* Enhanced placeholder visibility with complementary colors */
@@ -807,8 +1032,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
     /* Toggle Button */
     .tms-toggle-button {
       position: fixed;
-      ${widget.position === 'bottom-right' ? 'right: 24px;' : 'left: 24px;'}
-      bottom: 24px;
+      ${getPositionStyles(widget.position)}
       width: 64px;
       height: 64px;
       background: linear-gradient(135deg, var(--tms-primary-color) 0%, color-mix(in srgb, var(--tms-primary-color) 85%, #000) 100%);
@@ -824,6 +1048,8 @@ export function generateWidgetCSS(widget: ChatWidget): string {
       outline: none;
       color: white;
       font-size: 24px;
+      overflow: hidden;
+      user-select: none;
     }
 
     .tms-toggle-button:hover {
@@ -848,6 +1074,34 @@ export function generateWidgetCSS(widget: ChatWidget): string {
 
     .tms-toggle-button:hover svg {
       transform: scale(1.1);
+    }
+
+    .tms-toggle-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 50%;
+      background: inherit;
+      animation: pulse-ring 2s infinite;
+      z-index: -1;
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(1.2);
+        opacity: 0;
+      }
     }
 
     /* Notification Badge */
