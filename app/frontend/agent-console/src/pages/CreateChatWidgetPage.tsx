@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Copy, CheckCircle, Code } from 'lucide-react'
-import { useChatWidgetForm } from '../hooks/useChatWidgetForm'
+import { CreateChatWidgetRequest, useChatWidgetForm } from '../hooks/useChatWidgetForm'
 import { PageHeader } from '../components/widget-form/PageHeader'
 // import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
 import { AgentPersonalizationSection } from '../components/widget-form/AgentPersonalizationSection'
@@ -9,11 +9,16 @@ import { FeaturesSection } from '../components/widget-form/FeaturesSection'
 import { AppearanceSection } from '../components/widget-form/AppearanceSection'
 import { WidgetSimulation } from '../components/widget-form/WidgetSimulation'
 import { FormActions } from '../components/widget-form/FormActions'
+import { BuilderModeToggle, type BuilderMode } from '../components/widget-form/BuilderModeToggle'
+import { AIBuilderSection } from '../components/widget-form/AIBuilderSection'
 
 export function CreateChatWidgetPage() {
   const navigate = useNavigate()
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
+  const [builderMode, setBuilderMode] = useState<BuilderMode>('manual')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
   const {
     widgetId,
     domains,
@@ -22,7 +27,8 @@ export function CreateChatWidgetPage() {
     error,
     formData,
     updateFormData,
-    submitForm
+    submitForm,
+    setError
   } = useChatWidgetForm()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,6 +42,17 @@ export function CreateChatWidgetPage() {
 
   const handleCancel = () => {
     navigate('/chat/widgets')
+  }
+
+  const handleThemeGenerated = (theme: Partial<CreateChatWidgetRequest>) => {
+    updateFormData(theme)
+    setBuilderMode('manual') // Switch to manual mode to show the generated values
+  }
+
+
+  const handleModeChange = (mode: BuilderMode) => {
+    setBuilderMode(mode)
+    setAiError(null)
   }
 
   const copyEmbedCode = () => {
@@ -74,32 +91,54 @@ export function CreateChatWidgetPage() {
       {/* Form Content */}
       {domains.length > 0 && (
         <form onSubmit={handleSubmit}>
+          {/* Builder Mode Toggle */}
+          <BuilderModeToggle
+            mode={builderMode}
+            onChange={handleModeChange}
+          />
+
           {/* Form Grid Layout */}
           <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
-            
+
             {/* Left Column - Form Sections */}
             <div className="xl:col-span-7 space-y-6">
-              {/* <BasicInformationSection
-                formData={formData}
-                domains={domains}
-                widgetId={widgetId}
-                onUpdate={updateFormData}
-              /> */}
+              {/* AI Builder Section */}
+              {builderMode === 'ai' && (
+                <AIBuilderSection
+                  onThemeGenerated={handleThemeGenerated}
+                  loading={aiLoading}
+                  error={aiError}
+                  onLoadingChange={setAiLoading}
+                  onError={setAiError}
+                />
+              )}
 
-              <AgentPersonalizationSection
-                formData={formData}
-                onUpdate={updateFormData}
-              />
+              {/* Manual Mode Sections */}
+              {builderMode === 'manual' && (
+                <>
+                  {/* <BasicInformationSection
+                    formData={formData}
+                    domains={domains}
+                    widgetId={widgetId}
+                    onUpdate={updateFormData}
+                  /> */}
 
-              <FeaturesSection
-                formData={formData}
-                onUpdate={updateFormData}
-              />
+                  <AgentPersonalizationSection
+                    formData={formData}
+                    onUpdate={updateFormData}
+                  />
 
-              <AppearanceSection
-                formData={formData}
-                onUpdate={updateFormData}
-              />
+                  <FeaturesSection
+                    formData={formData}
+                    onUpdate={updateFormData}
+                  />
+
+                  <AppearanceSection
+                    formData={formData}
+                    onUpdate={updateFormData}
+                  />
+                </>
+              )}
 
               {/* Embedded Code Section */}
               {formData.embed_code && (

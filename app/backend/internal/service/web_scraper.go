@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -431,4 +432,207 @@ func (s *WebScrapingService) ListScrapingJobs(ctx context.Context, tenantID, pro
 // GetJobPages returns all pages scraped by a job
 func (s *WebScrapingService) GetJobPages(ctx context.Context, jobID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
 	return s.knowledgeRepo.GetJobPages(jobID)
+}
+
+// WebsiteThemeData represents extracted website theme information
+type WebsiteThemeData struct {
+	Colors         []string `json:"colors"`
+	BackgroundHues []string `json:"background_hues"`
+	FontFamilies   []string `json:"font_families"`
+	BrandName      string   `json:"brand_name"`
+	PageTitle      string   `json:"page_title"`
+	MetaDesc       string   `json:"meta_description"`
+	CSS            string   `json:"css_content"`
+}
+
+// Implement ThemeData interface methods
+func (w *WebsiteThemeData) GetColors() []string {
+	return w.Colors
+}
+
+func (w *WebsiteThemeData) GetBackgroundHues() []string {
+	return w.BackgroundHues
+}
+
+func (w *WebsiteThemeData) GetFontFamilies() []string {
+	return w.FontFamilies
+}
+
+func (w *WebsiteThemeData) GetBrandName() string {
+	return w.BrandName
+}
+
+func (w *WebsiteThemeData) GetPageTitle() string {
+	return w.PageTitle
+}
+
+func (w *WebsiteThemeData) GetMetaDesc() string {
+	return w.MetaDesc
+}
+
+// ScrapeWebsiteTheme extracts theme information from a website for AI analysis
+func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL string) (*WebsiteThemeData, error) {
+	// Validate URL
+	if err := s.validateURL(targetURL); err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	themeData := &WebsiteThemeData{
+		Colors:         []string{},
+		BackgroundHues: []string{},
+		FontFamilies:   []string{},
+	}
+
+	// Create colly collector
+	c := colly.NewCollector(
+		colly.UserAgent("TMS-ThemeBot/1.0 (+https://tms.bareuptime.co)"),
+	)
+
+	// Set timeout
+	c.SetRequestTimeout(30 * time.Second)
+
+	// Extract theme information from the page
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		// Extract page title
+		themeData.PageTitle = e.ChildText("title")
+
+		// Extract meta description
+		themeData.MetaDesc = e.ChildAttr("meta[name='description']", "content")
+
+		// Try to extract brand name from various sources
+		brandName := e.ChildText("h1")
+		if brandName == "" {
+			brandName = e.ChildAttr("meta[property='og:site_name']", "content")
+		}
+		if brandName == "" {
+			brandName = e.ChildText(".brand, .logo, .site-title, [class*='brand'], [class*='logo']")
+		}
+		themeData.BrandName = strings.TrimSpace(brandName)
+
+		// Extract inline CSS and style information
+		cssContent := ""
+		e.ForEach("style", func(_ int, el *colly.HTMLElement) {
+			cssContent += el.Text + "\n"
+		})
+
+		// Extract link to external stylesheets (first few)
+		e.ForEach("link[rel='stylesheet']", func(i int, el *colly.HTMLElement) {
+			if i < 3 { // Limit to first 3 stylesheets
+				href := el.Attr("href")
+				if href != "" {
+					// Convert relative URLs to absolute
+					if !strings.HasPrefix(href, "http") {
+						if strings.HasPrefix(href, "//") {
+							href = "https:" + href
+						} else if strings.HasPrefix(href, "/") {
+							parsedURL, _ := url.Parse(targetURL)
+							href = parsedURL.Scheme + "://" + parsedURL.Host + href
+						}
+					}
+					cssContent += "/* External CSS: " + href + " */\n"
+				}
+			}
+		})
+
+		themeData.CSS = cssContent
+
+		// Extract colors from inline styles
+		colorRegex := regexp.MustCompile(`(?i)color\s*:\s*([^;]+)`)
+		bgColorRegex := regexp.MustCompile(`(?i)background(?:-color)?\s*:\s*([^;]+)`)
+
+		// Extract from style attributes
+		e.ForEach("*[style]", func(_ int, el *colly.HTMLElement) {
+			style := el.Attr("style")
+
+			// Extract colors
+			matches := colorRegex.FindAllStringSubmatch(style, -1)
+			for _, match := range matches {
+				color := strings.TrimSpace(match[1])
+				if s.isValidColor(color) {
+					themeData.Colors = append(themeData.Colors, color)
+				}
+			}
+
+			// Extract background colors
+			matches = bgColorRegex.FindAllStringSubmatch(style, -1)
+			for _, match := range matches {
+				color := strings.TrimSpace(match[1])
+				if s.isValidColor(color) {
+					themeData.BackgroundHues = append(themeData.BackgroundHues, color)
+				}
+			}
+		})
+
+		// Extract font families from CSS and computed styles
+		fontRegex := regexp.MustCompile(`(?i)font-family\s*:\s*([^;]+)`)
+		matches := fontRegex.FindAllStringSubmatch(cssContent, -1)
+		for _, match := range matches {
+			font := strings.TrimSpace(match[1])
+			if font != "" {
+				themeData.FontFamilies = append(themeData.FontFamilies, font)
+			}
+		}
+	})
+
+	// Error handling
+	c.OnError(func(r *colly.Response, err error) {
+		fmt.Printf("Error scraping %s: %v\n", r.Request.URL, err)
+	})
+
+	// Visit the URL
+	err := c.Visit(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scrape website: %w", err)
+	}
+
+	// Clean up and deduplicate extracted data
+	themeData.Colors = s.deduplicateStrings(themeData.Colors)
+	themeData.BackgroundHues = s.deduplicateStrings(themeData.BackgroundHues)
+	themeData.FontFamilies = s.deduplicateStrings(themeData.FontFamilies)
+
+	return themeData, nil
+}
+
+// isValidColor checks if a color value is valid
+func (s *WebScrapingService) isValidColor(color string) bool {
+	color = strings.TrimSpace(color)
+	if color == "" {
+		return false
+	}
+
+	// Check for hex colors
+	if strings.HasPrefix(color, "#") && len(color) >= 4 {
+		return true
+	}
+
+	// Check for rgb/rgba
+	if strings.HasPrefix(color, "rgb") {
+		return true
+	}
+
+	// Check for common color names
+	commonColors := []string{"red", "blue", "green", "yellow", "orange", "purple", "pink",
+		"brown", "black", "white", "gray", "grey", "navy", "teal", "cyan", "magenta"}
+	for _, cc := range commonColors {
+		if strings.EqualFold(color, cc) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// deduplicateStrings removes duplicate strings from a slice
+func (s *WebScrapingService) deduplicateStrings(slice []string) []string {
+	keys := make(map[string]bool)
+	var result []string
+
+	for _, item := range slice {
+		if !keys[item] && item != "" {
+			keys[item] = true
+			result = append(result, item)
+		}
+	}
+
+	return result
 }

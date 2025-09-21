@@ -162,7 +162,7 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 
 	// Chat handlers
-	chatWidgetHandler := handlers.NewChatWidgetHandler(chatWidgetService)
+	chatWidgetHandler := handlers.NewChatWidgetHandler(chatWidgetService, webScrapingService, aiService)
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
 
 	// Knowledge management handlers
@@ -461,6 +461,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 				chat.GET("/widgets/:widget_id", chatWidgetHandler.GetChatWidget)
 				chat.PATCH("/widgets/:widget_id", chatWidgetHandler.UpdateChatWidget)
 				chat.DELETE("/widgets/:widget_id", chatWidgetHandler.DeleteChatWidget)
+				chat.GET("/widgets/scrape-theme", chatWidgetHandler.ScrapeWebsiteTheme)
 
 				// Chat sessions (agent endpoints)
 				chat.GET("/sessions", chatSessionHandler.ListChatSessions)

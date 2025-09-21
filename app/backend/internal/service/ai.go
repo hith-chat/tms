@@ -642,3 +642,101 @@ func (s *AIService) DeclineHandoff(ctx context.Context, tenantID, projectID, ses
 	// For now, just return success since there's no explicit tracking yet
 	return nil
 }
+
+// ThemeData interface to avoid circular imports
+type ThemeData interface {
+	GetColors() []string
+	GetBackgroundHues() []string
+	GetFontFamilies() []string
+	GetBrandName() string
+	GetPageTitle() string
+	GetMetaDesc() string
+}
+
+// GenerateWidgetTheme generates chat widget theme based on website analysis
+func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData) (*models.CreateChatWidgetRequest, error) {
+	if !s.IsEnabled() {
+		return nil, fmt.Errorf("AI service is not enabled")
+	}
+
+	// Prepare the prompt for GPT
+	prompt := s.buildThemePrompt(themeData)
+
+	// Create the request
+	req := ChatCompletionRequest{
+		Model: "gpt-4",
+		Messages: []ChatCompletionMessage{
+			{
+				Role:    "system",
+				Content: "You are an expert UI/UX designer specializing in creating chat widget themes that match website aesthetics. Your task is to analyze website data and generate optimal chat widget configurations.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Temperature: 0.3, // Lower temperature for more consistent results
+		MaxTokens:   1000,
+	}
+
+	// Make the API call
+	response, err := s.callOpenAI(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call OpenAI: %w", err)
+	}
+
+	// Parse the JSON response
+	var themeConfig models.CreateChatWidgetRequest
+	if err := json.Unmarshal([]byte(response), &themeConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	return &themeConfig, nil
+}
+
+// buildThemePrompt creates a detailed prompt for theme generation
+func (s *AIService) buildThemePrompt(themeData ThemeData) string {
+	return fmt.Sprintf(`
+Analyze the following website data and generate a JSON configuration for a chat widget that matches the website's theme:
+
+WEBSITE DATA:
+- Brand Name: %s
+- Page Title: %s
+- Meta Description: %s
+- Extracted Colors: %v
+- Background Hues: %v
+- Font Families: %v
+
+REQUIREMENTS:
+1. Choose colors that complement the website's existing palette
+2. Select a primary color that stands out but harmonizes with the brand
+3. Choose secondary and background colors that ensure good readability
+4. Create welcome and greeting messages that match the brand tone
+5. Select appropriate widget shape and bubble style based on the website's design aesthetic
+
+RESPONSE FORMAT (JSON only, no additional text):
+{
+  "primary_color": "#hex_color",
+  "secondary_color": "#hex_color",
+  "background_color": "#hex_color",
+  "position": "bottom-right",
+  "widget_shape": "rounded|square|minimal|professional|modern|classic",
+  "chat_bubble_style": "modern|classic|minimal|bot",
+  "welcome_message": "Welcoming message that fits the brand",
+  "custom_greeting": "Friendly greeting with appropriate tone",
+  "agent_name": "Support representative name that fits the brand"
+}
+
+Ensure all hex colors are valid 7-character codes starting with #.
+Choose widget_shape and chat_bubble_style that best match the website's design aesthetic.
+Keep messages professional but warm, and under 100 characters each.
+`,
+		themeData.GetBrandName(),
+		themeData.GetPageTitle(),
+		themeData.GetMetaDesc(),
+		themeData.GetColors(),
+		themeData.GetBackgroundHues(),
+		themeData.GetFontFamilies(),
+	)
+}
+
