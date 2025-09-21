@@ -17,6 +17,7 @@ import (
 	"github.com/bareuptime/tms/internal/handlers"
 	"github.com/bareuptime/tms/internal/mail"
 	"github.com/bareuptime/tms/internal/middleware"
+	"github.com/bareuptime/tms/internal/rate"
 	"github.com/bareuptime/tms/internal/rbac"
 	"github.com/bareuptime/tms/internal/redis"
 	"github.com/bareuptime/tms/internal/repo"
@@ -77,6 +78,10 @@ func main() {
 
 	// Alarm repository
 	alarmRepo := repo.NewAlarmRepository(database.DB)
+
+	// Payment and credits repositories
+	creditsRepo := repo.NewCreditsRepository(database.DB.DB)
+	paymentWebhookRepo := repo.NewPaymentWebhookRepository(database.DB.DB)
 
 	// Initialize mail service
 	mailLogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
@@ -145,6 +150,13 @@ func main() {
 	// AI service (needs knowledge service for RAG, greeting services for agentic behavior, connection manager for handoff notifications, and auto assignment service)
 	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, greetingDetectionService, brandGreetingService, connectionManager, howlingAlarmService)
 
+	// Payment services
+	ipGeolocationService := service.NewIPGeolocationService(redisService, "ip_track", 15*24*time.Hour)
+	paymentService := service.NewPaymentService(ipGeolocationService, tenantRepo, cfg)
+
+	// Rate limiting service
+	rateLimiter := rate.NewRateLimiter(redisService)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, publicService, cfg.Server.AiAgentLoginAccessKey)
 	projectHandler := handlers.NewProjectHandler(projectService)
@@ -170,6 +182,13 @@ func main() {
 
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
+	// Payment handlers
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
+
+	// Payment webhook handlers
+	stripeWebhookHandler := handlers.NewStripeWebhookHandler(paymentWebhookRepo, creditsRepo, tenantRepo, cfg.Payment.Stripe.WebhookSecret)
+	cashfreeWebhookHandler := handlers.NewCashfreeWebhookHandler(paymentWebhookRepo, creditsRepo, tenantRepo, cfg.Payment.Cashfree.WebhookSecret)
+
 	// Initialize agent client for Python agent service communication
 	agentClient := service.NewAgentClient(cfg.Knowledge.AiAgentServiceUrl)
 
@@ -181,7 +200,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler, paymentHandler, stripeWebhookHandler, cashfreeWebhookHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -219,7 +238,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -239,6 +258,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 	// Public routes
 	publicRoutes := router.Group("/api/public")
+	publicRoutes.Use(middleware.PublicAPIRateLimit(rateLimiter)) // Apply rate limiting to public routes
 	{
 		publicRoutes.GET("/health", publicHandler.Health)
 		publicRoutes.GET("/tickets/tokens/:token", publicHandler.GetTicketByMagicLink)
@@ -255,6 +275,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 	// Auth routes (not protected by auth middleware)
 	authRoutes := router.Group("/v1/auth")
+	authRoutes.Use(middleware.AuthRateLimit(rateLimiter)) // Apply stricter rate limiting to auth routes
 	{
 
 		authRoutes.POST("/refresh", authHandler.Refresh)
@@ -263,6 +284,33 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		authRoutes.POST("/signup", authHandler.SignUp)
 		authRoutes.POST("/verify-signup-otp", authHandler.VerifySignupOTP)
 		authRoutes.POST("/resend-signup-otp", authHandler.ResendSignupOTP)
+	}
+
+	// Payment routes (protected by auth middleware, no tenant_id in path as payments are global)
+	paymentRoutes := router.Group("/v1/payments")
+	paymentRoutes.Use(middleware.AuthMiddleware(jwtAuth))
+	paymentRoutes.Use(middleware.PaymentRateLimit(rateLimiter)) // Apply payment-specific rate limiting
+	{
+		paymentRoutes.POST("/create-session", paymentHandler.CreatePaymentSession)
+		paymentRoutes.GET("/gateway-preview", paymentHandler.GetPaymentGatewayPreview)
+		paymentRoutes.GET("/methods", paymentHandler.ListPaymentMethods)
+	}
+
+	// Payment webhook routes (public - no auth required, called by payment gateways)
+	webhookRoutes := router.Group("/webhooks")
+	webhookRoutes.Use(middleware.StrictRateLimit(rateLimiter)) // Apply strict rate limiting to webhook endpoints
+	{
+		// Stripe webhook endpoint
+		webhookRoutes.POST("/stripe", gin.WrapF(stripeWebhookHandler.HandleStripeWebhook))
+		webhookRoutes.OPTIONS("/stripe", func(c *gin.Context) {
+			c.Status(200)
+		})
+
+		// Cashfree webhook endpoint
+		webhookRoutes.POST("/cashfree", gin.WrapF(cashfreeWebhookHandler.HandleCashfreeWebhook))
+		webhookRoutes.OPTIONS("/cashfree", func(c *gin.Context) {
+			c.Status(200)
+		})
 	}
 
 	// Enterprise admin routes (protected by auth middleware but cross-tenant)

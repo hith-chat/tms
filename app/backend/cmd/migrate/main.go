@@ -73,6 +73,7 @@ func runMigrations(database *db.DB) error {
 		"migrations/026_add_content_hash.sql",
 		"migrations/027_alarm_system.sql",
 		"migrations/028_agent_enhancements.sql",
+		"migrations/029_credits_system.sql",
 	}
 
 	for _, migration := range migrations {
