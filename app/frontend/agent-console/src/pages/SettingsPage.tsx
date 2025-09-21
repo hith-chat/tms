@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { 
   Settings, 
   Users, 
-  Mail, 
   Key, 
   Plus,
   Trash2,
