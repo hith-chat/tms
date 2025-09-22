@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Eye, EyeOff, Loader2, Shield, Lock, Mail, User, CheckCircle, ArrowLeft } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { apiClient } from '@/lib/api'
 
 // Simplified components matching our enterprise design (same as LoginPage)
@@ -167,6 +167,7 @@ const isValidCorporateEmail = (email: string): { isValid: boolean; error?: strin
 }
 
 export function SignUpPage() {
+  const location = useLocation()
   const [step, setStep] = useState<SignUpStep>('signup')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -178,6 +179,17 @@ export function SignUpPage() {
   const [success, setSuccess] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
   const [emailError, setEmailError] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const emailParam = params.get('email')?.trim()
+
+    if (emailParam) {
+      setEmail(emailParam)
+      const validation = isValidCorporateEmail(emailParam)
+      setEmailError(validation.isValid ? '' : validation.error || '')
+    }
+  }, [location.search])
 
   // Validate email when it changes
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
