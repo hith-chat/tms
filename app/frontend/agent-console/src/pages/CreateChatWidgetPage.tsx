@@ -27,8 +27,7 @@ export function CreateChatWidgetPage() {
     error,
     formData,
     updateFormData,
-    submitForm,
-    setError
+    submitForm
   } = useChatWidgetForm()
 
   const handleSubmit = async (e: React.FormEvent) => {
