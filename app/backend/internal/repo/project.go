@@ -179,3 +179,14 @@ func (r *projectRepository) ListForAgentAdmin(ctx context.Context, tenantID uuid
 
 	return projects, nil
 }
+
+// Count returns the number of projects for a tenant
+func (r *projectRepository) Count(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(1) FROM projects WHERE tenant_id = $1`
+	var count int
+	err := r.db.GetContext(ctx, &count, query, tenantID)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}

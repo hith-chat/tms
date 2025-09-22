@@ -145,6 +145,10 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 
 	project, err := h.projectService.CreateProject(c.Request.Context(), tenantID, req.Key, req.Name)
 	if err != nil {
+		if err == service.ErrProjectLimitReached {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Maximum of 5 projects allowed. To add more projects, please contact support@hith.chat"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create project"})
 		return
 	}

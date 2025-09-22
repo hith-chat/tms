@@ -85,6 +85,8 @@ type ProjectRepository interface {
 	Delete(ctx context.Context, tenantID, projectID uuid.UUID) error
 	List(ctx context.Context, tenantID uuid.UUID) ([]*db.Project, error)
 	ListForAgent(ctx context.Context, tenantID, agentID uuid.UUID) ([]*db.Project, error)
+	// Count returns number of projects for the tenant
+	Count(ctx context.Context, tenantID uuid.UUID) (int, error)
 }
 
 // TenantRepository interface

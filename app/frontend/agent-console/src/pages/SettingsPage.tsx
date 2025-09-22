@@ -14,9 +14,11 @@ import {
   CreditCard,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
+import { useToast, Toaster } from '@tms/shared'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
 import { AlertsSettings } from '../components/AlertsSettings'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { AxiosError } from 'axios'
 
 // Tab types for settings navigation
 type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'alerts' | 'credits'
@@ -104,6 +106,7 @@ export function SettingsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null)
+  const { toast } = useToast()
 
   // Project assignment states
   const [agentProjects, setAgentProjects] = useState<Record<string, AgentProject[]>>({})
@@ -284,7 +287,19 @@ export function SettingsPage() {
       setNewProjectKey('')
       setShowCreateProject(false)
     } catch (err) {
-      setError('Failed to create project')
+      console.log(err)
+      // If backend responds with quota exceeded, show friendly toast
+      const status = (err as any)?.response?.status
+      if (status === 403) {
+        console.log('Project limit reached error details:', err)
+        toast({
+          title: 'Project limit reached',
+          description: 'To add more projects you need to contact support@hith.chat',
+          variant: 'destructive'
+        })
+      } else {
+        setError('Failed to create project')
+      }
     } finally {
       setLoading(false)
     }
@@ -2068,6 +2083,9 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+      {/* Toast Notifications */}
+      <Toaster />
+
     </div>
   )
 }
