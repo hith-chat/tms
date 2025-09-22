@@ -6,7 +6,7 @@ import (
 
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/db"
-	maileroo "github.com/maileroo/maileroo-go-sdk"
+	maileroo "github.com/maileroo/maileroo-go-sdk/maileroo"
 )
 
 // MailerooService handles email sending via the Maileroo provider.
@@ -54,7 +54,10 @@ func NewMailerooService(cfg *config.MailerooConfig, environment string) (*Mailer
 	}, nil
 }
 
-func (s *MailerooService) newSender() maileroo.EmailAddress {
+func (s *MailerooService) newSender(email, name string) maileroo.EmailAddress {
+	if email != "" && name != "" {
+		return maileroo.NewEmail(email, name)
+	}
 	return maileroo.NewEmail(s.fromEmail, s.fromName)
 }
 
@@ -79,7 +82,7 @@ func (s *MailerooService) SendSignupVerificationEmail(ctx context.Context, toEma
 	text := textBody
 
 	_, err := s.client.SendBasicEmail(ctx, maileroo.BasicEmailData{
-		From:    s.newSender(),
+		From:    s.newSender("", ""),
 		To:      []maileroo.EmailAddress{s.newRecipient(toEmail, "")},
 		Subject: subject,
 		HTML:    &html,
@@ -87,6 +90,33 @@ func (s *MailerooService) SendSignupVerificationEmail(ctx context.Context, toEma
 	})
 	if err != nil {
 		return fmt.Errorf("failed to send verification email via Maileroo: %w", err)
+	}
+
+	return nil
+}
+
+// SendSignupWelcomeEmail sends a welcome email after successful signup verification.
+func (s *MailerooService) SendSignupWelcomeEmail(ctx context.Context, toEmail, recipientName string) error {
+	if s.environment == "development" {
+		fmt.Printf("Development mode: would send signup welcome email via Maileroo to %s\n", toEmail)
+		return nil
+	}
+
+	fmt.Printf("Sending signup welcome email via Maileroo to: %s\n", toEmail)
+
+	subject, htmlBody, textBody := buildSignupWelcomeEmail(toEmail, recipientName)
+	html := htmlBody
+	text := textBody
+
+	_, err := s.client.SendBasicEmail(ctx, maileroo.BasicEmailData{
+		From:    s.newSender("", ""),
+		To:      []maileroo.EmailAddress{s.newRecipient(toEmail, recipientName)},
+		Subject: subject,
+		HTML:    &html,
+		Plain:   &text,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send signup welcome email via Maileroo: %w", err)
 	}
 
 	return nil
@@ -104,7 +134,7 @@ func (s *MailerooService) SendTicketCreatedNotification(ctx context.Context, tic
 	text := textBody
 
 	_, err := s.client.SendBasicEmail(ctx, maileroo.BasicEmailData{
-		From:    s.newSender(),
+		From:    s.newSender("", ""),
 		To:      []maileroo.EmailAddress{s.newRecipient(toEmail, recipientName)},
 		Subject: subject,
 		HTML:    &html,
@@ -129,7 +159,7 @@ func (s *MailerooService) SendTicketUpdatedNotification(ctx context.Context, tic
 	text := textBody
 
 	_, err := s.client.SendBasicEmail(ctx, maileroo.BasicEmailData{
-		From:    s.newSender(),
+		From:    s.newSender("", ""),
 		To:      []maileroo.EmailAddress{s.newRecipient(toEmail, recipientName)},
 		Subject: subject,
 		HTML:    &html,

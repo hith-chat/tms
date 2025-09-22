@@ -735,6 +735,10 @@ func (s *AuthService) VerifySignupOTP(ctx context.Context, req VerifySignupOTPRe
 	// Remove password hash from response
 	agent.PasswordHash = nil
 
+	if err := s.emailProvider.SendSignupWelcomeEmail(ctx, agent.Email, agent.Name); err != nil {
+		fmt.Printf("Warning: failed to send signup welcome email to %s: %v\n", agent.Email, err)
+	}
+
 	return &LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,

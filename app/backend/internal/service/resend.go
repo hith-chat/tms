@@ -46,7 +46,12 @@ func NewResendService(cfg *config.ResendConfig, environment string) *ResendServi
 	}
 }
 
-func (s *ResendService) senderAddress() string {
+func (s *ResendService) senderAddress(fromName, fromEmail string) string {
+
+	if fromName != "" && fromEmail != "" {
+		return fmt.Sprintf("%s <%s>", fromName, fromEmail)
+	}
+
 	if s.fromName != "" {
 		return fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail)
 	}
@@ -64,7 +69,7 @@ func (s *ResendService) SendSignupVerificationEmail(ctx context.Context, toEmail
 
 	subject, htmlBody, textBody := buildSignupVerificationEmail(toEmail, otp)
 	params := &resend.SendEmailRequest{
-		From:    s.senderAddress(),
+		From:    s.senderAddress("", ""),
 		To:      []string{toEmail},
 		Subject: subject,
 		Html:    htmlBody,
@@ -79,6 +84,32 @@ func (s *ResendService) SendSignupVerificationEmail(ctx context.Context, toEmail
 	return nil
 }
 
+// SendSignupWelcomeEmail sends a welcome email after successful signup verification
+func (s *ResendService) SendSignupWelcomeEmail(ctx context.Context, toEmail, recipientName string) error {
+	if s.environment == "development" {
+		fmt.Printf("Development mode: would send signup welcome email to %s\n", toEmail)
+		return nil
+	}
+
+	fmt.Printf("Sending signup welcome email to: %s\n", toEmail)
+
+	subject, htmlBody, textBody := buildSignupWelcomeEmail(toEmail, recipientName)
+	params := &resend.SendEmailRequest{
+		From:    s.senderAddress("", ""),
+		To:      []string{toEmail},
+		Subject: subject,
+		Html:    htmlBody,
+		Text:    textBody,
+	}
+
+	_, err := s.client.Emails.Send(params)
+	if err != nil {
+		return fmt.Errorf("failed to send signup welcome email via Resend: %w", err)
+	}
+
+	return nil
+}
+
 // SendTicketCreatedNotification sends email notification when a new ticket is created
 func (s *ResendService) SendTicketCreatedNotification(ctx context.Context, ticket *db.Ticket, customer *db.Customer, toEmail, recipientName, recipientType string) error {
 	if s.environment == "development" {
@@ -88,7 +119,7 @@ func (s *ResendService) SendTicketCreatedNotification(ctx context.Context, ticke
 
 	subject, htmlBody, textBody := buildTicketCreatedEmail(ticket, customer, recipientName, recipientType, toEmail)
 	params := &resend.SendEmailRequest{
-		From:    s.senderAddress(),
+		From:    s.senderAddress("", ""),
 		To:      []string{toEmail},
 		Subject: subject,
 		Html:    htmlBody,
@@ -112,7 +143,7 @@ func (s *ResendService) SendTicketUpdatedNotification(ctx context.Context, ticke
 
 	subject, htmlBody, textBody := buildTicketUpdatedEmail(ticket, recipientName, updateType, updateDetails, toEmail)
 	params := &resend.SendEmailRequest{
-		From:    s.senderAddress(),
+		From:    s.senderAddress("", ""),
 		To:      []string{toEmail},
 		Subject: subject,
 		Html:    htmlBody,

@@ -77,6 +77,82 @@ TMS - Ticket Management System
 	return subject, htmlBody, textBody
 }
 
+func buildSignupWelcomeEmail(toEmail, recipientName string) (subject, htmlBody, textBody string) {
+	if recipientName == "" {
+		recipientName = "there"
+	}
+
+	subject = "Welcome to TMS"
+	htmlBody = fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to TMS</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 40px 20px; text-align: center; }
+        .content { padding: 40px 20px; }
+        .next-steps { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>You're all set!</h1>
+            <p>Welcome to TMS</p>
+        </div>
+        <div class="content">
+            <h2>Hi %s,</h2>
+            <p>Your account is ready to go. Here are a few things you can do next:</p>
+            
+            <div class="next-steps">
+                <h3>Get started</h3>
+                <ul>
+                    <li>Invite teammates to collaborate on tickets</li>
+                    <li>Create your first project or customize existing workflows</li>
+                    <li>Connect support channels so customers can reach you quickly</li>
+                </ul>
+            </div>
+
+            <p>We're excited to help you deliver amazing support experiences. If you ever need a hand, just reply to this email—our team is here to help.</p>
+
+            <p>Cheers,<br>The TMS Team</p>
+        </div>
+        <div class="footer">
+            <p>This email was sent to %s</p>
+            <p>TMS - Ticket Management System</p>
+        </div>
+    </div>
+</body>
+</html>
+    `, recipientName, toEmail)
+
+	textBody = fmt.Sprintf(`
+Welcome to TMS
+
+Hi %s,
+
+Your account is ready to go. Here are a few things you can do next:
+- Invite teammates to collaborate on tickets
+- Create your first project or customize existing workflows
+- Connect support channels so customers can reach you quickly
+
+We're excited to help you deliver amazing support experiences. If you ever need a hand, just reply to this email—our team is here to help.
+
+Cheers,
+The TMS Team
+
+This email was sent to %s
+TMS - Ticket Management System
+    `, recipientName, toEmail)
+
+	return subject, htmlBody, textBody
+}
+
 func buildTicketCreatedEmail(ticket *db.Ticket, customer *db.Customer, recipientName, recipientType, toEmail string) (subject, htmlBody, textBody string) {
 	if recipientType == "tenant_admin" {
 		subject = fmt.Sprintf("New Ticket Created: %s", ticket.Subject)
