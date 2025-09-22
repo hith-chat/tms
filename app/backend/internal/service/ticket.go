@@ -23,7 +23,7 @@ type TicketService struct {
 	rbacService     *rbac.Service
 	mailService     *mail.Service
 	publicService   *PublicService
-	resendService   *ResendService
+	emailProvider   EmailProvider
 	publicTicketUrl string
 }
 
@@ -57,7 +57,7 @@ func NewTicketService(
 	rbacService *rbac.Service,
 	mailService *mail.Service,
 	publicService *PublicService,
-	resendService *ResendService,
+	emailProvider EmailProvider,
 	publicTicketUrl string,
 ) *TicketService {
 	return &TicketService{
@@ -68,7 +68,7 @@ func NewTicketService(
 		rbacService:     rbacService,
 		mailService:     mailService,
 		publicService:   publicService,
-		resendService:   resendService,
+		emailProvider:   emailProvider,
 		publicTicketUrl: publicTicketUrl,
 	}
 }
@@ -692,7 +692,7 @@ func (s *TicketService) DeleteTicket(ctx context.Context, tenantID, projectID, t
 // sendTicketCreatedNotifications sends email notifications when a ticket is created
 func (s *TicketService) sendTicketCreatedNotifications(ctx context.Context, ticket *db.Ticket, customer *db.Customer) {
 	// Send notification to customer
-	err := s.resendService.SendTicketCreatedNotification(ctx, ticket, customer, customer.Email, customer.Name, "customer")
+	err := s.emailProvider.SendTicketCreatedNotification(ctx, ticket, customer, customer.Email, customer.Name, "customer")
 	if err != nil {
 		log.Printf("Failed to send ticket created notification to customer %s: %v", customer.Email, err)
 	} else {
@@ -707,7 +707,7 @@ func (s *TicketService) sendTicketCreatedNotifications(ctx context.Context, tick
 	}
 
 	for _, admin := range tenantAdmins {
-		err := s.resendService.SendTicketCreatedNotification(ctx, ticket, customer, admin.Email, admin.Name, "tenant_admin")
+		err := s.emailProvider.SendTicketCreatedNotification(ctx, ticket, customer, admin.Email, admin.Name, "tenant_admin")
 		if err != nil {
 			log.Printf("Failed to send ticket created notification to tenant admin %s: %v", admin.Email, err)
 		} else {
@@ -726,7 +726,7 @@ func (s *TicketService) sendTicketUpdatedNotifications(ctx context.Context, tick
 	}
 
 	// Send notification to customer
-	err = s.resendService.SendTicketUpdatedNotification(ctx, ticket, customer, customer.Email, customer.Name, updateType, updateDetails)
+	err = s.emailProvider.SendTicketUpdatedNotification(ctx, ticket, customer, customer.Email, customer.Name, updateType, updateDetails)
 	if err != nil {
 		log.Printf("Failed to send ticket updated notification to customer %s: %v", customer.Email, err)
 	} else {

@@ -97,15 +97,18 @@ func main() {
 		Environment:      cfg.Server.Environment,
 	})
 
-	// Initialize services
-	resendService := service.NewResendService(&cfg.Resend, cfg.Server.Environment)
+	// Initialize email provider
+	emailProvider, err := service.NewEmailProvider(&cfg.Email, &cfg.Resend, &cfg.Maileroo, cfg.Server.Environment)
+	if err != nil {
+		log.Fatalf("Failed to initialize email provider: %v", err)
+	}
 
 	// Create feature flags for auth service
 	authFeatureFlags := &service.FeatureFlags{
 		RequireCorporateEmail: cfg.Features.RequireCorporateEmail,
 	}
 
-	authService := service.NewAuthService(agentRepo, rbacService, jwtAuth, redisService, resendService, authFeatureFlags, tenantRepo, domainValidationRepo, projectRepo)
+	authService := service.NewAuthService(agentRepo, rbacService, jwtAuth, redisService, emailProvider, authFeatureFlags, tenantRepo, domainValidationRepo, projectRepo)
 	projectService := service.NewProjectService(projectRepo)
 	agentService := service.NewAgentService(agentRepo, projectRepo, rbacService)
 	tenantService := service.NewTenantService(tenantRepo, agentRepo, rbacService)
@@ -113,7 +116,7 @@ func main() {
 	messageService := service.NewMessageService(messageRepo, ticketRepo, customerRepo, agentRepo, rbacService)
 	publicService := service.NewPublicService(ticketRepo, messageRepo, jwtAuth, messageService)
 
-	ticketService := service.NewTicketService(ticketRepo, customerRepo, agentRepo, messageRepo, rbacService, mailService, publicService, resendService, cfg.Server.PublicTicketUrl)
+	ticketService := service.NewTicketService(ticketRepo, customerRepo, agentRepo, messageRepo, rbacService, mailService, publicService, emailProvider, cfg.Server.PublicTicketUrl)
 	emailInboxService := service.NewEmailInboxService(emailInboxRepo, ticketRepo, messageRepo, customerRepo, emailRepo, mailService, mailLogger)
 	domainValidationService := service.NewDomainValidationService(domainValidationRepo, mailService)
 
