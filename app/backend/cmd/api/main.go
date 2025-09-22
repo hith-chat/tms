@@ -135,7 +135,7 @@ func main() {
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
 	documentProcessorService := service.NewDocumentProcessorService(knowledgeRepo, embeddingService, "./uploads", cfg.Knowledge.MaxFileSize)
-	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
+	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge, redisService.GetClient())
 	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
 	aiUsageService := service.NewAIUsageService(creditsRepo)
 
@@ -545,9 +545,13 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 				// Web scraping
 				knowledge.POST("/scrape", knowledgeHandler.CreateScrapingJob)
+				knowledge.POST("/scrape/stream", knowledgeHandler.CreateScrapingJobWithStream)
 				knowledge.GET("/scraping-jobs", knowledgeHandler.ListScrapingJobs)
 				knowledge.GET("/scraping-jobs/:job_id", knowledgeHandler.GetScrapingJob)
 				knowledge.GET("/scraping-jobs/:job_id/pages", knowledgeHandler.GetJobPages)
+				knowledge.GET("/scraping-jobs/:job_id/links", knowledgeHandler.GetScrapingJobLinks)
+				knowledge.POST("/scraping-jobs/:job_id/select-links", knowledgeHandler.SelectScrapingJobLinks)
+				knowledge.GET("/scraping-jobs/:job_id/index/stream", knowledgeHandler.StreamScrapingJobIndex)
 
 				// Knowledge search
 				knowledge.POST("/search", knowledgeHandler.SearchKnowledgeBase)

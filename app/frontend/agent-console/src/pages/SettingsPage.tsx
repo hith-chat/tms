@@ -18,7 +18,6 @@ import { useToast, Toaster } from '@tms/shared'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
 import { AlertsSettings } from '../components/AlertsSettings'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-import { AxiosError } from 'axios'
 
 // Tab types for settings navigation
 type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'alerts' | 'credits'
