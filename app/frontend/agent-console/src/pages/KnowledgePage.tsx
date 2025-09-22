@@ -28,12 +28,16 @@ export function KnowledgePage() {
       {/* Header */}
       <div className="border-b bg-card">
         <div className="px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-primary/10 rounded-md">
-              <Brain className="h-5 w-5 text-primary" />
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25"></div>
+              <div className="relative p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+                <Brain className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
             </div>
+
             <div>
-              <h1 className="text-xl font-semibold text-foreground">AI Knowledge Base</h1>
+              <h1 className="text-2xl font-semibold text-foreground">AI Knowledge Base</h1>
               <p className="text-sm text-muted-foreground">
                 Manage documents, web sources, and AI agent information
               </p>

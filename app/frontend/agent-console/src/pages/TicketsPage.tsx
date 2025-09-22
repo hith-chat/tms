@@ -201,20 +201,22 @@ export const TicketsPage: React.FC = () => {
         <div className="border-b bg-card">
           <div className="px-6 py-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-primary/10 rounded-md">
-                    <Inbox className="h-5 w-5 text-primary" />
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25"></div>
+                  <div className="relative p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+                    <Inbox className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <div>
-                    <h1 className="text-xl font-semibold text-foreground">Tickets</h1>
-                    <p className="text-xs text-muted-foreground">
-                      {filteredTickets.length} of {tickets.length} tickets
-                    </p>
+                </div>
+
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Tickets</h1>
+                  <div className="flex items-center gap-3 mt-1">
+                    <p className="text-sm text-muted-foreground">{filteredTickets.length} of {tickets.length} tickets</p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 
