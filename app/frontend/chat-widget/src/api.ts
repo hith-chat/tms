@@ -8,12 +8,12 @@ export class ChatAPI {
     // Priority for base URL:
     // 1. explicit constructor arg
     // 2. Vite env var VITE_API_URL
-    // 3. production default -> https://tms.bareuptime.co/api
+    // 3. production default -> https://api.hith.chat/api
     // 4. development default -> http://localhost:8080/api
     // const viteEnv = (import.meta as any)?.env
     // const envUrl: string | undefined = viteEnv?.VITE_API_URL
-    const mode: string | undefined = 'production1' // viteEnv?.MODE
-    const defaultUrl = mode === 'production' ? 'https://tms.bareuptime.co/api' : 'http://localhost:8080/api'
+    const mode: string | undefined = 'production' // viteEnv?.MODE
+    const defaultUrl = mode === 'production' ? 'https://api.hith.chat/api' : 'http://localhost:8080/api'
     this.baseUrl = defaultUrl
   }
 

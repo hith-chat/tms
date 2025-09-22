@@ -1,6 +1,6 @@
 {
   "name": "@hith/web-chat",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Embeddable chat widget for TMS",
   "main": "dist/chat-widget.js",
   "type": "module",

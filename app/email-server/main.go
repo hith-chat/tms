@@ -207,7 +207,7 @@ func main() {
 	// Configuration
 	domain := os.Getenv("MAIL_DOMAIN")
 	if domain == "" {
-		domain = "bareuptime.co"
+		domain = "hith.chat"
 	}
 
 	listenInterface := os.Getenv("LISTEN_INTERFACE")

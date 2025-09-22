@@ -17,7 +17,7 @@ class Config:
     AI_API_KEY: Optional[str] = os.getenv("AI_API_KEY")
     
     # TMS API Configuration
-    TMS_API_BASE_URL: str = os.getenv("TMS_API_BASE_URL", "https://tms.bareuptime.co")
+    TMS_API_BASE_URL: str = os.getenv("TMS_API_BASE_URL", "https://api.hith.chat")
     
     # Application Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")

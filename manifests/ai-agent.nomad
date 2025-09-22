@@ -164,7 +164,7 @@ SERVICE_NAME=backend
 SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
 SERVER_PORT=5000
 PORT=5000
-TMS_API_BASE_URL=https://tms.bareuptime.co
+TMS_API_BASE_URL=https://api.hith.chat
 EOH
         destination = "secrets/consul.env"
         env         = true

@@ -20,14 +20,14 @@ import (
 type WebScrapingService struct {
 	knowledgeRepo    *repo.KnowledgeRepository
 	embeddingService *EmbeddingService
-	config          *config.KnowledgeConfig
+	config           *config.KnowledgeConfig
 }
 
 func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig) *WebScrapingService {
 	return &WebScrapingService{
 		knowledgeRepo:    knowledgeRepo,
 		embeddingService: embeddingService,
-		config:          cfg,
+		config:           cfg,
 	}
 }
 
@@ -77,13 +77,13 @@ func (s *WebScrapingService) validateURL(rawURL string) error {
 	}
 
 	// Block localhost and internal IPs for security
-	if strings.Contains(parsedURL.Host, "localhost") || 
-	   strings.Contains(parsedURL.Host, "127.0.0.1") ||
-	   strings.Contains(parsedURL.Host, "0.0.0.0") ||
-	   strings.Contains(parsedURL.Host, "::1") ||
-	   strings.HasPrefix(parsedURL.Host, "10.") ||
-	   strings.HasPrefix(parsedURL.Host, "192.168.") ||
-	   strings.HasPrefix(parsedURL.Host, "172.") {
+	if strings.Contains(parsedURL.Host, "localhost") ||
+		strings.Contains(parsedURL.Host, "127.0.0.1") ||
+		strings.Contains(parsedURL.Host, "0.0.0.0") ||
+		strings.Contains(parsedURL.Host, "::1") ||
+		strings.HasPrefix(parsedURL.Host, "10.") ||
+		strings.HasPrefix(parsedURL.Host, "192.168.") ||
+		strings.HasPrefix(parsedURL.Host, "172.") {
 		return fmt.Errorf("internal and localhost URLs are not allowed")
 	}
 
@@ -135,8 +135,8 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 
 	var scrapedPages []*models.KnowledgeScrapedPage
 	visitedURLs := make(map[string]bool) // Track visited URLs
-	visitedURLs[job.URL] = true // Mark initial URL as visited
-	maxPages := 100 // Limit to prevent excessive scraping
+	visitedURLs[job.URL] = true          // Mark initial URL as visited
+	maxPages := 100                      // Limit to prevent excessive scraping
 
 	// Set up HTML callback - use body selector to process each page only once
 	c.OnHTML("body", func(e *colly.HTMLElement) {
@@ -147,7 +147,7 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 		}
 
 		currentURL := e.Request.URL.String()
-		
+
 		// Extract page content
 		title := e.ChildText("title")
 		if title == "" {
@@ -156,7 +156,7 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 
 		// Extract text content (remove scripts, styles, etc.)
 		content := s.extractTextContent(e)
-		
+
 		if len(strings.TrimSpace(content)) < 100 { // Skip pages with very little content
 			return
 		}
@@ -187,7 +187,7 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 			e.ForEach("a[href]", func(_ int, link *colly.HTMLElement) {
 				linkURL := link.Attr("href")
 				absoluteURL := e.Request.AbsoluteURL(linkURL)
-				
+
 				// Check if we should follow this link and haven't visited it
 				if s.shouldFollowLink(absoluteURL, currentURL) && !visitedURLs[absoluteURL] {
 					visitedURLs[absoluteURL] = true
@@ -224,7 +224,7 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 		err = fmt.Errorf("no pages were successfully scraped")
 		return
 	}
-	
+
 	fmt.Printf("Scraped %d pages, starting content-aware processing...\n", totalPages)
 	s.knowledgeRepo.UpdateScrapingJobProgress(job.ID, totalPages, totalPages)
 
@@ -250,7 +250,7 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 	// and pages that don't need embeddings by setting a dummy embedding value
 	pagesToEmbed := make([]*models.KnowledgeScrapedPage, 0)
 	skippedCount := 0
-	
+
 	for _, page := range scrapedPages {
 		// Check if this page needs an embedding:
 		// - embedding is nil (new or updated page)
@@ -269,13 +269,13 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 		fmt.Printf("Warning: Embedding service is disabled, %d pages saved without embeddings\n", len(pagesToEmbed))
 	} else {
 		// Generate embeddings only for pages that need them
-		fmt.Printf("Generating embeddings for %d pages that need them (skipping %d duplicates) using %s model...\n", 
+		fmt.Printf("Generating embeddings for %d pages that need them (skipping %d duplicates) using %s model...\n",
 			len(pagesToEmbed), skippedCount, s.embeddingService.GetModel())
-		
+
 		// Create a dedicated context for embedding generation with configured timeout
 		embeddingCtx, embeddingCancel := context.WithTimeout(context.Background(), s.config.EmbeddingTimeout)
 		defer embeddingCancel()
-		
+
 		embeddingErr := s.generateEmbeddingsForPages(embeddingCtx, pagesToEmbed)
 		if embeddingErr != nil {
 			fmt.Printf("Warning: Failed to generate embeddings (job will still complete): %v\n", embeddingErr)
@@ -284,9 +284,9 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 			fmt.Printf("Successfully generated embeddings for %d pages\n", len(pagesToEmbed))
 		}
 	}
-	
+
 	fmt.Printf("Successfully completed scraping job for %d pages\n", totalPages)
-	
+
 	// Explicitly mark job as completed - don't rely on defer for success case
 	completionErr := s.knowledgeRepo.CompleteScrapingJob(job.ID)
 	if completionErr != nil {
@@ -294,7 +294,7 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 	} else {
 		fmt.Printf("Job %s marked as completed successfully\n", job.ID)
 	}
-	
+
 	// Clear err so defer doesn't override our completion
 	err = nil
 }
@@ -321,10 +321,10 @@ func (s *WebScrapingService) extractTextContent(e *colly.HTMLElement) string {
 func (s *WebScrapingService) cleanText(text string) string {
 	// Replace multiple whitespaces with single space
 	text = strings.Join(strings.Fields(text), " ")
-	
+
 	// Remove excessive newlines
 	text = strings.ReplaceAll(text, "\n\n\n", "\n\n")
-	
+
 	return strings.TrimSpace(text)
 }
 
@@ -485,7 +485,7 @@ func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL s
 
 	// Create colly collector
 	c := colly.NewCollector(
-		colly.UserAgent("TMS-ThemeBot/1.0 (+https://tms.bareuptime.co)"),
+		colly.UserAgent("TMS-ThemeBot/1.0 (+https://api.hith.chat)"),
 	)
 
 	// Set timeout

@@ -102,7 +102,7 @@ agentic:
 
 resend:
   api_key: ""  # Set this to your Resend API key
-  from_email: "noreply@bareuptime.co"  # Configure with your verified domain
+  from_email: "noreply@hith.chat"  # Configure with your verified domain
 
 ai:
   openai:
