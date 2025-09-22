@@ -80,25 +80,25 @@ type SignUpStep = 'signup' | 'verify' | 'success'
 
 // Personal/Consumer email domains that should be blocked for corporate signup
 const blockedEmailDomains = new Set([
-  // Google
-  'gmail.com', 'googlemail.com',
+  // // Google
+  // 'gmail.com', 'googlemail.com',
   
-  // Microsoft
-  'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+  // // Microsoft
+  // 'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
   
-  // Yahoo
-  'yahoo.com', 'yahoo.co.uk', 'yahoo.ca', 'yahoo.co.in', 'yahoo.com.au', 
-  'yahoo.fr', 'yahoo.de', 'yahoo.it', 'yahoo.es', 'ymail.com', 'rocketmail.com',
+  // // Yahoo
+  // 'yahoo.com', 'yahoo.co.uk', 'yahoo.ca', 'yahoo.co.in', 'yahoo.com.au', 
+  // 'yahoo.fr', 'yahoo.de', 'yahoo.it', 'yahoo.es', 'ymail.com', 'rocketmail.com',
   
-  // Apple
-  'icloud.com', 'me.com', 'mac.com',
+  // // Apple
+  // 'icloud.com', 'me.com', 'mac.com',
   
-  // AOL
-  'aol.com', 'aim.com',
+  // // AOL
+  // 'aol.com', 'aim.com',
   
-  // Other common personal email providers
-  'protonmail.com', 'proton.me', 'tutanota.com', 'fastmail.com',
-  'mailbox.org', 'posteo.de', 'hushmail.com', 'mailfence.com',
+  // // Other common personal email providers
+  // 'protonmail.com', 'proton.me', 'tutanota.com', 'fastmail.com',
+  // 'mailbox.org', 'posteo.de', 'hushmail.com', 'mailfence.com',
   
   // Disposable/Temporary email providers
   'guerrillamail.com', '10minutemail.com', 'tempmail.org', 'mailinator.com',
