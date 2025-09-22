@@ -23,6 +23,7 @@ type AIService struct {
 	agenticConfig       *config.AgenticConfig
 	chatSessionService  *ChatSessionService
 	knowledgeService    *KnowledgeService
+	usageService        *AIUsageService
 	greetingDetection   *GreetingDetectionService
 	brandGreeting       *BrandGreetingService
 	connectionManager   *ws.ConnectionManager
@@ -31,12 +32,13 @@ type AIService struct {
 }
 
 // NewAIService creates a new AI service instance
-func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *ws.ConnectionManager, howlingAlarmService *HowlingAlarmService) *AIService {
+func NewAIService(cfg *config.AIConfig, agenticConfig *config.AgenticConfig, chatSessionService *ChatSessionService, knowledgeService *KnowledgeService, usageService *AIUsageService, greetingDetection *GreetingDetectionService, brandGreeting *BrandGreetingService, connectionManager *ws.ConnectionManager, howlingAlarmService *HowlingAlarmService) *AIService {
 	return &AIService{
 		config:              cfg,
 		agenticConfig:       agenticConfig,
 		chatSessionService:  chatSessionService,
 		knowledgeService:    knowledgeService,
+		usageService:        usageService,
 		greetingDetection:   greetingDetection,
 		brandGreeting:       brandGreeting,
 		connectionManager:   connectionManager,
@@ -90,6 +92,11 @@ type ChatCompletionResponse struct {
 	Choices []struct {
 		Message ChatCompletionMessage `json:"message"`
 	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"`
 }
 
 // IsEnabled returns whether AI assistance is enabled
@@ -228,13 +235,25 @@ func (s *AIService) processComplexMessageThroughAgent(ctx context.Context, sessi
 	}
 
 	// Generate AI response with knowledge context
-	response, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
+	response, usageMetrics, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
 	if err != nil {
 		fmt.Println("Error generating AI response:", err.Error())
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
 	}
 
 	fmt.Println("Response from ai -", response)
+
+	if usageMetrics != nil && s.usageService != nil {
+		if _, err := s.usageService.DeductUsage(ctx, UsageDeductionInput{
+			TenantID:  session.TenantID,
+			ProjectID: session.ProjectID,
+			Model:     s.config.Model,
+			SessionID: &session.ID,
+			Metrics:   *usageMetrics,
+		}); err != nil {
+			fmt.Printf("Failed to deduct AI usage credits: %v\n", err)
+		}
+	}
 
 	// Send the AI response
 	return s.SendAIResponse(ctx, session, connID, response, map[string]interface{}{
@@ -266,13 +285,25 @@ func (s *AIService) processComplexMessage(ctx context.Context, session *models.C
 	}
 
 	// Generate AI response with knowledge context
-	response, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
+	response, usageMetrics, err := s.generateResponseWithContext(ctx, session, recentMessages, messageContent)
 	if err != nil {
 		fmt.Println("Error generating AI response:", err.Error())
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
 	}
 
 	fmt.Println("Response from ai -", response)
+
+	if usageMetrics != nil && s.usageService != nil {
+		if _, err := s.usageService.DeductUsage(ctx, UsageDeductionInput{
+			TenantID:  session.TenantID,
+			ProjectID: session.ProjectID,
+			Model:     s.config.Model,
+			SessionID: &session.ID,
+			Metrics:   *usageMetrics,
+		}); err != nil {
+			fmt.Printf("Failed to deduct AI usage credits: %v\n", err)
+		}
+	}
 
 	// Send the AI response
 	return s.SendAIResponse(ctx, session, connID, response, map[string]interface{}{
@@ -419,7 +450,7 @@ func (s *AIService) requestHumanAgent(ctx context.Context, session *models.ChatS
 }
 
 // generateResponseWithContext generates AI response with knowledge context
-func (s *AIService) generateResponseWithContext(ctx context.Context, session *models.ChatSession, messages []models.ChatMessage, userMessage string) (string, error) {
+func (s *AIService) generateResponseWithContext(ctx context.Context, session *models.ChatSession, messages []models.ChatMessage, userMessage string) (string, *TokenUsageMetrics, error) {
 	// Get relevant knowledge context if knowledge service is available
 	var knowledgeContext string
 	if s.knowledgeService != nil {
@@ -476,12 +507,12 @@ func (s *AIService) generateResponseWithContext(ctx context.Context, session *mo
 	case ProviderAzure:
 		return s.callAzureOpenAI(ctx, req)
 	default:
-		return "", fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
+		return "", nil, fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
 	}
 }
 
 // callOpenAI makes API call to OpenAI
-func (s *AIService) callOpenAI(ctx context.Context, req ChatCompletionRequest) (string, error) {
+func (s *AIService) callOpenAI(ctx context.Context, req ChatCompletionRequest) (string, *TokenUsageMetrics, error) {
 	url := "https://api.openai.com/v1/chat/completions"
 	if s.config.BaseURL != "" {
 		url = s.config.BaseURL + "/v1/chat/completions"
@@ -494,7 +525,7 @@ func (s *AIService) callOpenAI(ctx context.Context, req ChatCompletionRequest) (
 }
 
 // callAnthropic makes API call to Anthropic Claude
-func (s *AIService) callAnthropic(ctx context.Context, req ChatCompletionRequest) (string, error) {
+func (s *AIService) callAnthropic(ctx context.Context, req ChatCompletionRequest) (string, *TokenUsageMetrics, error) {
 	// Convert to Anthropic format
 	anthropicReq := map[string]interface{}{
 		"model":      req.Model,
@@ -516,12 +547,12 @@ func (s *AIService) callAnthropic(ctx context.Context, req ChatCompletionRequest
 
 	jsonData, err := json.Marshal(anthropicReq)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	for key, value := range headers {
@@ -530,17 +561,17 @@ func (s *AIService) callAnthropic(ctx context.Context, req ChatCompletionRequest
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API call failed with status %d: %s", resp.StatusCode, string(body))
+		return "", nil, fmt.Errorf("API call failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse Anthropic response format
@@ -551,20 +582,20 @@ func (s *AIService) callAnthropic(ctx context.Context, req ChatCompletionRequest
 	}
 
 	if err := json.Unmarshal(body, &anthropicResp); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if len(anthropicResp.Content) == 0 {
-		return "", fmt.Errorf("no content in response")
+		return "", nil, fmt.Errorf("no content in response")
 	}
 
-	return anthropicResp.Content[0].Text, nil
+	return anthropicResp.Content[0].Text, nil, nil
 }
 
 // callAzureOpenAI makes API call to Azure OpenAI
-func (s *AIService) callAzureOpenAI(ctx context.Context, req ChatCompletionRequest) (string, error) {
+func (s *AIService) callAzureOpenAI(ctx context.Context, req ChatCompletionRequest) (string, *TokenUsageMetrics, error) {
 	if s.config.BaseURL == "" {
-		return "", fmt.Errorf("base URL required for Azure OpenAI")
+		return "", nil, fmt.Errorf("base URL required for Azure OpenAI")
 	}
 
 	url := s.config.BaseURL + "/openai/deployments/" + s.config.Model + "/chat/completions?api-version=2023-12-01-preview"
@@ -576,15 +607,15 @@ func (s *AIService) callAzureOpenAI(ctx context.Context, req ChatCompletionReque
 }
 
 // makeAPICall is a helper function for making HTTP API calls
-func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatCompletionRequest, headers map[string]string) (string, error) {
+func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatCompletionRequest, headers map[string]string) (string, *TokenUsageMetrics, error) {
 	jsonData, err := json.Marshal(req)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	for key, value := range headers {
@@ -593,29 +624,38 @@ func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatComplet
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API call failed with status %d: %s", resp.StatusCode, string(body))
+		return "", nil, fmt.Errorf("API call failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var chatResp ChatCompletionResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if len(chatResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
+		return "", nil, fmt.Errorf("no choices in response")
 	}
 
-	return chatResp.Choices[0].Message.Content, nil
+	var usageMetrics *TokenUsageMetrics
+	if chatResp.Usage != nil {
+		usageMetrics = &TokenUsageMetrics{
+			PromptTokens:     int64(chatResp.Usage.PromptTokens),
+			CompletionTokens: int64(chatResp.Usage.CompletionTokens),
+			TotalTokens:      int64(chatResp.Usage.TotalTokens),
+		}
+	}
+
+	return chatResp.Choices[0].Message.Content, usageMetrics, nil
 }
 
 // AcceptHandoff handles agent accepting a handoff request
@@ -680,7 +720,7 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 	}
 
 	// Make the API call
-	response, err := s.callOpenAI(ctx, req)
+	response, _, err := s.callOpenAI(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OpenAI: %w", err)
 	}
@@ -739,4 +779,3 @@ Keep messages professional but warm, and under 100 characters each.
 		themeData.GetFontFamilies(),
 	)
 }
-

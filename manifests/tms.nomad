@@ -253,7 +253,6 @@ EMAIL_REPLY_TO_ADDRESS={{ .Data.data.EMAIL_REPLY_TO_ADDRESS }}
 RESEND_API_KEY={{ .Data.data.RESEND_API_KEY }}
 MAILEROO_API_KEY={{ .Data.data.MAILEROO_API_KEY }}
 MAILEROO_TIMEOUT_SECONDS={{ .Data.data.MAILEROO_TIMEOUT_SECONDS }}
-EMAIL_PROVIDER={{ .Data.data.EMAIL_PROVIDER }}
 AI_API_KEY={{ .Data.data.AI_API_KEY }}
 TMS_API_S2S_KEY={{ .Data.data.TMS_API_S2S_KEY }}
 {{- end }}
@@ -272,6 +271,8 @@ SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
 SERVER_PORT=8080
 AI_AGENT_SERVICE_URL=http://localhost:5000
 PUBLIC_TICKET_URL="https://tickets.hith.chat"
+EMAIL_PROVIDER=maileroo
+MAILEROO_TIMEOUT_SECONDS=30
 EOH
         destination = "secrets/consul.env"
         env         = true
