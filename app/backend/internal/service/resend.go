@@ -34,7 +34,7 @@ func NewResendService(cfg *config.ResendConfig, environment string) *ResendServi
 
 	fromName := cfg.FromName
 	if fromName == "" {
-		fromName = "TMS"
+		fromName = "Hith"
 	}
 
 	client := resend.NewClient(apiKey)

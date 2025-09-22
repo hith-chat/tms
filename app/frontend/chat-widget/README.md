@@ -1,6 +1,6 @@
-# TMS Chat Widget
+# Hith Chat Widget
 
-The embeddable chat widget for the TMS (Ticket Management System) that allows websites to integrate real-time chat functionality.
+The embeddable chat widget for the Hith (Ticket Management System) that allows websites to integrate real-time chat functionality.
 
 ## Development Setup
 
@@ -21,7 +21,7 @@ npm run build
    npm run build
    ```
 
-2. **Start your TMS backend** (in another terminal):
+2. **Start your Hith backend** (in another terminal):
    ```bash
    cd ../../backend
    go run cmd/api/main.go
@@ -42,7 +42,7 @@ npm run build
 Add this script to any website where you want the chat widget to appear:
 
 ```html
-<!-- TMS Chat Widget -->
+<!-- Hith Chat Widget -->
 <script>
   (function() {
     window.TMSChatConfig = {
@@ -64,7 +64,7 @@ The `TMSChatConfig` object supports the following options:
 
 - `widgetId` (required): The unique identifier for your chat widget
 - `domain` (required): Your verified domain name
-- `apiUrl` (optional): The TMS API base URL (defaults to http://localhost:8080/v1)
+- `apiUrl` (optional): The Hith API base URL (defaults to http://localhost:8080/v1)
 
 ## Widget Features
 
@@ -79,7 +79,7 @@ The `TMSChatConfig` object supports the following options:
 
 ## API Endpoints Used
 
-The widget communicates with these TMS API endpoints:
+The widget communicates with these Hith API endpoints:
 
 - `GET /v1/public/chat/widgets/domain/{domain}` - Get widget configuration
 - `POST /v1/public/chat/widgets/{widgetId}/sessions` - Start a chat session

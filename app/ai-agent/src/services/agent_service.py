@@ -236,7 +236,7 @@ class AgentService:
         
         # Escalate to human tool
         async def escalate_impl(tool_context, params: EscalationParams) -> str:
-            """Escalate session to human agents via TMS API."""
+            """Escalate session to human agents via Hith API."""
             try:
                 session_id = getattr(self, '_current_session_id', None)
 
@@ -292,7 +292,7 @@ class AgentService:
         
         # Save contact info tool
         async def save_contact_impl(tool_context, params: str) -> str:
-            """Save contact information via TMS API."""
+            """Save contact information via Hith API."""
             try:
                 contact_info = ContactInfoParams.model_validate_json(params)
                 logger.info(f"Saving contact info: {params}")

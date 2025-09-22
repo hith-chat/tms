@@ -1,4 +1,4 @@
-name: Build and Publish TMS Backend Docker Image
+name: Build and Publish Hith Backend Docker Image
 
 on:
   push:

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI application
 app = FastAPI(
-    title="TMS Agent Service",
+    title="Hith Agent Service",
     description="AI-powered customer support agent service using OpenAI Agents SDK",
     version="1.0.0"
 )

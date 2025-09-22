@@ -14,7 +14,7 @@ from datetime import datetime
 async def demo_agent_interaction():
     """Demonstrate agent interaction patterns."""
     
-    print("🤖 TMS Agent Service Demo")
+    print("🤖 Hith Agent Service Demo")
     print("=" * 50)
     
     # Example 1: Knowledge base search response

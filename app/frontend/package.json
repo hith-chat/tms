@@ -2,7 +2,7 @@
   "name": "@tms/frontend",
   "version": "1.0.0",
   "private": true,
-  "description": "TMS Frontend Workspace",
+  "description": "Hith Frontend Workspace",
   "scripts": {
     "dev": "pnpm --parallel run dev",
     "build": "pnpm --recursive run build",

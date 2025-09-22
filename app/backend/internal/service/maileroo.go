@@ -38,7 +38,7 @@ func NewMailerooService(cfg *config.MailerooConfig, environment string) (*Mailer
 
 	fromName := cfg.FromName
 	if fromName == "" {
-		fromName = "TMS"
+		fromName = "Hith"
 	}
 
 	client, err := maileroo.NewClient(apiKey, timeout)

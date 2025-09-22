@@ -1,5 +1,5 @@
 [build]
-  # Build settings for TMS Chat Widget
+  # Build settings for Hith Chat Widget
   base = "app/frontend"
   command = "pnpm install && pnpm build:shared && pnpm build:chat-widget"
   publish = "chat-widget/dist"

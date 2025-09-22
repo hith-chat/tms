@@ -242,7 +242,7 @@ func (s *ChatWidgetService) DeleteChatWidget(ctx context.Context, tenantID, proj
 
 // generateEmbedCode generates the JavaScript embed code for the chat widget
 func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
-	return fmt.Sprintf(`<!-- TMS Chat Widget -->
+	return fmt.Sprintf(`<!-- Hith Chat Widget -->
 <script>
   (function() {
     window.TMSChatConfig = {

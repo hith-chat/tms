@@ -256,7 +256,7 @@ export function WidgetSimulation({ formData, domains }: WidgetSimulationProps) {
                       {formData.show_powered_by && (
                         <div className="mt-2 text-center">
                           <div className="text-xs text-slate-400">
-                            Powered by TMS Chat
+                            Powered by Hith Chat
                           </div>
                         </div>
                       )}

@@ -7,14 +7,14 @@ import (
 )
 
 func buildSignupVerificationEmail(toEmail, otp string) (subject, htmlBody, textBody string) {
-	subject = "Verify your TMS account"
+	subject = "Verify your Hith account"
 	htmlBody = fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify your TMS account</title>
+    <title>Verify your Hith account</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
@@ -28,12 +28,12 @@ func buildSignupVerificationEmail(toEmail, otp string) (subject, htmlBody, textB
 <body>
     <div class="container">
         <div class="header">
-            <h1>Welcome to TMS!</h1>
+            <h1>Welcome to Hith!</h1>
             <p>Complete your account verification</p>
         </div>
         <div class="content">
             <h2>Hello!</h2>
-            <p>Thank you for signing up for TMS. To complete your account setup, please verify your email address using the code below:</p>
+            <p>Thank you for signing up for Hith. To complete your account setup, please verify your email address using the code below:</p>
             
             <div class="otp-code">%s</div>
             
@@ -45,11 +45,11 @@ func buildSignupVerificationEmail(toEmail, otp string) (subject, htmlBody, textB
             
             <p>If you're having trouble, please contact our support team.</p>
             
-            <p>Best regards,<br>The TMS Team</p>
+            <p>Best regards,<br>The Hith Team</p>
         </div>
         <div class="footer">
             <p>This email was sent to %s</p>
-            <p>TMS - Ticket Management System</p>
+            <p>Hith - Ticket Management System</p>
         </div>
     </div>
 </body>
@@ -57,9 +57,9 @@ func buildSignupVerificationEmail(toEmail, otp string) (subject, htmlBody, textB
     `, otp, toEmail)
 
 	textBody = fmt.Sprintf(`
-Welcome to TMS!
+Welcome to Hith!
 
-Thank you for signing up for TMS. To complete your account setup, please verify your email address using the code below:
+Thank you for signing up for Hith. To complete your account setup, please verify your email address using the code below:
 
 Verification Code: %s
 
@@ -68,10 +68,10 @@ Enter this 6-digit code in the verification screen to activate your account.
 This code will expire in 10 minutes for your security. If you didn't create an account, you can safely ignore this email.
 
 Best regards,
-The TMS Team
+The Hith Team
 
 This email was sent to %s
-TMS - Ticket Management System
+Hith - Ticket Management System
     `, otp, toEmail)
 
 	return subject, htmlBody, textBody
@@ -82,14 +82,14 @@ func buildSignupWelcomeEmail(toEmail, recipientName string) (subject, htmlBody, 
 		recipientName = "there"
 	}
 
-	subject = "Welcome to TMS"
+	subject = "Welcome to Hith"
 	htmlBody = fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to TMS</title>
+    <title>Welcome to Hith</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
@@ -103,7 +103,7 @@ func buildSignupWelcomeEmail(toEmail, recipientName string) (subject, htmlBody, 
     <div class="container">
         <div class="header">
             <h1>You're all set!</h1>
-            <p>Welcome to TMS</p>
+            <p>Welcome to Hith</p>
         </div>
         <div class="content">
             <h2>Hi %s,</h2>
@@ -120,11 +120,11 @@ func buildSignupWelcomeEmail(toEmail, recipientName string) (subject, htmlBody, 
 
             <p>We're excited to help you deliver amazing support experiences. If you ever need a hand, just reply to this email—our team is here to help.</p>
 
-            <p>Cheers,<br>The TMS Team</p>
+            <p>Cheers,<br>The Hith Team</p>
         </div>
         <div class="footer">
             <p>This email was sent to %s</p>
-            <p>TMS - Ticket Management System</p>
+            <p>Hith - Ticket Management System</p>
         </div>
     </div>
 </body>
@@ -132,7 +132,7 @@ func buildSignupWelcomeEmail(toEmail, recipientName string) (subject, htmlBody, 
     `, recipientName, toEmail)
 
 	textBody = fmt.Sprintf(`
-Welcome to TMS
+Welcome to Hith
 
 Hi %s,
 
@@ -144,10 +144,10 @@ Your account is ready to go. Here are a few things you can do next:
 We're excited to help you deliver amazing support experiences. If you ever need a hand, just reply to this email—our team is here to help.
 
 Cheers,
-The TMS Team
+The Hith Team
 
 This email was sent to %s
-TMS - Ticket Management System
+Hith - Ticket Management System
     `, recipientName, toEmail)
 
 	return subject, htmlBody, textBody
@@ -198,7 +198,7 @@ func buildTicketCreatedEmail(ticket *db.Ticket, customer *db.Customer, recipient
         </div>
         <div class="footer">
             <p>This notification was sent to %s</p>
-            <p>TMS - Ticket Management System</p>
+            <p>Hith - Hyper Intelligent Technical Helper</p>
         </div>
     </div>
 </body>
@@ -223,10 +223,10 @@ Ticket Details:
 Please review and assign this ticket to the appropriate agent.
 
 Best regards,
-TMS Team
+Hith Team
 
 This notification was sent to %s
-TMS - Ticket Management System
+Hith - Ticket Management System
         `, recipientName, ticket.Subject, ticket.Priority, ticket.Type, customer.Name, customer.Email, ticket.Status, ticket.Source, toEmail)
 
 		return subject, htmlBody, textBody
@@ -271,7 +271,7 @@ TMS - Ticket Management System
         </div>
         <div class="footer">
             <p>This email was sent to %s</p>
-            <p>TMS - Ticket Management System</p>
+            <p>Hith - Ticket Management System</p>
         </div>
     </div>
 </body>
@@ -295,10 +295,10 @@ Our support team will review your request and respond according to the priority 
 If you need to add additional information, please reply to this email.
 
 Best regards,
-TMS Team
+Hith Team
 
 This email was sent to %s
-TMS - Ticket Management System
+Hith - Ticket Management System
     `, customer.Name, ticket.Priority, ticket.Subject, ticket.Priority, ticket.Status, customer.Email)
 
 	return subject, htmlBody, textBody
@@ -343,7 +343,7 @@ func buildTicketUpdatedEmail(ticket *db.Ticket, recipientName, updateType, updat
         </div>
         <div class="footer">
             <p>This email was sent to %s</p>
-            <p>TMS - Ticket Management System</p>
+            <p>Hith - Ticket Management System</p>
         </div>
     </div>
 </body>
@@ -366,10 +366,10 @@ Update Details:
 If you have any questions or need to provide additional information, please reply to this email.
 
 Best regards,
-TMS Team
+Hith Team
 
 This email was sent to %s
-TMS - Ticket Management System
+Hith - Ticket Management System
     `, recipientName, ticket.Subject, updateType, ticket.Status, updateDetails, toEmail)
 
 	return subject, htmlBody, textBody

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# TMS Production Deployment Script
-# This script builds and deploys the complete TMS stack including the email server
+# Hith Production Deployment Script
+# This script builds and deploys the complete Hith stack including the email server
 
 set -e  # Exit on any error
 
-echo "🚀 TMS Production Deployment"
+echo "🚀 Hith Production Deployment"
 echo "=============================="
 
 # Colors for output
@@ -98,7 +98,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo ""
-print_status "🏗️  Building and starting TMS services..."
+print_status "🏗️  Building and starting Hith services..."
 print_status "Services to be deployed:"
 echo "   📧 Guerrilla Mail Server (email-to-ticket processing)"
 echo "   🏢 Backend API"
@@ -124,7 +124,7 @@ docker-compose pull --ignore-pull-failures
 # Build and start services
 print_status "Building and starting services..."
 if docker-compose up $BUILD_OPTION $DETACH_OPTION; then
-    print_success "TMS deployment completed successfully!"
+    print_success "Hith deployment completed successfully!"
     
     if [ "$DETACH_OPTION" = "-d" ]; then
         echo ""

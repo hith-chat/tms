@@ -396,7 +396,7 @@ func setDefaults() {
 	viper.SetDefault("knowledge.chunk_overlap", 200)
 	viper.SetDefault("knowledge.scrape_max_depth", 5)
 	viper.SetDefault("knowledge.scrape_rate_limit", "1s")
-	viper.SetDefault("knowledge.scrape_user_agent", "TMS Knowledge Bot 1.0")
+	viper.SetDefault("knowledge.scrape_user_agent", "Hith Knowledge Bot 1.0")
 	viper.SetDefault("knowledge.scrape_timeout", "30s")
 	viper.SetDefault("knowledge.embedding_timeout", "120s")
 

@@ -107,7 +107,7 @@ job "tms-backend" {
         "traefik.http.services.tms-backend.loadbalancer.healthcheck.timeout=10s",
         "traefik.http.services.tms-backend.loadbalancer.sticky.cookie=true",
         
-        # TMS-SPECIFIC SECURITY HEADERS (prefixed with 'tms-')
+        # Hith-SPECIFIC SECURITY HEADERS (prefixed with 'tms-')
         "traefik.http.middlewares.tms-security-headers.headers.frameDeny=true",
         "traefik.http.middlewares.tms-security-headers.headers.contentTypeNosniff=true",
         "traefik.http.middlewares.tms-security-headers.headers.browserXssFilter=true",
@@ -116,17 +116,17 @@ job "tms-backend" {
         "traefik.http.middlewares.tms-security-headers.headers.stsIncludeSubdomains=true",
         "traefik.http.middlewares.tms-security-headers.headers.stsPreload=true",
         
-        # TMS-SPECIFIC RATE LIMITING (prefixed with 'tms-')
+        # Hith-SPECIFIC RATE LIMITING (prefixed with 'tms-')
         "traefik.http.middlewares.tms-rate-limit.ratelimit.average=200",
         "traefik.http.middlewares.tms-rate-limit.ratelimit.burst=400",
         "traefik.http.middlewares.tms-rate-limit.ratelimit.period=1m",
         
-        # TMS-SPECIFIC API RATE LIMITING
+        # Hith-SPECIFIC API RATE LIMITING
         "traefik.http.middlewares.tms-api-rate-limit.ratelimit.average=100",
         "traefik.http.middlewares.tms-api-rate-limit.ratelimit.burst=200",
         "traefik.http.middlewares.tms-api-rate-limit.ratelimit.period=1m",
         
-        # TMS-SPECIFIC CORS HEADERS
+        # Hith-SPECIFIC CORS HEADERS
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH",
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolalloworiginlist=https://tms.bareuptime.co,https://*.bareuptime.co,https://bareuptime.co,https://hith.chat,https://*.hith.chat,https://localhost:3000",
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolallowheaders=Accept,Authorization,Cache-Control,Content-Type,DNT,If-Modified-Since,Keep-Alive,Origin,User-Agent,X-Requested-With,X-Session-Token",
@@ -134,7 +134,7 @@ job "tms-backend" {
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolallowcredentials=true",
         "traefik.http.middlewares.tms-cors-headers.headers.addvaryheader=true",
         
-        # TMS-SPECIFIC CLIENT IP MIDDLEWARE
+        # Hith-SPECIFIC CLIENT IP MIDDLEWARE
         "traefik.http.middlewares.tms-client-ip.ipwhitelist.sourcerange=0.0.0.0/0",
       ]
     }

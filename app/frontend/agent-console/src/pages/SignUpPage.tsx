@@ -541,7 +541,7 @@ export function SignUpPage() {
           Account Created!
         </h1>
         <p className="text-muted-foreground">
-          Your TMS account has been successfully created and verified
+          Your Hith account has been successfully created and verified
         </p>
       </div>
 
@@ -558,7 +558,7 @@ export function SignUpPage() {
 
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Welcome to TMS! You can now sign in with your credentials to start managing tickets.
+              Welcome to Hith! You can now sign in with your credentials to start managing tickets.
             </p>
 
             <Button

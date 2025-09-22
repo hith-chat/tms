@@ -2,7 +2,7 @@
   "name": "tms-agent-console",
   "version": "1.0.0",
   "type": "module",
-  "description": "TMS Agent Console - Enterprise Support Dashboard",
+  "description": "Hith Agent Console - Enterprise Support Dashboard",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

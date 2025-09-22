@@ -1,5 +1,5 @@
 [build]
-  # Build settings for TMS Agent Console
+  # Build settings for Hith Agent Console
   base = "app/frontend"
   command = "pnpm install && pnpm build:shared && pnpm build:agent-console"
   publish = "agent-console/dist"

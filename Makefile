@@ -1,4 +1,4 @@
-# TMS Project Makefile
+# Hith Project Makefile
 # This Makefile provides convenient commands for development, testing, and deployment
 
 # Configuration
@@ -30,7 +30,7 @@ NC := \033[0m # No Color
 
 .PHONY: help
 help: ## Show this help message
-	@echo "$(CYAN)TMS Project Makefile$(NC)"
+	@echo "$(CYAN)Hith Project Makefile$(NC)"
 	@echo "$(YELLOW)Available commands:$(NC)"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
@@ -263,7 +263,7 @@ logs: ## Show application logs
 
 .PHONY: status
 status: ## Show service status
-	@echo "$(CYAN)TMS Service Status:$(NC)"
+	@echo "$(CYAN)Hith Service Status:$(NC)"
 	@$(MAKE) docker-ps
 
 .PHONY: backup
@@ -275,7 +275,7 @@ backup: ## Create full backup (database + files)
 ## Quick Start Commands
 .PHONY: setup
 setup: ## Initial project setup
-	@echo "$(CYAN)Setting up TMS project...$(NC)"
+	@echo "$(CYAN)Setting up Hith project...$(NC)"
 	@$(MAKE) install
 	@$(MAKE) docker-up
 	@sleep 5
@@ -284,19 +284,19 @@ setup: ## Initial project setup
 
 .PHONY: start
 start: ## Start all services
-	@echo "$(BLUE)Starting all TMS services...$(NC)"
+	@echo "$(BLUE)Starting all Hith services...$(NC)"
 	@$(MAKE) docker-up
 	@echo "$(GREEN)All services started!$(NC)"
 
 .PHONY: stop
 stop: ## Stop all services
-	@echo "$(BLUE)Stopping all TMS services...$(NC)"
+	@echo "$(BLUE)Stopping all Hith services...$(NC)"
 	@$(MAKE) docker-down
 	@echo "$(GREEN)All services stopped!$(NC)"
 
 .PHONY: restart
 restart: ## Restart all services
-	@echo "$(BLUE)Restarting all TMS services...$(NC)"
+	@echo "$(BLUE)Restarting all Hith services...$(NC)"
 	@$(MAKE) stop
 	@$(MAKE) start
 	@echo "$(GREEN)All services restarted!$(NC)"

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the TMS Chat Widget - an embeddable JavaScript widget that provides real-time chat functionality for websites. The widget is built as a UMD library that can be embedded on any website to connect visitors with TMS (Ticket Management System) agents.
+This is the Hith Chat Widget - an embeddable JavaScript widget that provides real-time chat functionality for websites. The widget is built as a UMD library that can be embedded on any website to connect visitors with Hith (Ticket Management System) agents.
 
 ## Development Commands
 
@@ -35,7 +35,7 @@ npm run preview        # Preview the built widget
 ### Core Structure
 - **Entry Point**: `src/index.ts` - Auto-initializes widget if `TMSChatConfig` is present on window
 - **Main Widget Class**: `src/widget.ts` - Contains the TMSChatWidget class with all UI logic and state management
-- **API Layer**: `src/api.ts` - Handles all HTTP requests and WebSocket connections to TMS backend
+- **API Layer**: `src/api.ts` - Handles all HTTP requests and WebSocket connections to Hith backend
 - **Type Definitions**: `src/types.ts` - TypeScript interfaces for all data structures
 - **Event System**: `src/events.ts` - Internal event emitter for component communication
 - **Storage**: `src/storage.ts` - Session persistence and visitor fingerprinting
@@ -47,7 +47,7 @@ The widget supports two initialization modes:
 2. **Manual initialization**: `new window.TMSChatWidget(config)` for programmatic control
 
 ### API Integration
-The widget communicates with these TMS backend endpoints:
+The widget communicates with these Hith backend endpoints:
 - `GET /v1/public/chat/widgets/{widgetId}` - Get widget configuration
 - `POST /v1/public/chat/widgets/{widgetId}/sessions` - Start chat session
 - `GET /v1/public/chat/sessions/{token}` - Get session details
@@ -69,18 +69,18 @@ The widget communicates with these TMS backend endpoints:
 ## Testing Setup
 
 1. Build the widget: `npm run build`
-2. Start TMS backend on `localhost:8080`
+2. Start Hith backend on `localhost:8080`
 3. Run test server: `./serve-test.sh`
 4. Open `http://localhost:3001/test.html`
 
-The test page includes a sample configuration that connects to a local TMS backend instance.
+The test page includes a sample configuration that connects to a local Hith backend instance.
 
 ## Key Configuration Options
 
 ```javascript
 window.TMSChatConfig = {
   widgetId: 'your-widget-id',     // Required: Widget identifier
-  apiUrl: 'https://api.url',      // Optional: TMS API base URL
+  apiUrl: 'https://api.url',      // Optional: Hith API base URL
   enableSessionPersistence: true, // Optional: Enable session storage
   debugMode: false               // Optional: Enable debug logging
 }

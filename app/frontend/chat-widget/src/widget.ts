@@ -323,7 +323,7 @@ export class TMSChatWidget {
       badge.href = 'https://bareuptime.com/tms'
       badge.target = '_blank'
       badge.rel = 'noopener noreferrer'
-      badge.textContent = 'Powered by TMS'
+      badge.textContent = 'Powered by Hith'
       badge.style.display = 'none' // Initially hidden
       document.body.appendChild(badge)
       this.poweredBadge = badge

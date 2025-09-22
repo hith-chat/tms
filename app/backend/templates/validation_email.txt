@@ -3,7 +3,7 @@ Email Connector Validation
 
 Hello,
 
-You have requested to validate an email connector in your TMS (Ticket Management System).
+You have requested to validate an email connector in your Hith (Ticket Management System).
 
 Your verification code is: {{.OTP}}
 
@@ -14,5 +14,5 @@ Please enter this code in your application to complete the validation process.
 If you did not request this validation, please ignore this email. This could indicate that someone is trying to configure an email connector using your email address.
 
 ---
-TMS Team
+Hith Team
 Ticket Management System

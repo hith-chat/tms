@@ -1,4 +1,4 @@
-# TMS - Enterprise Ticket Management System
+# Hith - Enterprise Ticket Management System
 
 A production-grade multi-tenant support ticketing system with enterprise UI, magic-link authentication, and real-time messaging.
 
@@ -88,7 +88,7 @@ pnpm -w -r run type-check
 
 ### Chat System
 
-The TMS platform includes a complete live chat solution. See [CHAT_SYSTEM_GUIDE.md](./CHAT_SYSTEM_GUIDE.md) for detailed documentation on:
+The Hith platform includes a complete live chat solution. See [CHAT_SYSTEM_GUIDE.md](./CHAT_SYSTEM_GUIDE.md) for detailed documentation on:
 
 - Setting up chat widgets
 - Managing chat sessions

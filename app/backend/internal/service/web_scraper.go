@@ -485,7 +485,7 @@ func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL s
 
 	// Create colly collector
 	c := colly.NewCollector(
-		colly.UserAgent("TMS-ThemeBot/1.0 (+https://api.hith.chat)"),
+		colly.UserAgent("Hith-ThemeBot/1.0 (+https://api.hith.chat)"),
 	)
 
 	// Set timeout

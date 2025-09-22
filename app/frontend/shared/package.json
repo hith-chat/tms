@@ -1,7 +1,7 @@
 {
   "name": "@tms/shared",
   "version": "1.0.0",
-  "description": "Shared frontend SDK for TMS applications",
+  "description": "Shared frontend SDK for Hith applications",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
@@ -28,7 +28,7 @@
     "sdk",
     "typescript"
   ],
-  "author": "TMS Team",
+  "author": "Hith Team",
   "license": "MIT",
   "peerDependencies": {
     "react": "^18.2.0",

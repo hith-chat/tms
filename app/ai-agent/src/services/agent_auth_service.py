@@ -1,4 +1,4 @@
-"""Agent authentication service for TMS API access."""
+"""Agent authentication service for Hith API access."""
 
 import asyncio
 import logging
@@ -33,7 +33,7 @@ class AgentCredentials:
 
 
 class AgentAuthService:
-    """Service for managing agent authentication with TMS APIs."""
+    """Service for managing agent authentication with Hith APIs."""
     
     def __init__(self):
         self.tokens: Dict[str, AgentToken] = {}  # tenant_id -> token

@@ -1,4 +1,4 @@
-# TMS Email Server Docker Compose Setup
+# Hith Email Server Docker Compose Setup
 
 ## Overview
 

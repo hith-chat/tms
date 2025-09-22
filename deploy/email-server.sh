@@ -118,7 +118,7 @@ case "${1:-help}" in
         ;;
     
     "help"|*)
-        echo "📧 TMS Email Server Development Script"
+        echo "📧 Hith Email Server Development Script"
         echo "====================================="
         echo ""
         echo "Usage: $0 <command>"

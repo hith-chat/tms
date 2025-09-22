@@ -1,4 +1,4 @@
-"""Knowledge base search service that calls the TMS backend API.
+"""Knowledge base search service that calls the Hith backend API.
 
 This service provides a small helper that calls the tenant-scoped knowledge
 search endpoint and returns parsed results suitable for the agent service.
@@ -32,7 +32,7 @@ class KnowledgeService:
         project_id: Optional[str] = None,
         limit: int = None,
     ) -> KnowledgeSearchResponse:
-        """Search the TMS backend knowledge endpoint and return results.
+        """Search the Hith backend knowledge endpoint and return results.
 
         Args:
             session: Database session (unused here but kept for compatibility)

@@ -16,7 +16,7 @@ class Config:
     # OpenAI Configuration
     AI_API_KEY: Optional[str] = os.getenv("AI_API_KEY")
     
-    # TMS API Configuration
+    # Hith API Configuration
     TMS_API_BASE_URL: str = os.getenv("TMS_API_BASE_URL", "https://api.hith.chat")
     
     # Application Configuration

@@ -1,4 +1,4 @@
-name: Build and Publish TMS AI-Agent Docker Image
+name: Build and Publish Hith AI-Agent Docker Image
 
 on:
   push:

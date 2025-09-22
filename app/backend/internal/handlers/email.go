@@ -757,7 +757,7 @@ func (h *EmailHandler) sendValidationEmail(ctx context.Context, connector *model
 		TextBody: textBody,
 		HTMLBody: htmlBody,
 		Headers: map[string]string{
-			"X-Mailer":   "TMS-EmailConnector-Validator/1.0",
+			"X-Mailer":   "Hith-EmailConnector-Validator/1.0",
 			"X-Priority": "1",
 			"Importance": "high",
 		},

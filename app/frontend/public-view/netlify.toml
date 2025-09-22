@@ -1,5 +1,5 @@
 [build]
-  # Build settings for TMS Public View
+  # Build settings for Hith Public View
   base = "app/frontend"
   command = "pnpm install && pnpm build:shared && pnpm build:public-view"
   publish = "public-view/dist"

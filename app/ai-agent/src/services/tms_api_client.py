@@ -1,4 +1,4 @@
-"""TMS API client for making authenticated requests."""
+"""Hith API client for making authenticated requests."""
 
 import asyncio
 import logging
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class TMSApiClient:
-    """Client for making authenticated requests to TMS APIs."""
+    """Client for making authenticated requests to Hith APIs."""
     _TOKEN_TTL_SECONDS = 15 * 60  # 15 minutes cache for responses
     def __init__(self):
         self.base_url = config.TMS_API_BASE_URL
@@ -33,7 +33,7 @@ class TMSApiClient:
         retry_auth: bool = True
     ) -> Optional[Dict]:
         """
-        Make authenticated request to TMS API.
+        Make authenticated request to Hith API.
         
         Args:
             method: HTTP method (GET, POST, PUT, etc.)
@@ -73,7 +73,7 @@ class TMSApiClient:
                 # Handle authentication errors
                 if response.status_code >= 299:
                     logger.error(
-                        f"TMS API {method} {endpoint} failed: {response.status_code} - {response.text}"
+                        f"Hith API {method} {endpoint} failed: {response.status_code} - {response.text}"
                     )
                     raise httpx.HTTPStatusError(
                         f"Error response {response.status_code}",
@@ -86,9 +86,9 @@ class TMSApiClient:
                 
         except Exception as e:
             traceback.print_exc()
-            logger.error(f"Exception during TMS API request: {e}")
+            logger.error(f"Exception during Hith API request: {e}")
             logger.error(f"Request details: {method} {url} Data: {data} Params: {params}")
-            logger.error(f"TMS API request error for {method} {endpoint}: {e}")
+            logger.error(f"Hith API request error for {method} {endpoint}: {e}")
             return None
     
     async def create_ticket(
@@ -104,7 +104,7 @@ class TMSApiClient:
         category: str = "general"
     ) -> Optional[Dict]:
         """
-        Create a support ticket via TMS API.
+        Create a support ticket via Hith API.
         
         Args:
             tenant_id: Tenant ID
