@@ -81,13 +81,13 @@ export function LoginPage() {
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-lg">
-            <Shield className="h-8 w-8 text-primary-foreground" />
+            <img src="/images/logo.svg" alt="Hith Logo" className="h-10 w-10" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Welcome Back
           </h1>
           <p className="text-muted-foreground">
-            Sign in to your TMS account to continue
+            Sign in to your Hith account to continue
           </p>
         </div>
 
