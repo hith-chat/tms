@@ -10,18 +10,16 @@ import {
   Copy,
   Check,
   X,
-  Brain,
   Palette,
   CreditCard,
 } from 'lucide-react'
 import { apiClient, Project, Agent, BrandingSettings, AutomationSettings, DomainValidation } from '../lib/api'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
-import { KnowledgeManagement } from '../components/KnowledgeManagement'
 import { AlertsSettings } from '../components/AlertsSettings'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 
 // Tab types for settings navigation
-type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'knowledge' | 'alerts' | 'credits'
+type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'alerts' | 'credits'
 
 interface ApiKey {
   id: string
@@ -122,7 +120,6 @@ export function SettingsPage() {
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
     // { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
-    { id: 'knowledge' as SettingsTab, name: 'AI Knowledge Base', icon: Brain },
     { id: 'credits' as SettingsTab, name: 'AI Messages', icon: CreditCard },
     // { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
@@ -1819,24 +1816,6 @@ export function SettingsPage() {
     </div>
   )
 
-  const renderKnowledgeTab = () => {
-    const currentProjectId = localStorage.getItem('project_id')
-    
-    if (!currentProjectId) {
-      return (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Please select a project to manage knowledge base.</p>
-        </div>
-      )
-    }
-
-    return (
-      <ErrorBoundary>
-        <KnowledgeManagement projectId={currentProjectId} />
-      </ErrorBoundary>
-    )
-  }
-
   const renderAlertsTab = () => {
     return (
       <ErrorBoundary>
@@ -1995,8 +1974,6 @@ export function SettingsPage() {
         return renderDomainsTab()
       case 'branding':
         return renderBrandingTab()
-      case 'knowledge':
-        return renderKnowledgeTab()
       case 'credits':
         return renderCreditsTab()
       case 'alerts':

@@ -15,6 +15,7 @@ import {
   LogOut,
   MessageCircle,
   Users,
+  Brain,
   // Zap,
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
@@ -83,6 +84,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: 'Tickets', icon: Ticket, href: '/tickets' },
     { name: 'Chat', icon: MessageCircle, href: '/chat/sessions' },
     { name: 'Customers', icon: Users, href: '/customers' },
+    { name: 'Knowledge', icon: Brain, href: '/knowledge' },
     // { name: 'Analytics', icon: BarChart3, href: '/analytics' },
     // { name: 'Integrations', icon: Zap, href: '/integrations' },
     { name: 'Settings', icon: Settings, href: '/settings' },
