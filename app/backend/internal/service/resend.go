@@ -26,7 +26,7 @@ func NewResendService(cfg *config.ResendConfig, environment string) *ResendServi
 
 	fromEmail := cfg.FromEmail
 	if fromEmail == "" {
-		fromEmail = "noreply@taral.co" // Default fallback
+		fromEmail = "noreply@hith.support" // Default fallback
 	}
 	fmt.Println("Resend api key ->", apiKey)
 

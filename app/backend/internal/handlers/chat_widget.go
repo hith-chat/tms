@@ -12,12 +12,16 @@ import (
 )
 
 type ChatWidgetHandler struct {
-	chatWidgetService *service.ChatWidgetService
+	chatWidgetService  *service.ChatWidgetService
+	webScrapingService *service.WebScrapingService
+	aiService          *service.AIService
 }
 
-func NewChatWidgetHandler(chatWidgetService *service.ChatWidgetService) *ChatWidgetHandler {
+func NewChatWidgetHandler(chatWidgetService *service.ChatWidgetService, webScrapingService *service.WebScrapingService, aiService *service.AIService) *ChatWidgetHandler {
 	return &ChatWidgetHandler{
-		chatWidgetService: chatWidgetService,
+		chatWidgetService:  chatWidgetService,
+		webScrapingService: webScrapingService,
+		aiService:          aiService,
 	}
 }
 
@@ -154,4 +158,30 @@ func (h *ChatWidgetHandler) GetChatWidgetByPublicId(c *gin.Context) {
 	widgetPublic := models.ChatWidgetPublic(*widget)
 
 	c.JSON(http.StatusOK, widgetPublic)
+}
+
+// ScrapeWebsiteTheme scrapes a website and generates theme configuration using AI
+func (h *ChatWidgetHandler) ScrapeWebsiteTheme(c *gin.Context) {
+	// Get URL from query parameter
+	url := c.Query("url")
+	if url == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL parameter is required"})
+		return
+	}
+
+	// Scrape website theme data
+	themeData, err := h.webScrapingService.ScrapeWebsiteTheme(c.Request.Context(), url)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scrape website: " + err.Error()})
+		return
+	}
+
+	// Generate theme configuration using AI
+	themeConfig, err := h.aiService.GenerateWidgetTheme(c.Request.Context(), themeData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate theme: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, themeConfig)
 }

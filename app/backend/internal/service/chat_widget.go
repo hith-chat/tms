@@ -118,6 +118,9 @@ func (s *ChatWidgetService) GetChatWidgetById(ctx context.Context, widgetID uuid
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chat widget: %w", err)
 	}
+	if widget == nil {
+		return nil, nil
+	}
 	embedCode := s.generateEmbedCode(widget.ID)
 	widget.EmbedCode = &embedCode
 	return widget, nil
@@ -246,7 +249,7 @@ func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
       widgetId: '%s'
     };
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@taral/web-chat/dist/chat-widget.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/@hith/web-chat/dist/chat-widget.js';
     script.async = true;
     document.head.appendChild(script);
   })();

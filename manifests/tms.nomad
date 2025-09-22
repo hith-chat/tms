@@ -91,6 +91,15 @@ job "tms-backend" {
         "traefik.http.routers.tms-api.middlewares=tms-security-headers,tms-rate-limit,tms-client-ip",
         "traefik.http.routers.tms-api.priority=100",
         "region=falkenstein",
+
+        "traefik.http.routers.tms-api.rule=Host(`api.hith.chat`)",
+        "traefik.http.routers.tms-api.entrypoints=websecure",
+        "traefik.http.routers.tms-api.tls=true",
+        "traefik.http.routers.tms-api.tls.certresolver=letsencrypt",
+        "traefik.http.routers.tms-api.tls.domains[0].main=api.hith.chat",
+        "traefik.http.routers.tms-api.service=tms-backend",
+        "traefik.http.routers.tms-api.middlewares=tms-security-headers,tms-rate-limit,tms-client-ip",
+        "traefik.http.routers.tms-api.priority=100",
         
         # Service configuration with load balancing
         "traefik.http.services.tms-backend.loadbalancer.healthcheck.path=/api/public/health",
@@ -119,7 +128,7 @@ job "tms-backend" {
         
         # TMS-SPECIFIC CORS HEADERS
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH",
-        "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolalloworiginlist=https://tms.bareuptime.co,https://*.bareuptime.co,https://bareuptime.co",
+        "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolalloworiginlist=https://tms.bareuptime.co,https://*.bareuptime.co,https://bareuptime.co,https://hith.chat,https://*.hith.chat,https://localhost:3000",
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolallowheaders=Accept,Authorization,Cache-Control,Content-Type,DNT,If-Modified-Since,Keep-Alive,Origin,User-Agent,X-Requested-With,X-Session-Token",
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolmaxage=86400",
         "traefik.http.middlewares.tms-cors-headers.headers.accesscontrolallowcredentials=true",
@@ -259,7 +268,7 @@ SERVICE_NAME=backend
 SERVICE_ID=backend-{{ env "NOMAD_ALLOC_ID" }}
 SERVER_PORT=8080
 AI_AGENT_SERVICE_URL=http://localhost:5000
-PUBLIC_TICKET_URL="https://taral-tickets.bareuptime.co"
+PUBLIC_TICKET_URL="https://tickets.hith.chat"
 EOH
         destination = "secrets/consul.env"
         env         = true

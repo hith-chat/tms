@@ -1348,6 +1348,14 @@ class APIClient {
     const response: AxiosResponse<any> = await this.client.put(`/agents/${agentId}/notification-preferences`, settings)
     return response.data
   }
+
+  // AI Theme Generation methods
+  async scrapeWebsiteTheme(url: string): Promise<Partial<CreateChatWidgetRequest>> {
+    const response: AxiosResponse<Partial<CreateChatWidgetRequest>> = await this.client.get(
+      `/chat/widgets/scrape-theme?url=${encodeURIComponent(url)}`
+    )
+    return response.data
+  }
 }
 
 export const apiClient = new APIClient()

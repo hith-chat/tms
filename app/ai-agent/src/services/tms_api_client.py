@@ -148,7 +148,7 @@ class TMSApiClient:
         response = {
             "success": result is not None,
             "ticket": result,
-            "message": "A support ticket has been created. Our team will get back to you shortly. **Here is your ticket URL: https://taral-tickets.bareuptime.co/tickets/{} **".format(result.get("id")) if result else "Failed to create ticket."
+            "message": "A support ticket has been created. Our team will get back to you shortly. **Here is your ticket URL: https://tickets.hith.chat/tickets/{} **".format(result.get("id")) if result else "Failed to create ticket."
         }
         logger.info(f"Create ticket response: {response}")
         return result
