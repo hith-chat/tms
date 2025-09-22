@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { 
-  Search, 
-  Settings, 
-  User, 
-  // Mail, 
-  Moon, 
-  Sun, 
+import {
+  Search,
+  Settings,
+  User,
+  // Mail,
+  Moon,
+  Sun,
   Monitor,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +14,7 @@ import {
   Ticket,
   LogOut,
   MessageCircle,
+  Users,
   // Zap,
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
@@ -81,6 +82,7 @@ export function AppShell({ children }: AppShellProps) {
     // { name: 'Inbox', icon: Mail, href: '/inbox' },
     { name: 'Tickets', icon: Ticket, href: '/tickets' },
     { name: 'Chat', icon: MessageCircle, href: '/chat/sessions' },
+    { name: 'Customers', icon: Users, href: '/customers' },
     // { name: 'Analytics', icon: BarChart3, href: '/analytics' },
     // { name: 'Integrations', icon: Zap, href: '/integrations' },
     { name: 'Settings', icon: Settings, href: '/settings' },

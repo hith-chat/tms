@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/bareuptime/tms/internal/middleware"
 	"github.com/bareuptime/tms/internal/service"
@@ -151,4 +152,49 @@ func (h *CustomerHandler) DeleteCustomer(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Customer deleted successfully"})
+}
+
+// ListCustomers handles GET /tenants/:tenant_id/customers
+func (h *CustomerHandler) ListCustomers(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	agentID := middleware.GetAgentID(c)
+
+	// Parse query parameters
+	email := c.Query("email")
+	search := c.Query("search")
+	cursor := c.Query("cursor")
+	limitStr := c.DefaultQuery("limit", "50")
+
+	limit := 50
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
+			limit = parsedLimit
+		}
+	}
+
+	req := service.ListCustomersRequest{
+		Email:  email,
+		Search: search,
+		Cursor: cursor,
+		Limit:  limit,
+	}
+
+	customers, nextCursor, err := h.customerService.ListCustomers(c.Request.Context(), tenantID, agentID, req)
+	if err != nil {
+		if err.Error() == "insufficient permissions" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions to list customers"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list customers"})
+		return
+	}
+
+	response := gin.H{
+		"customers": customers,
+	}
+	if nextCursor != "" {
+		response["next_cursor"] = nextCursor
+	}
+
+	c.JSON(http.StatusOK, response)
 }

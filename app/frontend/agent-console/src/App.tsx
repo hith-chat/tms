@@ -21,6 +21,7 @@ import { IntegrationsPage } from './pages/IntegrationsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ChatPage } from './pages/ChatPage'
+import { CustomersPage } from './pages/CustomersPage'
 import './index.css'
 
 // Configure React Query client
@@ -73,6 +74,7 @@ function AppContent() {
                 <Route path="/inbox/mailboxes/create" element={<CreateEmailMailboxPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/tickets/:id" element={<TicketDetailPage />} />
+                <Route path="/customers" element={<CustomersPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/integrations" element={<IntegrationsPage />} />

@@ -430,6 +430,28 @@ export interface AgentProject {
   role: string
 }
 
+export interface Customer {
+  id: string
+  tenant_id: string
+  email: string
+  name: string
+  metadata?: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomersResponse {
+  customers: Customer[]
+  next_cursor?: string
+}
+
+export interface CustomerFilters {
+  email?: string
+  search?: string
+  cursor?: string
+  limit?: number
+}
+
 export interface Integration {
   id: string
   name: string
@@ -523,7 +545,8 @@ class APIClient {
         // Tenant-level endpoints: /tenants/{tenant_id}/* (projects, agents, api-keys at tenant level)
         else if ((
           config.url.startsWith('/projects') || 
-          config.url.startsWith('/agents')
+          config.url.startsWith('/agents') ||
+          config.url.startsWith('/customers')
         ) && !config.url.includes('/tenants/')) {
           config.url = `/tenants/${tenantId}${config.url}`
         }
@@ -780,6 +803,21 @@ class APIClient {
 
   async removeAgentFromProject(agentId: string, projectId: string): Promise<void> {
     await this.client.delete(`/agents/${agentId}/projects/${projectId}`)
+  }
+
+  // Customer endpoints (tenant-scoped)
+  async getCustomers(filters?: CustomerFilters): Promise<CustomersResponse> {
+    const params = new URLSearchParams()
+    if (filters?.email) params.append('email', filters.email)
+    if (filters?.search) params.append('search', filters.search)
+    if (filters?.cursor) params.append('cursor', filters.cursor)
+    if (filters?.limit) params.append('limit', filters.limit.toString())
+
+    const queryString = params.toString()
+    const response: AxiosResponse<CustomersResponse> = await this.client.get(
+      `/customers${queryString ? `?${queryString}` : ''}`
+    )
+    return response.data
   }
 
   // Ticket endpoints

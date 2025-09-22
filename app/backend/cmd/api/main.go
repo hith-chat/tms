@@ -381,6 +381,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		// Customer management (tenant-level)
 		{
+			api.GET("/customers", middleware.AuthMiddleware(jwtAuth), customerHandler.ListCustomers)
 			api.POST("/customers", middleware.TenantAdminMiddleware(), customerHandler.CreateCustomer)
 			api.PUT("/customers/:customer_id", middleware.TenantAdminMiddleware(), customerHandler.UpdateCustomer)
 			// Deletion should be protected by appropriate middleware/permissions; service will also enforce RBAC
