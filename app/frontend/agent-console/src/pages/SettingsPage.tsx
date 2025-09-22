@@ -120,7 +120,7 @@ export function SettingsPage() {
     { id: 'roles' as SettingsTab, name: 'Roles & Users', icon: Users },
     // { id: 'domains' as SettingsTab, name: 'Domain Validation', icon: Mail },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
-    { id: 'credits' as SettingsTab, name: 'AI Messages', icon: CreditCard },
+    { id: 'credits' as SettingsTab, name: 'Manage Credits', icon: CreditCard },
     // { id: 'alerts' as SettingsTab, name: 'Alert Settings', icon: Bell },
     // { id: 'automations' as SettingsTab, name: 'Automations', icon: Zap },
     { id: 'api-keys' as SettingsTab, name: 'API Keys', icon: Key },
