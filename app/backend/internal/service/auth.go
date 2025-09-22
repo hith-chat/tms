@@ -22,7 +22,7 @@ type AuthService struct {
 	rbacService   *rbac.Service
 	authService   *auth.Service
 	redisService  *redis.Service
-	resendService *ResendService
+	emailProvider EmailProvider
 	featureFlags  *FeatureFlags
 	domainRepo    *repo.DomainValidationRepo
 	tenantRepo    repo.TenantRepository
@@ -35,13 +35,13 @@ type FeatureFlags struct {
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(agentRepo repo.AgentRepository, rbacService *rbac.Service, authService *auth.Service, redisService *redis.Service, resendService *ResendService, featureFlags *FeatureFlags, tenantRepo repo.TenantRepository, domainRepo *repo.DomainValidationRepo, projectRepo repo.ProjectRepository) *AuthService {
+func NewAuthService(agentRepo repo.AgentRepository, rbacService *rbac.Service, authService *auth.Service, redisService *redis.Service, emailProvider EmailProvider, featureFlags *FeatureFlags, tenantRepo repo.TenantRepository, domainRepo *repo.DomainValidationRepo, projectRepo repo.ProjectRepository) *AuthService {
 	return &AuthService{
 		agentRepo:     agentRepo,
 		rbacService:   rbacService,
 		authService:   authService,
 		redisService:  redisService,
-		resendService: resendService,
+		emailProvider: emailProvider,
 		featureFlags:  featureFlags,
 		tenantRepo:    tenantRepo,
 		domainRepo:    domainRepo,
@@ -603,7 +603,7 @@ func (s *AuthService) SignUp(ctx context.Context, req SignUpRequest) error {
 	}
 
 	// Send verification email
-	err = s.resendService.SendSignupVerificationEmail(ctx, req.Email, otp)
+	err = s.emailProvider.SendSignupVerificationEmail(ctx, req.Email, otp)
 	if err != nil {
 		// Clean up on email failure
 		s.redisService.DeleteOTP(ctx, otpKey)
@@ -775,7 +775,7 @@ func (s *AuthService) ResendSignupOTP(ctx context.Context, req ResendSignupOTPRe
 	}
 
 	// Send verification email
-	err = s.resendService.SendSignupVerificationEmail(ctx, req.Email, otp)
+	err = s.emailProvider.SendSignupVerificationEmail(ctx, req.Email, otp)
 	if err != nil {
 		s.redisService.DeleteOTP(ctx, otpKey)
 		return fmt.Errorf("failed to send verification email: %w", err)

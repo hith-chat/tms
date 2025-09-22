@@ -24,6 +24,7 @@ type Config struct {
 	AI            AIConfig            `mapstructure:"ai"`
 	Knowledge     KnowledgeConfig     `mapstructure:"knowledge"`
 	Resend        ResendConfig        `mapstructure:"resend"`
+	Maileroo      MailerooConfig      `mapstructure:"maileroo"`
 	Payment       PaymentConfig       `mapstructure:"payment"`
 }
 
@@ -124,10 +125,20 @@ type AgenticConfig struct {
 type ResendConfig struct {
 	APIKey    string `mapstructure:"api_key"`
 	FromEmail string `mapstructure:"from_email"`
+	FromName  string `mapstructure:"from_name"`
+}
+
+// MailerooConfig represents Maileroo email service configuration
+type MailerooConfig struct {
+	APIKey         string `mapstructure:"api_key"`
+	FromEmail      string `mapstructure:"from_email"`
+	FromName       string `mapstructure:"from_name"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
 // EmailConfig represents email subsystem configuration
 type EmailConfig struct {
+	Provider                   string        `mapstructure:"provider"`
 	DefaultIMAPPollingInterval time.Duration `mapstructure:"default_imap_polling_interval"`
 	MaxAttachmentSize          int64         `mapstructure:"max_attachment_size"`
 	EnableEmailToTicket        bool          `mapstructure:"enable_email_to_ticket"`
@@ -258,10 +269,19 @@ func Load() (*Config, error) {
 	viper.BindEnv("knowledge.scrape_timeout", "KNOWLEDGE_SCRAPE_TIMEOUT")
 	viper.BindEnv("knowledge.embedding_timeout", "KNOWLEDGE_EMBEDDING_TIMEOUT")
 
+	// Email subsystem bindings
+	viper.BindEnv("email.provider", "EMAIL_PROVIDER")
+
 	// Resend configuration bindings
 	viper.BindEnv("resend.api_key", "RESEND_API_KEY")
 	viper.BindEnv("resend.from_email", "EMAIL_FROM_ADDRESS")
 	viper.BindEnv("resend.from_name", "EMAIL_FROM_NAME")
+
+	// Maileroo configuration bindings
+	viper.BindEnv("maileroo.api_key", "MAILEROO_API_KEY")
+	viper.BindEnv("maileroo.from_email", "EMAIL_FROM_ADDRESS")
+	viper.BindEnv("maileroo.from_name", "EMAIL_FROM_NAME")
+	viper.BindEnv("maileroo.timeout_seconds", "MAILEROO_TIMEOUT_SECONDS")
 
 	// CORS configuration bindings
 	viper.BindEnv("cors.allowed_origins", "CORS_ORIGINS")
@@ -341,6 +361,10 @@ func setDefaults() {
 	viper.SetDefault("smtp.username", "")
 	viper.SetDefault("smtp.password", "")
 	viper.SetDefault("smtp.from", "noreply@example.com")
+
+	// Email provider defaults
+	viper.SetDefault("email.provider", "resend")
+	viper.SetDefault("maileroo.timeout_seconds", 30)
 
 	// JWT defaults
 	viper.SetDefault("jwt.secret", "your-secret-key")
