@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,8 +18,8 @@ import (
 
 type KnowledgeHandler struct {
 	documentProcessor *service.DocumentProcessorService
-	webScraper       *service.WebScrapingService
-	knowledgeService *service.KnowledgeService
+	webScraper        *service.WebScrapingService
+	knowledgeService  *service.KnowledgeService
 }
 
 func NewKnowledgeHandler(
@@ -25,8 +29,8 @@ func NewKnowledgeHandler(
 ) *KnowledgeHandler {
 	return &KnowledgeHandler{
 		documentProcessor: documentProcessor,
-		webScraper:       webScraper,
-		knowledgeService: knowledgeService,
+		webScraper:        webScraper,
+		knowledgeService:  knowledgeService,
 	}
 }
 
@@ -155,6 +159,61 @@ func (h *KnowledgeHandler) CreateScrapingJob(c *gin.Context) {
 	c.JSON(http.StatusCreated, job)
 }
 
+// CreateScrapingJobWithStream creates a new web scraping job and streams progress
+func (h *KnowledgeHandler) CreateScrapingJobWithStream(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+
+	var req models.CreateScrapingJobRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Set default max depth if not specified
+	if req.MaxDepth == 0 {
+		req.MaxDepth = 1
+	}
+
+	events := make(chan service.ScrapingEvent)
+	ctx := c.Request.Context()
+
+	// Create scraping job with streaming
+	job, err := h.webScraper.CreateScrapingJobWithStream(ctx, tenantID, projectID, &req, events)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Set headers for SSE
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Flush()
+
+	// First send the job creation response
+	if _, err := fmt.Fprintf(c.Writer, "event: job_created\ndata: %s\n\n", toJSON(job)); err != nil {
+		return
+	}
+	c.Writer.Flush()
+
+	// Stream scraping progress
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, toJSON(event)); err != nil {
+				return false
+			}
+			return true
+		}
+	})
+}
+
 // ListScrapingJobs returns a list of scraping jobs
 func (h *KnowledgeHandler) ListScrapingJobs(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
@@ -190,8 +249,14 @@ func (h *KnowledgeHandler) ListScrapingJobs(c *gin.Context) {
 	})
 }
 
+/*
+// getJobId is not needed, so it is removed.
+*/
+
 // GetScrapingJob returns a specific scraping job
 func (h *KnowledgeHandler) GetScrapingJob(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
 	jobIDStr := c.Param("job_id")
 	jobID, err := uuid.Parse(jobIDStr)
 	if err != nil {
@@ -200,7 +265,7 @@ func (h *KnowledgeHandler) GetScrapingJob(c *gin.Context) {
 	}
 
 	// Get scraping job
-	job, err := h.webScraper.GetScrapingJob(c.Request.Context(), jobID)
+	job, err := h.webScraper.GetScrapingJob(c.Request.Context(), jobID, tenantID, projectID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Scraping job not found"})
 		return
@@ -211,6 +276,8 @@ func (h *KnowledgeHandler) GetScrapingJob(c *gin.Context) {
 
 // GetJobPages returns pages scraped by a job
 func (h *KnowledgeHandler) GetJobPages(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
 	jobIDStr := c.Param("job_id")
 	jobID, err := uuid.Parse(jobIDStr)
 	if err != nil {
@@ -219,13 +286,138 @@ func (h *KnowledgeHandler) GetJobPages(c *gin.Context) {
 	}
 
 	// Get pages
-	pages, err := h.webScraper.GetJobPages(c.Request.Context(), jobID)
+	pages, err := h.webScraper.GetJobPages(c.Request.Context(), jobID, tenantID, projectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scraped pages"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"pages": pages})
+}
+
+// GetScrapingJobLinks returns staged links awaiting user confirmation
+func (h *KnowledgeHandler) GetScrapingJobLinks(c *gin.Context) {
+	projectID := middleware.GetProjectID(c)
+	tenantID := middleware.GetTenantID(c)
+	jobIDStr := c.Param("job_id")
+	jobID, err := uuid.Parse(jobIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		return
+	}
+
+	links, err := h.webScraper.GetStagedLinks(c.Request.Context(), jobID, tenantID, projectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"links":                links,
+		"max_selectable_links": service.MaxSelectableLinks,
+	})
+}
+
+// SelectScrapingJobLinks stores the subset of links that should be indexed
+func (h *KnowledgeHandler) SelectScrapingJobLinks(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+	jobIDStr := c.Param("job_id")
+	jobID, err := uuid.Parse(jobIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		return
+	}
+
+	job, err := h.webScraper.GetScrapingJob(c.Request.Context(), jobID, tenantID, projectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Scraping job not found"})
+		return
+	}
+
+	if job.ProjectID != projectID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access to this scraping job is not allowed"})
+		return
+	}
+
+	var req models.SelectScrapingLinksRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.webScraper.StoreLinkSelection(c.Request.Context(), jobID, tenantID, projectID, req.URLs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updatedJob, jobErr := h.webScraper.GetScrapingJob(c.Request.Context(), jobID, tenantID, projectID)
+	selectedCount := len(req.URLs)
+	if jobErr == nil {
+		selectedCount = len(updatedJob.SelectedLinks)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"selected_count":       selectedCount,
+		"message":              "Link selection saved",
+		"max_selectable_links": service.MaxSelectableLinks,
+	})
+}
+
+// StreamScrapingJobIndex streams indexing progress using server-sent events
+func (h *KnowledgeHandler) StreamScrapingJobIndex(c *gin.Context) {
+	projectID := middleware.GetProjectID(c)
+	tenantID := middleware.GetTenantID(c)
+	jobIDStr := c.Param("job_id")
+	jobID, err := uuid.Parse(jobIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		return
+	}
+
+	job, err := h.webScraper.GetScrapingJob(c.Request.Context(), jobID, tenantID, projectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Scraping job not found"})
+		return
+	}
+
+	if job.ProjectID != projectID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access to this scraping job is not allowed"})
+		return
+	}
+
+	events := make(chan service.IndexingEvent)
+	ctx := c.Request.Context()
+
+	go func() {
+		defer close(events)
+		if err := h.webScraper.StreamIndexing(ctx, jobID, tenantID, projectID, events); err != nil {
+			select {
+			case <-ctx.Done():
+			case events <- service.IndexingEvent{Type: "error", Message: err.Error(), Timestamp: time.Now()}:
+			}
+		}
+	}()
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Flush()
+
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, toJSON(event)); err != nil {
+				return false
+			}
+			return true
+		}
+	})
 }
 
 // Knowledge search endpoints
@@ -358,4 +550,13 @@ func (h *KnowledgeHandler) GetKnowledgeStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// toJSON helper function for SSE data formatting
+func toJSON(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
 }

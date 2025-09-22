@@ -204,14 +204,38 @@ export interface KnowledgeScrapingJob {
   project_id: string
   url: string
   max_depth: number
-  status: 'pending' | 'running' | 'completed' | 'error'
+  status: 'pending' | 'running' | 'awaiting_selection' | 'indexing' | 'completed' | 'failed' | 'cancelled'
   pages_scraped: number
   total_pages: number
   error_message?: string
   started_at?: string
   completed_at?: string
+  staging_file_path?: string
+  selected_links: string[]
+  indexing_started_at?: string
+  indexing_completed_at?: string
   created_at: string
   updated_at: string
+}
+
+export interface ScrapedLinkPreview {
+  url: string
+  title?: string
+  depth: number
+  token_count: number
+  content_preview?: string
+  selected: boolean
+}
+
+export interface ScrapingJobLinksResponse {
+  links: ScrapedLinkPreview[]
+  maxSelectableLinks: number
+}
+
+export interface SelectScrapingLinksResponse {
+  selected_count: number
+  message: string
+  maxSelectableLinks: number
 }
 
 export interface CreateScrapingJobRequest {
@@ -1312,11 +1336,55 @@ class APIClient {
     return response.data
   }
 
+  getScrapingJobStreamUrl(): string {
+    const tenantId = localStorage.getItem('tenant_id') || this.tenantId
+    const projectId = localStorage.getItem('project_id') || this.projectId
+    if (!tenantId || !projectId) {
+      throw new Error('Tenant and project must be selected before streaming scraping progress')
+    }
+    const baseUrl = this.client.defaults.baseURL || API_BASE_URL
+    return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/knowledge/scrape/stream`
+  }
+
   async getScrapingJobs(_projectId: string): Promise<KnowledgeScrapingJob[]> {
     const response: AxiosResponse<{ jobs: KnowledgeScrapingJob[] }> = await this.client.get(
       `/knowledge/scraping-jobs`
     )
     return response.data.jobs
+  }
+
+  async getScrapingJobLinks(jobId: string): Promise<ScrapingJobLinksResponse> {
+    const response: AxiosResponse<{ links: ScrapedLinkPreview[]; max_selectable_links?: number }> = await this.client.get(
+      `/knowledge/scraping-jobs/${jobId}/links`
+    )
+    return {
+      links: response.data.links || [],
+      maxSelectableLinks: response.data.max_selectable_links ?? 10,
+    }
+  }
+
+  async selectScrapingJobLinks(jobId: string, urls: string[]): Promise<SelectScrapingLinksResponse> {
+    const response: AxiosResponse<{ selected_count: number; message: string; max_selectable_links?: number }> = await this.client.post(
+      `/knowledge/scraping-jobs/${jobId}/select-links`,
+      { urls }
+    )
+    return {
+      selected_count: response.data.selected_count,
+      message: response.data.message,
+      maxSelectableLinks: response.data.max_selectable_links ?? 10,
+    }
+  }
+
+  getScrapingJobIndexStreamUrl(jobId: string): string {
+    const tenantId = localStorage.getItem('tenant_id') || this.tenantId
+    const projectId = localStorage.getItem('project_id') || this.projectId
+
+    if (!tenantId || !projectId) {
+      throw new Error('Tenant and project must be selected before streaming indexing progress')
+    }
+
+    const baseUrl = this.client.defaults.baseURL || API_BASE_URL
+    return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/knowledge/scraping-jobs/${jobId}/index/stream`
   }
 
   async searchKnowledge(_projectId: string, query: string): Promise<KnowledgeSearchResult> {

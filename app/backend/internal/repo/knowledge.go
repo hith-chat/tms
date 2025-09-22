@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/pgvector/pgvector-go"
 
 	"github.com/bareuptime/tms/internal/models"
@@ -189,11 +190,11 @@ func (r *KnowledgeRepository) CreateScrapingJob(job *models.KnowledgeScrapingJob
 	return err
 }
 
-func (r *KnowledgeRepository) GetScrapingJob(id uuid.UUID) (*models.KnowledgeScrapingJob, error) {
+func (r *KnowledgeRepository) GetScrapingJob(id, tenantID, projectID uuid.UUID) (*models.KnowledgeScrapingJob, error) {
 	var job models.KnowledgeScrapingJob
-	query := `SELECT * FROM knowledge_scraping_jobs WHERE id = $1`
+	query := `SELECT * FROM knowledge_scraping_jobs WHERE id = $1 aND tenant_id = $2 AND project_id = $3`
 
-	err := r.db.Get(&job, query, id)
+	err := r.db.Get(&job, query, id, tenantID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -245,11 +246,71 @@ func (r *KnowledgeRepository) StartScrapingJob(id uuid.UUID) error {
 
 func (r *KnowledgeRepository) CompleteScrapingJob(id uuid.UUID) error {
 	query := `
-		UPDATE knowledge_scraping_jobs 
-		SET status = 'completed', completed_at = NOW(), updated_at = NOW()
-		WHERE id = $1`
+        UPDATE knowledge_scraping_jobs 
+        SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+        WHERE id = $1`
 
 	_, err := r.db.Exec(query, id)
+	return err
+}
+
+// MarkJobAwaitingSelection stores the staging file and moves the job into the selection phase
+func (r *KnowledgeRepository) MarkJobAwaitingSelection(id uuid.UUID, totalPages int, stagingFilePath string) error {
+	query := `
+        UPDATE knowledge_scraping_jobs
+        SET status = 'awaiting_selection',
+            pages_scraped = $2,
+            total_pages = $2,
+            staging_file_path = $3,
+            selected_links = '{}'::text[],
+            indexing_started_at = NULL,
+            indexing_completed_at = NULL,
+            completed_at = NULL,
+            updated_at = NOW()
+        WHERE id = $1`
+
+	_, err := r.db.Exec(query, id, totalPages, stagingFilePath)
+	return err
+}
+
+// StartIndexingJob records the selected links and marks the indexing phase as started
+func (r *KnowledgeRepository) StartIndexingJob(id uuid.UUID, selectedLinks []string) error {
+	query := `
+        UPDATE knowledge_scraping_jobs
+        SET status = 'indexing',
+            selected_links = $2,
+            indexing_started_at = NOW(),
+            indexing_completed_at = NULL,
+            updated_at = NOW()
+        WHERE id = $1`
+
+	_, err := r.db.Exec(query, id, pq.Array(selectedLinks))
+	return err
+}
+
+// CompleteIndexingJob finalises the job and sets completion timestamps
+func (r *KnowledgeRepository) CompleteIndexingJob(id uuid.UUID) error {
+	query := `
+        UPDATE knowledge_scraping_jobs
+        SET status = 'completed',
+            indexing_completed_at = NOW(),
+            completed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $1`
+
+	_, err := r.db.Exec(query, id)
+	return err
+}
+
+// SaveSelectedLinks stores the set of links chosen by the user without altering job status
+func (r *KnowledgeRepository) SaveSelectedLinks(id uuid.UUID, selectedLinks []string) error {
+	query := `
+        UPDATE knowledge_scraping_jobs
+        SET selected_links = $2,
+            updated_at = NOW()
+        WHERE id = $1`
+
+	_, err := r.db.Exec(query, id, pq.Array(selectedLinks))
 	return err
 }
 
@@ -282,8 +343,8 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 	// First, get the project_id from the job
 	if len(pages) > 0 {
 		var projectID uuid.UUID
-		err := tx.Get(&projectID, 
-			"SELECT project_id FROM knowledge_scraping_jobs WHERE id = $1", 
+		err := tx.Get(&projectID,
+			"SELECT project_id FROM knowledge_scraping_jobs WHERE id = $1",
 			pages[0].JobID)
 		if err != nil {
 			return fmt.Errorf("failed to get project_id: %w", err)
@@ -291,11 +352,11 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 
 		// Get existing URLs and their content hashes for this project
 		type ExistingPage struct {
-			URL         string  `db:"url"`
-			ContentHash *string `db:"content_hash"`
+			URL         string    `db:"url"`
+			ContentHash *string   `db:"content_hash"`
 			ID          uuid.UUID `db:"id"`
 		}
-		
+
 		var existingPages []ExistingPage
 		err = tx.Select(&existingPages, `
 			SELECT DISTINCT ksp.id, ksp.url, ksp.content_hash
@@ -317,19 +378,19 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 		var updatedPages []*models.KnowledgeScrapedPage
 		duplicateCount := 0
 		updatedCount := 0
-		
+
 		for _, page := range pages {
 			existing, urlExists := existingURLs[page.URL]
-			
+
 			if !urlExists {
 				// Completely new URL - needs embedding
 				newPages = append(newPages, page)
 				// Mark that this page needs an embedding by keeping embedding nil
 				page.Embedding = nil
-			} else if existing.ContentHash != nil && page.ContentHash != nil && 
+			} else if existing.ContentHash != nil && page.ContentHash != nil &&
 				*existing.ContentHash != *page.ContentHash {
 				// URL exists but content changed - this is an update, needs new embedding
-				page.ID = existing.ID  // Keep same ID for update
+				page.ID = existing.ID // Keep same ID for update
 				updatedPages = append(updatedPages, page)
 				updatedCount++
 				// Mark that this page needs an embedding by keeping embedding nil
@@ -338,12 +399,12 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 				// Same URL and same content - skip, no embedding needed
 				duplicateCount++
 				// Mark that this page does NOT need an embedding
-				page.ID = existing.ID  // Set the existing ID
+				page.ID = existing.ID               // Set the existing ID
 				page.Embedding = &pgvector.Vector{} // Dummy value to indicate no embedding needed
 			}
 		}
-		
-		fmt.Printf("Analysis: %d new pages, %d updated pages, %d duplicates skipped\n", 
+
+		fmt.Printf("Analysis: %d new pages, %d updated pages, %d duplicates skipped\n",
 			len(newPages), len(updatedPages), duplicateCount)
 
 		// Insert new pages
@@ -354,7 +415,7 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 				) VALUES (
 					:id, :job_id, :url, :title, :content, :content_hash, :token_count, :embedding, :metadata
 				)`
-			
+
 			for _, page := range newPages {
 				_, err := tx.NamedExec(insertQuery, page)
 				if err != nil {
@@ -371,7 +432,7 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 				    token_count = :token_count, embedding = :embedding, 
 				    metadata = :metadata, scraped_at = NOW()
 				WHERE id = :id`
-			
+
 			for _, page := range updatedPages {
 				_, err := tx.NamedExec(updateQuery, page)
 				if err != nil {
@@ -380,7 +441,7 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 			}
 		}
 
-		fmt.Printf("Successfully processed: %d inserted, %d updated, %d skipped\n", 
+		fmt.Printf("Successfully processed: %d inserted, %d updated, %d skipped\n",
 			len(newPages), len(updatedPages), duplicateCount)
 	}
 
@@ -400,7 +461,7 @@ func (r *KnowledgeRepository) UpdatePageEmbeddings(pages []*models.KnowledgeScra
 	defer tx.Rollback()
 
 	updateQuery := `UPDATE knowledge_scraped_pages SET embedding = $2 WHERE id = $1`
-	
+
 	for _, page := range pages {
 		if page.Embedding != nil && page.ID != uuid.Nil {
 			_, err := tx.Exec(updateQuery, page.ID, page.Embedding)
@@ -413,14 +474,14 @@ func (r *KnowledgeRepository) UpdatePageEmbeddings(pages []*models.KnowledgeScra
 	return tx.Commit()
 }
 
-func (r *KnowledgeRepository) GetJobPages(jobID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
+func (r *KnowledgeRepository) GetJobPages(jobID, tenantID, projectID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
 	var pages []*models.KnowledgeScrapedPage
 	query := `
 		SELECT * FROM knowledge_scraped_pages 
-		WHERE job_id = $1 
+		WHERE job_id = $1 and tenant_id = $2 and project_id = $3
 		ORDER BY scraped_at`
 
-	err := r.db.Select(&pages, query, jobID)
+	err := r.db.Select(&pages, query, jobID, tenantID, projectID)
 	return pages, err
 }
 
