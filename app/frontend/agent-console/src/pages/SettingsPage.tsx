@@ -1176,7 +1176,7 @@ export function SettingsPage() {
         </div>
 
         {/* Logo and Color Scheme Combined */}
-        <div className="border rounded-lg p-6 bg-card">
+        <div className="border rounded-lg p-6 bg-card hidden">
           <h4 className="font-medium mb-4">Visual Identity</h4>
           <div className="grid grid-cols-2 gap-6">
             {/* Left side - Logo */}
