@@ -36,6 +36,7 @@ type CreditTransaction struct {
 const (
 	TransactionTypePayment    = "payment"
 	TransactionTypeUsage      = "usage"
+	TransactionTypeAIUsage    = "ai_usage"
 	TransactionTypeRefund     = "refund"
 	TransactionTypeBonus      = "bonus"
 	TransactionTypeAdjustment = "adjustment"
@@ -46,65 +47,6 @@ const (
 	PaymentGatewayStripe   = "stripe"
 	PaymentGatewayCashfree = "cashfree"
 )
-
-// AddCredits adds credits to the tenant account and creates a transaction record
-func (c *Credits) AddCredits(amount int64, transactionType, paymentGateway, paymentEventID, description string) *CreditTransaction {
-	// Update totals and balance
-	c.TotalEarned += amount
-	c.Balance += amount
-	now := time.Now()
-	c.LastTransactionAt = &now
-	c.UpdatedAt = now
-
-	// Create transaction record
-	transaction := &CreditTransaction{
-		TenantID:        c.TenantID,
-		Amount:          amount,
-		TransactionType: transactionType,
-		PaymentGateway:  &paymentGateway,
-		PaymentEventID:  &paymentEventID,
-		BalanceBefore:   c.Balance - amount,
-		BalanceAfter:    c.Balance,
-		CreatedAt:       now,
-	}
-
-	if description != "" {
-		transaction.Description = &description
-	}
-
-	return transaction
-}
-
-// DeductCredits deducts credits from the tenant account and creates a transaction record
-func (c *Credits) DeductCredits(amount int64, transactionType, description string) *CreditTransaction {
-	// Update totals and balance
-	c.TotalSpent += amount
-	c.Balance -= amount
-	now := time.Now()
-	c.LastTransactionAt = &now
-	c.UpdatedAt = now
-
-	// Create transaction record
-	transaction := &CreditTransaction{
-		TenantID:        c.TenantID,
-		Amount:          -amount, // Negative for deduction
-		TransactionType: transactionType,
-		BalanceBefore:   c.Balance + amount,
-		BalanceAfter:    c.Balance,
-		CreatedAt:       now,
-	}
-
-	if description != "" {
-		transaction.Description = &description
-	}
-
-	return transaction
-}
-
-// HasSufficientCredits checks if the tenant has enough credits for a transaction
-func (c *Credits) HasSufficientCredits(amount int64) bool {
-	return c.Balance >= amount
-}
 
 // CalculateCreditsFromPayment calculates credits based on payment amount
 // Default rate: $1 (100 cents) = 100 credits

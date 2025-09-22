@@ -21,7 +21,8 @@ class TMSApiClient:
         self.base_url = config.TMS_API_BASE_URL
         self.timeout = 30.0
         self.response_cache = TTLCache(maxsize=1024, ttl=self._TOKEN_TTL_SECONDS)
-    
+        self.agent_secret = config.AI_AGENT_LOGIN_ACCESS_KEY
+
     async def _make_request(
         self,
         method: str,
@@ -30,7 +31,8 @@ class TMSApiClient:
         project_id: str,
         data: Optional[Dict] = None,
         params: Optional[Dict] = None,
-        retry_auth: bool = True
+        retry_auth: bool = True,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> Optional[Dict]:
         """
         Make authenticated request to Hith API.
@@ -56,7 +58,10 @@ class TMSApiClient:
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
-        
+
+        if extra_headers:
+            headers.update(extra_headers)
+
         url = f"{self.base_url}{endpoint}"
         
         try:
@@ -152,6 +157,51 @@ class TMSApiClient:
         }
         logger.info(f"Create ticket response: {response}")
         return result
+
+    async def deduct_ai_usage(
+        self,
+        tenant_id: str,
+        project_id: str,
+        model: str,
+        usage: Dict[str, int],
+        session_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Report AI token usage to the Go service for credit deduction."""
+
+        endpoint = f"/v1/tenants/{tenant_id}/projects/{project_id}/ai/usage/deduct"
+
+        payload: Dict[str, Any] = {
+            "model": model,
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "session_id": session_id,
+            "request_id": request_id,
+        }
+
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        headers = {}
+        if self.agent_secret:
+            headers["X-S2S-KEY"] = self.agent_secret
+
+        logger.info(
+            "Reporting AI usage: tenant=%s project=%s model=%s usage=%s",
+            tenant_id,
+            project_id,
+            model,
+            payload,
+        )
+
+        return await self._make_request(
+            "POST",
+            endpoint,
+            tenant_id,
+            project_id,
+            data=payload,
+            extra_headers=headers,
+        )
     
     
     async def escalate_session(

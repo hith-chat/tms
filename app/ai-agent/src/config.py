@@ -18,6 +18,7 @@ class Config:
     
     # Hith API Configuration
     TMS_API_BASE_URL: str = os.getenv("TMS_API_BASE_URL", "https://api.hith.chat")
+    AI_AGENT_LOGIN_ACCESS_KEY: str = os.getenv("AI_AGENT_LOGIN_ACCESS_KEY", "")
     
     # Application Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")

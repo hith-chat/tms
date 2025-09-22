@@ -1,5 +1,6 @@
 """Agent service using latest OpenAI Agents SDK (openai-agents package)."""
 
+import asyncio
 import json
 import logging
 from typing import Dict, List, Any, Optional, AsyncGenerator
@@ -498,6 +499,27 @@ Your approach:
                 print(f"Agent response: {result.final_output}")
                 agent_session.history.append({"role": "assistant", "content": str(result.final_output or "")})
 
+                usage_metrics = None
+                try:
+                    usage_metrics = self._extract_usage_metrics(result)
+                    logger.debug("Extracted usage metrics: %s", usage_metrics)
+                except Exception as usage_error:
+                    logger.error("Failed to extract usage metrics: %s", usage_error)
+
+                if usage_metrics and tenant_id and project_id:
+                    model_name = self._determine_model_name(result)
+                    request_identifier = self._determine_request_id(result)
+                    asyncio.create_task(
+                        self._report_usage(
+                            tenant_id=tenant_id,
+                            project_id=project_id,
+                            session_id=session_id,
+                            model=model_name,
+                            usage=usage_metrics,
+                            request_id=request_identifier,
+                        )
+                    )
+
 
                 # Stream out in chunks (for SSE)
                 yield {
@@ -545,3 +567,169 @@ Your approach:
             # Clean up context
             if hasattr(self, '_current_session_id'):
                 delattr(self, '_current_session_id')
+
+    async def _report_usage(
+        self,
+        tenant_id: str,
+        project_id: str,
+        session_id: str,
+        model: str,
+        usage: Dict[str, int],
+        request_id: Optional[str] = None,
+    ) -> None:
+        """Send usage metrics to the Go service for credit deduction."""
+        try:
+            await self.api_client.deduct_ai_usage(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                model=model or "unknown",
+                usage=usage,
+                session_id=session_id,
+                request_id=request_id,
+            )
+        except Exception as error:
+            logger.exception(
+                "Failed to report AI usage for session %s: %s",
+                session_id,
+                error,
+            )
+
+    def _extract_usage_metrics(self, result: Any) -> Optional[Dict[str, int]]:
+        """Extract usage metrics from the agent result object."""
+        candidates: List[Any] = []
+
+        for attr in ("usage", "token_usage"):
+            value = getattr(result, attr, None)
+            if value:
+                candidates.append(value)
+
+        run_obj = getattr(result, "run", None)
+        if run_obj:
+            for attr in ("usage", "token_usage"):
+                value = getattr(run_obj, attr, None)
+                if value:
+                    candidates.append(value)
+            if isinstance(run_obj, dict):
+                for key in ("usage", "token_usage"):
+                    value = run_obj.get(key)
+                    if value:
+                        candidates.append(value)
+
+        metrics_attr = getattr(result, "metrics", None)
+        if metrics_attr:
+            if isinstance(metrics_attr, dict):
+                for key in ("usage", "token_usage"):
+                    value = metrics_attr.get(key)
+                    if value:
+                        candidates.append(value)
+            else:
+                for attr in ("usage", "token_usage"):
+                    value = getattr(metrics_attr, attr, None)
+                    if value:
+                        candidates.append(value)
+
+        steps = getattr(result, "steps", None)
+        if isinstance(steps, list):
+            for step in steps:
+                if isinstance(step, dict):
+                    for key in ("usage", "token_usage"):
+                        value = step.get(key)
+                        if value:
+                            candidates.append(value)
+                else:
+                    for attr in ("usage", "token_usage"):
+                        value = getattr(step, attr, None)
+                        if value:
+                            candidates.append(value)
+
+        for candidate in candidates:
+            parsed = self._normalise_usage_dict(candidate)
+            if parsed:
+                return parsed
+
+        return None
+
+    def _normalise_usage_dict(self, candidate: Any) -> Optional[Dict[str, int]]:
+        if candidate is None:
+            return None
+
+        data = candidate
+        if hasattr(data, "model_dump"):
+            data = data.model_dump()
+        elif hasattr(data, "dict") and callable(getattr(data, "dict")):
+            try:
+                data = data.dict()
+            except TypeError:
+                data = data.dict
+        elif not isinstance(data, dict) and hasattr(data, "__dict__"):
+            data = data.__dict__
+
+        if not isinstance(data, dict):
+            return None
+
+        prompt = self._safe_int(data.get("prompt_tokens") or data.get("input_tokens"))
+        completion = self._safe_int(data.get("completion_tokens") or data.get("output_tokens"))
+        total_value = data.get("total_tokens")
+        total = self._safe_int(total_value) if total_value is not None else prompt + completion
+
+        if total <= 0:
+            total = prompt + completion
+
+        if total <= 0:
+            return None
+
+        return {
+            "prompt_tokens": prompt,
+            "completion_tokens": completion,
+            "total_tokens": total,
+        }
+
+    def _determine_model_name(self, result: Any) -> str:
+        for attr in ("model", "agent_model", "selected_model"):
+            value = getattr(result, attr, None)
+            if isinstance(value, str) and value:
+                return value
+
+        run_obj = getattr(result, "run", None)
+        if run_obj:
+            for attr in ("model", "agent_model", "selected_model"):
+                value = getattr(run_obj, attr, None)
+                if isinstance(value, str) and value:
+                    return value
+            if isinstance(run_obj, dict):
+                for key in ("model", "agent_model", "selected_model"):
+                    value = run_obj.get(key)
+                    if isinstance(value, str) and value:
+                        return value
+
+        agent_model = getattr(self.support_agent, "model", None) if self.support_agent else None
+        if isinstance(agent_model, str) and agent_model:
+            return agent_model
+
+        return "unknown"
+
+    def _determine_request_id(self, result: Any) -> Optional[str]:
+        for attr in ("id", "run_id", "request_id"):
+            value = getattr(result, attr, None)
+            if isinstance(value, str) and value:
+                return value
+
+        run_obj = getattr(result, "run", None)
+        if run_obj:
+            for attr in ("id", "run_id", "request_id"):
+                value = getattr(run_obj, attr, None)
+                if isinstance(value, str) and value:
+                    return value
+            if isinstance(run_obj, dict):
+                for key in ("id", "run_id", "request_id"):
+                    value = run_obj.get(key)
+                    if isinstance(value, str) and value:
+                        return value
+
+        return None
+
+    def _safe_int(self, value: Any) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
