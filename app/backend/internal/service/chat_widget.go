@@ -249,7 +249,7 @@ func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
       widgetId: '%s'
     };
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@taral/web-chat/dist/chat-widget.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/@hith/web-chat/dist/chat-widget.js';
     script.async = true;
     document.head.appendChild(script);
   })();

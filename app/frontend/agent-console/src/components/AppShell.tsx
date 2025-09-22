@@ -112,14 +112,13 @@ export function AppShell({ children }: AppShellProps) {
         <div className="flex h-16 items-center justify-start border-b border-border/60 bg-card px-3">
           {sidebarCollapsed ? (
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-              <img src="/sounds/images/taral-svg.svg" alt="T" className="h-5 w-5" />
+              <img src="/images/logo.svg" alt="T" className="h-5 w-5" />
             </div>
           ) : (
             <div className="flex items-center space-x-3">
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-                <img src="/sounds/images/taral-svg.svg" alt="T" className="h-5 w-5" />
+                <img src="/images/hith-logo-expanded-filled.svg" alt="T" className="h-5 w-5" />
               </div>
-              <span className="font-semibold text-foreground text-lg">Taral</span>
             </div>
           )}
         </div>
