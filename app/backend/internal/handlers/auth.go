@@ -32,30 +32,43 @@ func NewAuthHandler(authService *service.AuthService, publicService *service.Pub
 }
 
 // LoginRequest represents a login request
+// @Description User login request payload
 type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+	Email    string `json:"email" validate:"required,email" example:"user@example.com"`
+	Password string `json:"password" validate:"required" example:"password123"`
 }
 
 // LoginResponse represents a login response
+// @Description Successful login response with tokens and user information
 type LoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
+	AccessToken  string `json:"access_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	RefreshToken string `json:"refresh_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	TokenType    string `json:"token_type" example:"Bearer"`
+	ExpiresIn    int    `json:"expires_in" example:"3600"`
 	User         User   `json:"user"`
 }
 
 // User represents the user data returned in login response
+// @Description User information
 type User struct {
-	ID       string `json:"id"`
-	Email    string `json:"email"`
-	Name     string `json:"name"`
-	Role     string `json:"role"`
-	TenantID string `json:"tenant_id"`
+	ID       string `json:"id" example:"123e4567-e89b-12d3-a456-426614174000"`
+	Email    string `json:"email" example:"user@example.com"`
+	Name     string `json:"name" example:"John Doe"`
+	Role     string `json:"role" example:"agent"`
+	TenantID string `json:"tenant_id" example:"123e4567-e89b-12d3-a456-426614174000"`
 }
 
 // Login handles user login
+// @Summary User login
+// @Description Authenticate user with email and password
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param loginRequest body LoginRequest true "Login credentials"
+// @Success 200 {object} LoginResponse "Successfully authenticated"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Failure 401 {object} map[string]interface{} "Authentication failed"
+// @Router /v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,7 +124,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
-// Login handles user login
+// AiAgentLogin handles AI agent authentication
+// @Summary AI Agent login
+// @Description Authenticate AI agent with tenant and project context
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param X-S2S-KEY header string true "Service-to-service authentication key"
+// @Param tenant_id path string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param loginRequest body LoginRequest true "Login credentials"
+// @Success 200 {object} LoginResponse "Successfully authenticated"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Failure 401 {object} map[string]interface{} "Authentication failed"
+// @Router /v1/auth/ai-agent/tenant/{tenant_id}/project/{project_id}/login [post]
 func (h *AuthHandler) AiAgentLogin(c *gin.Context) {
 	var req LoginRequest
 	s2sKey := c.GetHeader("X-S2S-KEY")
@@ -182,18 +208,30 @@ func (h *AuthHandler) AiAgentLogin(c *gin.Context) {
 }
 
 // RefreshRequest represents a refresh token request
+// @Description Token refresh request payload
 type RefreshRequest struct {
-	RefreshToken string `json:"refresh_token" validate:"required"`
+	RefreshToken string `json:"refresh_token" validate:"required" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
 }
 
 // RefreshResponse represents a refresh token response
+// @Description Token refresh response with new access token
 type RefreshResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
+	AccessToken string `json:"access_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	TokenType   string `json:"token_type" example:"Bearer"`
+	ExpiresIn   int    `json:"expires_in" example:"3600"`
 }
 
 // Refresh handles token refresh
+// @Summary Refresh access token
+// @Description Get a new access token using a refresh token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param refreshRequest body RefreshRequest true "Refresh token"
+// @Success 200 {object} RefreshResponse "Successfully refreshed token"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Failure 401 {object} map[string]interface{} "Invalid refresh token"
+// @Router /v1/auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -273,36 +311,50 @@ func (h *AuthHandler) Me(c *gin.Context) {
 }
 
 // SignUpRequest represents a signup request
+// @Description User registration request payload
 type SignUpRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
-	Name     string `json:"name" validate:"required,min=2"`
+	Email    string `json:"email" validate:"required,email" example:"user@example.com"`
+	Password string `json:"password" validate:"required,min=8" example:"password123"`
+	Name     string `json:"name" validate:"required,min=2" example:"John Doe"`
 }
 
 // SignUpResponse represents the signup response (OTP sent)
+// @Description Signup response indicating OTP has been sent
 type SignUpResponse struct {
-	Message string `json:"message"`
-	Email   string `json:"email"`
+	Message string `json:"message" example:"Verification code sent to your email"`
+	Email   string `json:"email" example:"user@example.com"`
 }
 
 // VerifySignupOTPRequest represents OTP verification request
+// @Description OTP verification request payload
 type VerifySignupOTPRequest struct {
-	Email string `json:"email" validate:"required,email"`
-	OTP   string `json:"otp" validate:"required,len=6"`
+	Email string `json:"email" validate:"required,email" example:"user@example.com"`
+	OTP   string `json:"otp" validate:"required,len=6" example:"123456"`
 }
 
 // VerifySignupOTPResponse represents successful signup completion
+// @Description Successful signup verification response
 type VerifySignupOTPResponse struct {
-	Message string `json:"message"`
+	Message string `json:"message" example:"Account verified successfully"`
 	User    User   `json:"user"`
 }
 
 // ResendSignupOTPRequest represents request to resend OTP
+// @Description Request to resend OTP for signup verification
 type ResendSignupOTPRequest struct {
-	Email string `json:"email" validate:"required,email"`
+	Email string `json:"email" validate:"required,email" example:"user@example.com"`
 }
 
 // SignUp handles user registration with OTP verification
+// @Summary User registration
+// @Description Register a new user account with email verification
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param signupRequest body SignUpRequest true "User registration details"
+// @Success 200 {object} SignUpResponse "OTP sent to email for verification"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Router /v1/auth/signup [post]
 func (h *AuthHandler) SignUp(c *gin.Context) {
 	var req SignUpRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -334,6 +386,15 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 }
 
 // VerifySignupOTP handles OTP verification and completes registration
+// @Summary Verify signup OTP
+// @Description Verify the OTP sent during signup to complete user registration
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param verifyOTPRequest body VerifySignupOTPRequest true "OTP verification details"
+// @Success 200 {object} LoginResponse "Account verified and user logged in"
+// @Failure 400 {object} map[string]interface{} "Invalid request, validation failed, or invalid OTP"
+// @Router /v1/auth/verify-signup-otp [post]
 func (h *AuthHandler) VerifySignupOTP(c *gin.Context) {
 	var req VerifySignupOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -387,6 +448,15 @@ func (h *AuthHandler) VerifySignupOTP(c *gin.Context) {
 }
 
 // ResendSignupOTP handles resending OTP for signup verification
+// @Summary Resend signup OTP
+// @Description Resend the OTP for signup verification
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param resendOTPRequest body ResendSignupOTPRequest true "Email to resend OTP to"
+// @Success 200 {object} map[string]interface{} "OTP resent successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Router /v1/auth/resend-signup-otp [post]
 func (h *AuthHandler) ResendSignupOTP(c *gin.Context) {
 	var req ResendSignupOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

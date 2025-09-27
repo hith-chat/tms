@@ -12,6 +12,7 @@ import {
   Search,
   Save,
   X
+  ,ChevronDown,ChevronUp
 } from 'lucide-react'
 import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, ScrapedLinkPreview } from '../lib/api'
 
@@ -111,6 +112,8 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   // About Me state
   const [aboutMeContent, setAboutMeContent] = useState('')
   const [aboutMeSaving, setAboutMeSaving] = useState(false)
+  // Collapse state for About Me: auto-collapse if content exists to save space
+  const [aboutCollapsed, setAboutCollapsed] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -162,7 +165,10 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
       console.log('Successfully loaded:', { documents: documentsData?.length, jobs: jobsData?.length, aboutMe: aboutMeData?.content?.length })
       setDocuments(documentsData || [])
       setScrapingJobs(jobsData || [])
-      setAboutMeContent(aboutMeData?.content || '')
+      const content = aboutMeData?.content || ''
+      setAboutMeContent(content)
+      // Auto-collapse the About Me section when there is existing content
+      setAboutCollapsed(Boolean(content && content.length > 0))
     } catch (err: any) {
       console.error('Error loading knowledge data:', {
         error: err,
@@ -824,6 +830,8 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     try {
       await apiClient.updateAboutMeSettings({ content: aboutMeContent })
       setSuccessMessage('About me information saved successfully')
+      // After successful save, auto-collapse if there is content
+      if (aboutMeContent && aboutMeContent.length > 0) setAboutCollapsed(true)
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err: any) {
       setError(`Failed to save about me information: ${err?.response?.data?.error || err?.message || 'Unknown error'}`)
@@ -1098,96 +1106,83 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
       )}
 
       {/* About Me and Document Upload Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* About Me Section */}
-        <div className="border rounded-lg p-6 bg-card">
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-medium">About Me & Information</h3>
-              <p className="text-sm text-muted-foreground">Provide information about yourself and other relevant details for the AI agent</p>
-            </div>
-            
-            <div className="space-y-4">
-              <textarea
-                value={aboutMeContent}
-                onChange={(e) => setAboutMeContent(e.target.value)}
-                placeholder="Tell me about yourself, your role, preferences, and any other information that would help the AI agent assist you better..."
-                className="w-full h-64 px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                disabled={aboutMeSaving}
-              />
-              
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">
-                  {aboutMeContent.length} characters
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+        {/* About Me Section (collapsible when content exists) */}
+        <div className="border rounded-lg bg-card">
+          {/* Header with stronger contrast */}
+          <div className="px-6 py-4 border-b border-input bg-muted/5 rounded-t-lg">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-medium text-foreground">About Me & Information</h3>
+                <p className="text-sm text-muted-foreground">Provide information about yourself and other relevant details for the AI agent</p>
+              </div>
+              {aboutMeContent && aboutMeContent.length > 0 && (
                 <button
-                  onClick={saveAboutMe}
-                  disabled={aboutMeSaving}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setAboutCollapsed(prev => !prev)}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                  aria-expanded={!aboutCollapsed}
                 >
-                  {aboutMeSaving ? (
+                  {aboutCollapsed ? (
                     <>
-                      <Loader className="h-4 w-4 animate-spin mr-2" />
-                      Saving...
+                      <ChevronDown className="h-4 w-4 mr-2" />
+                      Show
                     </>
                   ) : (
                     <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Information
+                      <ChevronUp className="h-4 w-4 mr-2" />
+                      Collapse
                     </>
                   )}
                 </button>
-              </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Document Upload Section */}
-        <div className="border rounded-lg p-6 bg-card">
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-medium">Document Upload</h3>
-              <p className="text-sm text-muted-foreground">Upload PDF files to add content to your knowledge base</p>
-            </div>
-            
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragOver 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary/50'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <div>
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <span className="text-sm font-medium">
-                    Drag and drop PDF files here or click to browse
-                  </span>
-                  <input
-                    id="file-upload"
-                    name="file-upload"
-                    type="file"
-                    className="sr-only"
-                    multiple
-                    accept=".pdf"
-                    onChange={handleFileSelect}
-                  />
-                </label>
-                <p className="mt-2 text-xs text-muted-foreground">PDF files only, up to 10MB each</p>
+          {/* Content area with distinct background and padding */}
+          <div >
+            {aboutCollapsed ? (
+              // Collapsed preview
+              <>  </>
+            ) : (
+              // Expanded editor (no inner border to avoid double borders)
+              <div className="p-6">
+              <div className="bg-background rounded-md p-4">
+                <textarea
+                  value={aboutMeContent}
+                  onChange={(e) => setAboutMeContent(e.target.value)}
+                  placeholder="Tell me about yourself, your role, preferences, and any other information that would help the AI agent assist you better..."
+                  className="w-full h-64 px-3 py-2 rounded-md bg-transparent focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  disabled={aboutMeSaving}
+                />
+
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-xs text-muted-foreground">
+                    {aboutMeContent.length} characters
+                  </div>
+                  <button
+                    onClick={saveAboutMe}
+                    disabled={aboutMeSaving}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {aboutMeSaving ? (
+                      <>
+                        <Loader className="h-4 w-4 animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Information
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
-
-            {uploading && (
-              <div className="flex items-center justify-center py-4">
-                <Loader className="h-5 w-5 animate-spin text-primary mr-2" />
-                <span className="text-sm text-muted-foreground">Uploading...</span>
               </div>
             )}
           </div>
         </div>
+
       </div>
 
       {/* Scraping Progress Section */}
@@ -1449,7 +1444,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
       )}
 
       {/* Knowledge Search */}
-      <div className="border rounded-lg p-6 bg-card">
+      <div className="border rounded-lg p-6 bg-card hidden">
         <div className="space-y-4">
           <div>
             <h3 className="font-medium">Search Knowledge Base</h3>

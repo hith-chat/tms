@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -184,4 +185,29 @@ func (h *ChatWidgetHandler) ScrapeWebsiteTheme(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, themeConfig)
+}
+
+// GetEmbedSnippet returns a JavaScript snippet that can be embedded on a website to
+// load the chat widget for the given public widget id. It returns the snippet as
+// application/javascript so consumers can include it via a <script src="..."> tag
+// or fetch and inject it directly.
+func (h *ChatWidgetHandler) GetEmbedSnippet(c *gin.Context) {
+	widgetIDStr := c.Param("widget_id")
+	widgetID, err := uuid.Parse(widgetIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid widget ID format"})
+		return
+	}
+
+	// JavaScript snippet that sets the widget config and appends the remote script.
+	// Using the api.hith.chat domain per product requirements.
+	js := fmt.Sprintf(`(function() {
+  window.TMSChatConfig = { widgetId: '%s' };
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@hith/web-chat/dist/chat-widget.js';
+  s.async = true;
+  document.head.appendChild(s);
+})();`, widgetID)
+	c.Header("Content-Type", "application/javascript; charset=utf-8")
+	c.String(http.StatusOK, js)
 }
