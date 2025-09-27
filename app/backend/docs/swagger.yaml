@@ -1,0 +1,616 @@
+basePath: /
+definitions:
+  db.Project:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      key:
+        maxLength: 50
+        minLength: 1
+        type: string
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    required:
+    - key
+    - name
+    type: object
+  handlers.CreateProjectRequest:
+    properties:
+      key:
+        maxLength: 50
+        minLength: 1
+        type: string
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - key
+    - name
+    type: object
+  handlers.LoginRequest:
+    description: User login request payload
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.LoginResponse:
+    description: Successful login response with tokens and user information
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      expires_in:
+        example: 3600
+        type: integer
+      refresh_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      token_type:
+        example: Bearer
+        type: string
+      user:
+        $ref: '#/definitions/handlers.User'
+    type: object
+  handlers.RefreshRequest:
+    description: Token refresh request payload
+    properties:
+      refresh_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    required:
+    - refresh_token
+    type: object
+  handlers.RefreshResponse:
+    description: Token refresh response with new access token
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      expires_in:
+        example: 3600
+        type: integer
+      token_type:
+        example: Bearer
+        type: string
+    type: object
+  handlers.ResendSignupOTPRequest:
+    description: Request to resend OTP for signup verification
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
+  handlers.SignUpRequest:
+    description: User registration request payload
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      name:
+        example: John Doe
+        minLength: 2
+        type: string
+      password:
+        example: password123
+        minLength: 8
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  handlers.SignUpResponse:
+    description: Signup response indicating OTP has been sent
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      message:
+        example: Verification code sent to your email
+        type: string
+    type: object
+  handlers.UpdateProjectRequest:
+    properties:
+      key:
+        maxLength: 50
+        minLength: 1
+        type: string
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+    required:
+    - key
+    - name
+    - status
+    type: object
+  handlers.User:
+    description: User information
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      name:
+        example: John Doe
+        type: string
+      role:
+        example: agent
+        type: string
+      tenant_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+    type: object
+  handlers.VerifySignupOTPRequest:
+    description: OTP verification request payload
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      otp:
+        example: "123456"
+        type: string
+    required:
+    - email
+    - otp
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Ticket Management System API server
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: TMS API
+  version: "1.0"
+paths:
+  /api/v1/tenants/{tenant_id}/projects:
+    get:
+      consumes:
+      - application/json
+      description: Get list of projects accessible to the authenticated agent
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/db.Project'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List projects for agent
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new project within the tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      - description: Project creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/db.Project'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new project
+      tags:
+      - projects
+  /api/v1/tenants/{tenant_id}/projects/{project_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing project
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete project
+      tags:
+      - projects
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific project
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/db.Project'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get project details
+      tags:
+      - projects
+    put:
+      consumes:
+      - application/json
+      description: Update an existing project
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: string
+      - description: Project update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/db.Project'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update project
+      tags:
+      - projects
+  /v1/auth/ai-agent/tenant/{tenant_id}/project/{project_id}/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate AI agent with tenant and project context
+      parameters:
+      - description: Service-to-service authentication key
+        in: header
+        name: X-S2S-KEY
+        required: true
+        type: string
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: string
+      - description: Login credentials
+        in: body
+        name: loginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "400":
+          description: Invalid request or validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Authentication failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: AI Agent login
+      tags:
+      - Auth
+  /v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password
+      parameters:
+      - description: Login credentials
+        in: body
+        name: loginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "400":
+          description: Invalid request or validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Authentication failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: User login
+      tags:
+      - Auth
+  /v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Get a new access token using a refresh token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: refreshRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully refreshed token
+          schema:
+            $ref: '#/definitions/handlers.RefreshResponse'
+        "400":
+          description: Invalid request or validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Invalid refresh token
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Refresh access token
+      tags:
+      - Auth
+  /v1/auth/resend-signup-otp:
+    post:
+      consumes:
+      - application/json
+      description: Resend the OTP for signup verification
+      parameters:
+      - description: Email to resend OTP to
+        in: body
+        name: resendOTPRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ResendSignupOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OTP resent successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or validation failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Resend signup OTP
+      tags:
+      - Auth
+  /v1/auth/signup:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account with email verification
+      parameters:
+      - description: User registration details
+        in: body
+        name: signupRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SignUpRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OTP sent to email for verification
+          schema:
+            $ref: '#/definitions/handlers.SignUpResponse'
+        "400":
+          description: Invalid request or validation failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: User registration
+      tags:
+      - Auth
+  /v1/auth/verify-signup-otp:
+    post:
+      consumes:
+      - application/json
+      description: Verify the OTP sent during signup to complete user registration
+      parameters:
+      - description: OTP verification details
+        in: body
+        name: verifyOTPRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.VerifySignupOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Account verified and user logged in
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "400":
+          description: Invalid request, validation failed, or invalid OTP
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verify signup OTP
+      tags:
+      - Auth
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

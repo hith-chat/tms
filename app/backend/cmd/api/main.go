@@ -1,3 +1,20 @@
+// Package main TMS API Server
+// @title TMS API
+// @version 1.0
+// @description Ticket Management System API server
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email support@swagger.io
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @host localhost:8080
+// @BasePath /
+// @schemes http https
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 package main
 
 import (
@@ -11,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/bareuptime/tms/docs" // This line is necessary for go-swagger to find your docs!
 	"github.com/bareuptime/tms/internal/auth"
 	"github.com/bareuptime/tms/internal/config" // Global middleware
 	"github.com/bareuptime/tms/internal/db"
@@ -25,6 +43,8 @@ import (
 	"github.com/bareuptime/tms/internal/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -260,6 +280,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 	// Health check endpoints - support both GET and HEAD for load balancers
 	router.GET("/health", publicHandler.Health)
 	router.HEAD("/health", publicHandler.Health)
+
+	// Swagger documentation endpoint
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Public routes
 	publicRoutes := router.Group("/api/public")
