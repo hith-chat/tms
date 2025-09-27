@@ -571,6 +571,8 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		{
 			// Widget endpoints
 			publicChat.GET("/widgets/:widget_id", chatWidgetHandler.GetChatWidgetByPublicId)
+			// Embed script for public widgets
+			publicChat.GET("/widgets/:widget_id/embed.js", chatWidgetHandler.GetEmbedSnippet)
 
 			// Public chat session endpoints (token-based auth)
 			publicChat.POST("/sessions/:session_id/messages/:message_id/read", chatSessionHandler.MarkVisitorMessagesAsRead)
@@ -578,6 +580,12 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 			// WebSocket endpoint for visitors
 			publicChat.GET("/ws/widgets/:widget_id/chat/:session_token", chatWebSocketHandler.HandleWebSocketPublic)
 		}
+
+		embedChat := router.Group("/embed")
+		{
+			embedChat.GET("/:widget_id/embed.js", chatWidgetHandler.GetEmbedSnippet)
+		}
+
 	}
 
 	// Tickets with flexible authentication (JWT or API key) - separate from api group to avoid inheriting AuthMiddleware
