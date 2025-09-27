@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -236,89 +235,80 @@ func (s *WebScrapingService) extractURLsFromAPI(ctx context.Context, targetURL s
 
 // extractURLsManually extracts URLs using colly as fallback
 func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	return s.extractURLsComprehensively(ctx, targetURL, maxDepth)
+}
+
+func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	// Initialize the comprehensive URL extractor
+	extractor, err := NewComprehensiveURLExtractor(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create URL extractor: %w", err)
+	}
+
 	c := colly.NewCollector(
 		colly.UserAgent(s.config.ScrapeUserAgent),
-		colly.MaxDepth(maxDepth),
-		colly.Async(true), // async = faster crawling
 	)
 
-	// Set timeouts and politeness
 	c.SetRequestTimeout(s.config.ScrapeTimeout)
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
-		Parallelism: 4,
+		Parallelism: 2, // Conservative parallelism for comprehensive extraction
 		Delay:       s.config.ScrapeRateLimit,
 	})
 	c.AllowURLRevisit = false
 
-	// Track visited
-	visitedURLs := make(map[string]bool)
-	var mu sync.Mutex
 	var discoveredLinks []discoveredLink
+	visitedURLs := map[string]bool{targetURL: true}
+	maxLinks := 500 // Increased limit for comprehensive extraction
 
-	normalizeURL := func(u string) string {
-		// Basic normalization: remove fragments and trailing slashes
-		parsed, err := url.Parse(u)
-		if err != nil {
-			return u
-		}
-		parsed.Fragment = ""
-		return strings.TrimSuffix(parsed.String(), "/")
-	}
-
-	// Record every response as a discovered link
-	c.OnResponse(func(r *colly.Response) {
-		currentURL := normalizeURL(r.Request.URL.String())
-		mu.Lock()
-		if visitedURLs[currentURL] {
-			mu.Unlock()
+	// Process each page comprehensively
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		depth := e.Request.Depth
+		if depth > maxDepth || len(discoveredLinks) >= maxLinks {
 			return
 		}
-		visitedURLs[currentURL] = true
-		mu.Unlock()
 
-		// Parse title if HTML
-		title := ""
-		if strings.Contains(r.Headers.Get("Content-Type"), "text/html") {
-			doc, err := goquery.NewDocumentFromReader(bytes.NewReader(r.Body))
-			if err == nil {
-				title = strings.TrimSpace(doc.Find("title").First().Text())
-				if title == "" {
-					title = strings.TrimSpace(doc.Find("h1").First().Text())
-				}
-			}
+		currentURL := e.Request.URL.String()
+
+		// Extract title
+		title := e.ChildText("title")
+		if title == "" {
+			title = e.ChildText("h1")
 		}
+		title = strings.TrimSpace(title)
 
-		pageContent := s.extractRawText(r.Body)
+		// Extract text content and estimate tokens
+		pageContent := s.extractTextContent(e)
 		tokenCount := s.estimateTokenCount(pageContent)
 
-		mu.Lock()
-		discoveredLinks = append(discoveredLinks, discoveredLink{
+		// Add current page to discovered links
+		link := discoveredLink{
 			URL:        currentURL,
 			Title:      title,
-			Depth:      r.Request.Depth,
+			Depth:      depth,
 			TokenCount: tokenCount,
-		})
-		mu.Unlock()
-	})
-
-	// Extract and queue links
-	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
-		linkURL := e.Attr("href")
-		absoluteURL := e.Request.AbsoluteURL(linkURL)
-		absoluteURL = normalizeURL(absoluteURL)
-
-		if absoluteURL == "" {
-			return
 		}
+		discoveredLinks = append(discoveredLinks, link)
 
-		mu.Lock()
-		if !visitedURLs[absoluteURL] && s.shouldFollowLink(absoluteURL, e.Request.URL.String()) {
-			visitedURLs[absoluteURL] = true
-			mu.Unlock()
-			e.Request.Visit(absoluteURL)
-		} else {
-			mu.Unlock()
+		// Use comprehensive URL extraction if we haven't reached max depth
+		if depth < maxDepth && len(discoveredLinks) < maxLinks {
+			// Get the HTML content as bytes
+			htmlContent := []byte(e.Response.Body)
+
+			// Extract URLs comprehensively
+			extractedURLs := extractor.ExtractURLsFromHTML(htmlContent, currentURL)
+
+			// Visit extracted URLs
+			for _, extractedURL := range extractedURLs {
+				if len(discoveredLinks) >= maxLinks {
+					break
+				}
+
+				if s.shouldFollowLink(extractedURL, currentURL) && !visitedURLs[extractedURL] {
+					visitedURLs[extractedURL] = true
+					e.Request.Visit(extractedURL)
+				}
+			}
 		}
 	})
 
@@ -329,7 +319,7 @@ func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL 
 
 	// Start crawl
 	if err := c.Visit(targetURL); err != nil {
-		return nil, fmt.Errorf("failed to start crawl: %w", err)
+		return nil, fmt.Errorf("failed to start comprehensive crawl: %w", err)
 	}
 
 	c.Wait()
