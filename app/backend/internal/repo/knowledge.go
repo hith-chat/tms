@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
@@ -683,4 +684,62 @@ func (r *KnowledgeRepository) GetStats(tenantID, projectID uuid.UUID) (*models.K
 	}
 
 	return stats, nil
+}
+
+// ReplaceFAQItems replaces all FAQ entries for a given tenant/project with the provided items
+func (r *KnowledgeRepository) ReplaceFAQItems(ctx context.Context, tenantID, projectID uuid.UUID, items []*models.KnowledgeFAQItem) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM knowledge_faq_items WHERE tenant_id = $1 AND project_id = $2",
+		tenantID, projectID,
+	); err != nil {
+		return fmt.Errorf("failed to clear existing FAQ items: %w", err)
+	}
+
+	insertQuery := `
+		INSERT INTO knowledge_faq_items (
+			id, tenant_id, project_id, question, answer, source_url, source_section, metadata, created_at, updated_at
+		) VALUES (
+			:id, :tenant_id, :project_id, :question, :answer, :source_url, :source_section, :metadata, :created_at, :updated_at
+		)`
+
+	for _, item := range items {
+		if item.Metadata == nil {
+			item.Metadata = models.JSONMap{}
+		}
+		if item.CreatedAt.IsZero() {
+			item.CreatedAt = time.Now()
+		}
+		if item.UpdatedAt.IsZero() {
+			item.UpdatedAt = item.CreatedAt
+		}
+		if _, err := tx.NamedExecContext(ctx, insertQuery, item); err != nil {
+			return fmt.Errorf("failed to insert FAQ item: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// ListFAQItems returns FAQ entries for a tenant/project ordered by creation time
+func (r *KnowledgeRepository) ListFAQItems(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.KnowledgeFAQItem, error) {
+	items := []*models.KnowledgeFAQItem{}
+	query := `
+		SELECT * FROM knowledge_faq_items
+		WHERE tenant_id = $1 AND project_id = $2
+		ORDER BY created_at ASC`
+
+	if err := r.db.SelectContext(ctx, &items, query, tenantID, projectID); err != nil {
+		if err == sql.ErrNoRows {
+			return []*models.KnowledgeFAQItem{}, nil
+		}
+		return nil, err
+	}
+
+	return items, nil
 }

@@ -202,3 +202,28 @@ func (s *KnowledgeService) FormatContextForAI(results []models.KnowledgeSearchRe
 
 	return contextBuilder.String()
 }
+
+// ReplaceFAQItems overwrites FAQ items for the provided tenant/project
+func (s *KnowledgeService) ReplaceFAQItems(ctx context.Context, tenantID, projectID uuid.UUID, items []*models.KnowledgeFAQItem) error {
+	for _, item := range items {
+		if item.ID == uuid.Nil {
+			item.ID = uuid.New()
+		}
+		item.TenantID = tenantID
+		item.ProjectID = projectID
+		if item.Metadata == nil {
+			item.Metadata = models.JSONMap{}
+		}
+	}
+
+	return s.knowledgeRepo.ReplaceFAQItems(ctx, tenantID, projectID, items)
+}
+
+// ListFAQItems returns FAQ entries for a project
+func (s *KnowledgeService) ListFAQItems(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.KnowledgeFAQItem, error) {
+	items, err := s.knowledgeRepo.ListFAQItems(ctx, tenantID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}

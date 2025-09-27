@@ -74,6 +74,8 @@ func runMigrations(database *db.DB) error {
 		"migrations/027_alarm_system.sql",
 		"migrations/028_agent_enhancements.sql",
 		"migrations/029_credits_system.sql",
+		"migrations/029_credits_system.sql",
+		"migrations/030_knowledge_faq.sql",
 	}
 
 	for _, migration := range migrations {

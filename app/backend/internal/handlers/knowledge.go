@@ -502,6 +502,24 @@ func (h *KnowledgeHandler) SearchKnowledgeBaseGET(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// ListFAQItems returns auto-generated FAQ pairs for the project
+func (h *KnowledgeHandler) ListFAQItems(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+
+	items, err := h.knowledgeService.ListFAQItems(c.Request.Context(), tenantID, projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load knowledge FAQs"})
+		return
+	}
+
+	if items == nil {
+		items = []*models.KnowledgeFAQItem{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
 // Settings endpoints
 
 // GetKnowledgeSettings returns knowledge settings for a project
