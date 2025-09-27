@@ -156,6 +156,7 @@ func main() {
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
 	documentProcessorService := service.NewDocumentProcessorService(knowledgeRepo, embeddingService, "./uploads", cfg.Knowledge.MaxFileSize)
 	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge, redisService.GetClient())
+	publicURLAnalysisService := service.NewPublicURLAnalysisService(webScrapingService)
 	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
 	aiUsageService := service.NewAIUsageService(creditsRepo)
 
@@ -203,7 +204,7 @@ func main() {
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
 
 	// Knowledge management handlers
-	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
+	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService, publicURLAnalysisService)
 	aiBuilderHandler := handlers.NewAIBuilderHandler(aiBuilderService)
 
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
@@ -301,6 +302,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		publicRoutes.GET("/tickets/:ticketId", publicHandler.GetTicketByID)
 		publicRoutes.GET("/tickets/:ticketId/messages", publicHandler.GetTicketMessagesByID)
 		publicRoutes.POST("/tickets/:ticketId/messages", publicHandler.AddMessageByID)
+
+		// Public URL analysis endpoint
+		publicRoutes.POST("/analyze-url", knowledgeHandler.AnalyzePublicURL)
 	}
 
 	// Auth routes (not protected by auth middleware)
