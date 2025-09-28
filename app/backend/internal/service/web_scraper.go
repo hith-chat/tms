@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly/v2"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -25,10 +24,11 @@ import (
 )
 
 type WebScrapingService struct {
-	knowledgeRepo    *repo.KnowledgeRepository
-	embeddingService *EmbeddingService
-	config           *config.KnowledgeConfig
-	redisClient      redis.UniversalClient
+	knowledgeRepo            *repo.KnowledgeRepository
+	embeddingService         *EmbeddingService
+	config                   *config.KnowledgeConfig
+	redisClient              redis.UniversalClient
+	headlessBrowserExtractor *HeadlessBrowserURLExtractor
 }
 
 const (
@@ -90,11 +90,15 @@ type ScrapingEvent struct {
 }
 
 func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig, redisClient redis.UniversalClient) *WebScrapingService {
+	// Initialize headless browser extractor with 30 second timeout
+	headlessExtractor := NewHeadlessBrowserURLExtractor(30*time.Second, "")
+
 	return &WebScrapingService{
-		knowledgeRepo:    knowledgeRepo,
-		embeddingService: embeddingService,
-		config:           cfg,
-		redisClient:      redisClient,
+		knowledgeRepo:            knowledgeRepo,
+		embeddingService:         embeddingService,
+		config:                   cfg,
+		redisClient:              redisClient,
+		headlessBrowserExtractor: headlessExtractor,
 	}
 }
 
@@ -233,9 +237,79 @@ func (s *WebScrapingService) extractURLsFromAPI(ctx context.Context, targetURL s
 	return response.URLs, nil
 }
 
-// extractURLsManually extracts URLs using colly as fallback
+// extractURLsManually extracts URLs using headless browser primarily, with colly as fallback
 func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	// Try headless browser extraction first
+	headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
+	fmt.Println("Healdess dataå. --- ", headlessLinks)
+	if err == nil && len(headlessLinks) > 0 {
+		return headlessLinks, nil
+	}
+
+	// Check if it's a Playwright installation issue
+	if err != nil && strings.Contains(err.Error(), "please install the driver") {
+		fmt.Printf("Playwright not installed locally, using comprehensive extraction instead\n")
+	} else {
+		fmt.Printf("Headless browser extraction failed (%v), falling back to comprehensive extraction\n", err)
+	}
 	return s.extractURLsComprehensively(ctx, targetURL, maxDepth)
+}
+
+// extractURLsWithHeadlessBrowser extracts URLs using a comprehensive HTTP-based approach
+func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	fmt.Println("Starting headless browser extraction for:", targetURL)
+	// Try headless browser extraction
+	var allLinks []discoveredLink
+	visited := make(map[string]bool)
+	toVisit := []struct {
+		url   string
+		depth int
+	}{{targetURL, 0}}
+
+	for len(toVisit) > 0 && len(allLinks) < 10 {
+		current := toVisit[0]
+		toVisit = toVisit[1:]
+
+		if current.depth > maxDepth || visited[current.url] {
+			continue
+		}
+
+		visited[current.url] = true
+
+		// Extract URLs from current page using headless browser
+		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
+		if err != nil {
+			fmt.Printf("Failed to extract URLs from %s: %v\n", current.url, err)
+			continue
+		}
+
+		// Get page title and content for token estimation
+		title, _ := s.headlessBrowserExtractor.GetPageTitle(ctx, current.url)
+		content, _ := s.headlessBrowserExtractor.GetPageContent(ctx, current.url)
+		tokenCount := s.estimateTokenCount(content)
+
+		// Add current page to results
+		allLinks = append(allLinks, discoveredLink{
+			URL:        current.url,
+			Title:      title,
+			Depth:      current.depth,
+			TokenCount: tokenCount,
+		})
+
+		// Add discovered URLs for next depth level
+		if current.depth < maxDepth {
+			for _, urlInfo := range extractedURLs {
+				if !visited[urlInfo.URL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+					toVisit = append(toVisit, struct {
+						url   string
+						depth int
+					}{urlInfo.URL, current.depth + 1})
+				}
+			}
+		}
+	}
+
+	return allLinks, nil
 }
 
 func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
@@ -324,14 +398,6 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 
 	c.Wait()
 	return discoveredLinks, nil
-}
-
-func (s *WebScrapingService) extractRawText(body []byte) string {
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(doc.Text())
 }
 
 // startScrapingJobWithStream discovers links with real-time progress streaming
