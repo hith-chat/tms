@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/bareuptime/tms/internal/db"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/google/uuid"
 )
 
@@ -54,14 +55,15 @@ func (r *customerRepository) Create(ctx context.Context, customer *db.Customer) 
 
 // GetByID retrieves a customer by ID
 func (r *customerRepository) GetByID(ctx context.Context, tenantID, customerID uuid.UUID) (*db.Customer, error) {
+	logger.DebugfCtx(ctx, "Getting customer by ID - tenantID: %s, customerID: %s", tenantID.String(), customerID.String())
+
 	query := `
 		SELECT id, tenant_id, email, name, metadata, created_at, updated_at
 		FROM customers
 		WHERE tenant_id = $1 AND id = $2
 	`
 
-	fmt.Println("Executing query:", query)
-	fmt.Println("With parameters:", tenantID, customerID)
+	logger.DebugfCtx(ctx, "Executing customer query: %s", query)
 
 	customer := &db.Customer{}
 	var metadataJSON sql.NullString
@@ -77,7 +79,7 @@ func (r *customerRepository) GetByID(ctx context.Context, tenantID, customerID u
 	)
 
 	if err != nil {
-		fmt.Println("Error retrieving customer:", err)
+		logger.ErrorfCtx(ctx, err, "Error retrieving customer: %v", err)
 		return nil, err
 	}
 
@@ -89,10 +91,11 @@ func (r *customerRepository) GetByID(ctx context.Context, tenantID, customerID u
 			customer.Metadata = meta
 		} else {
 			// Log parse error but continue with empty metadata
-			fmt.Println("Failed to parse metadata JSON for customer:", customer.ID, err)
+			logger.WarnfCtx(ctx, "Failed to parse metadata JSON for customer %s: %v", customer.ID.String(), err)
 		}
 	}
-	fmt.Println("Customer:", customer)
+
+	logger.DebugfCtx(ctx, "Customer retrieved successfully - email: %s, name: %s", customer.Email, customer.Name)
 
 	return customer, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/middleware"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/service"
@@ -22,7 +23,11 @@ type AuthHandler struct {
 
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService, aiAgentLoginAccessKey string) *AuthHandler {
-	fmt.Println("Initializing AuthHandler with AiAgentLoginAccessKey:", aiAgentLoginAccessKey)
+	logger.GetLoggerInstance().WithComponent("auth_handler").Info().
+		Str("operation", "init_handler").
+		Bool("ai_agent_key_configured", aiAgentLoginAccessKey != "").
+		Msg("Initializing AuthHandler")
+
 	return &AuthHandler{
 		authService:           authService,
 		publicService:         publicService,
@@ -70,16 +75,33 @@ type User struct {
 // @Failure 401 {object} map[string]interface{} "Authentication failed"
 // @Router /v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
+	// Get transaction logger from middleware
+	txLogger := middleware.GetTxLoggerFromGin(c).With().
+		Str("handler", "auth").
+		Str("action", "login").
+		Logger()
+
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		txLogger.Warn().
+			Err(err).
+			Msg("Invalid request body for login")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
 	if err := h.validator.Struct(req); err != nil {
+		txLogger.Warn().
+			Err(err).
+			Str("email", req.Email).
+			Msg("Login validation failed")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
 		return
 	}
+
+	txLogger.Info().
+		Str("email", req.Email).
+		Msg("Processing login request")
 
 	loginReq := service.LoginRequest{
 		Email:    req.Email,
@@ -88,6 +110,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response, err := h.authService.Login(c.Request.Context(), loginReq)
 	if err != nil {
+		txLogger.Error().
+			Err(err).
+			Str("email", req.Email).
+			Msg("Login authentication failed")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
@@ -108,6 +134,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			break
 		}
 	}
+
+	txLogger.Info().
+		Str("user_id", response.Agent.ID.String()).
+		Str("tenant_id", response.Agent.TenantID.String()).
+		Str("primary_role", primaryRole).
+		Msg("Login successful")
 
 	c.JSON(http.StatusOK, LoginResponse{
 		AccessToken:  response.AccessToken,

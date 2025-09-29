@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -50,7 +51,8 @@ func (s *Service) GenerateAccessToken(agentID, tenantID, email string, roleBindi
 	now := time.Now()
 	jti := uuid.New().String()
 
-	fmt.Println("Generating access token for agent:", roleBindings)
+	// Log access token generation
+	logger.Debugf("Generating access token for agent - agentID: %s, tenantID: %s, email: %s", agentID, tenantID, email)
 
 	// Check if roleBindings contains "tenant_admin" role in any of the role lists
 	isTenantAdmin := false

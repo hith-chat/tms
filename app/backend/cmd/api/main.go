@@ -276,6 +276,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 	// Global middleware
 	router.Use(middleware.ErrorHandlerMiddleware())
+	router.Use(middleware.TransactionLoggingMiddleware()) // Add transactional logging
 	router.Use(middleware.RequestIDMiddleware())
 	router.Use(middleware.CORSMiddleware(corsConfig))
 	router.Use(middleware.TenantMiddleware(database))

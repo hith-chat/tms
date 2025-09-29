@@ -19,6 +19,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/bareuptime/tms/internal/config"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
 )
@@ -239,25 +240,41 @@ func (s *WebScrapingService) extractURLsFromAPI(ctx context.Context, targetURL s
 
 // extractURLsManually extracts URLs using headless browser primarily, with colly as fallback
 func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	logger.InfofCtx(ctx, "Starting URL extraction - target: %s, max_depth: %d", targetURL, maxDepth)
+
 	// Try headless browser extraction first
+	logger.DebugCtx(ctx, "Starting headless browser extraction")
 	headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
-	fmt.Println("Healdess dataå. --- ", headlessLinks)
+
+	logger.InfofCtx(ctx, "Headless browser found %d links", len(headlessLinks))
+
 	if err == nil && len(headlessLinks) > 0 {
+		logger.InfofCtx(ctx, "Headless browser extraction successful - found %d links", len(headlessLinks))
 		return headlessLinks, nil
 	}
 
 	// Check if it's a Playwright installation issue
 	if err != nil && strings.Contains(err.Error(), "please install the driver") {
-		fmt.Printf("Playwright not installed locally, using comprehensive extraction instead\n")
+		logger.WarnCtx(ctx, "Playwright not installed locally, using comprehensive extraction instead")
 	} else {
-		fmt.Printf("Headless browser extraction failed (%v), falling back to comprehensive extraction\n", err)
+		logger.WarnfCtx(ctx, "Headless browser extraction failed: %v - falling back to comprehensive extraction", err)
 	}
+
+	logger.InfoCtx(ctx, "Falling back to comprehensive extraction")
 	return s.extractURLsComprehensively(ctx, targetURL, maxDepth)
 }
 
 // extractURLsWithHeadlessBrowser extracts URLs using a comprehensive HTTP-based approach
 func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
-	fmt.Println("Starting headless browser extraction for:", targetURL)
+	txLogger := logger.GetTxLogger(ctx).With().
+		Str("component", "web_scraper").
+		Str("operation", "extract_urls_headless").
+		Str("target_url", targetURL).
+		Int("max_depth", maxDepth).
+		Logger()
+
+	txLogger.Info().Msg("Starting headless browser extraction")
+
 	// Try headless browser extraction
 	var allLinks []discoveredLink
 	visited := make(map[string]bool)
@@ -277,9 +294,17 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		visited[current.url] = true
 
 		// Extract URLs from current page using headless browser
+		pageLogger := txLogger.With().
+			Str("current_url", current.url).
+			Int("depth", current.depth).
+			Logger()
+
+		pageLogger.Debug().Msg("Extracting URLs from page")
 		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
 		if err != nil {
-			fmt.Printf("Failed to extract URLs from %s: %v\n", current.url, err)
+			pageLogger.Error().
+				Err(err).
+				Msg("Failed to extract URLs from page")
 			continue
 		}
 
@@ -388,7 +413,12 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 
 	// Error logging
 	c.OnError(func(r *colly.Response, err error) {
-		fmt.Printf("Error visiting %s: %v\n", r.Request.URL, err)
+		logger.GetTxLogger(ctx).Error().
+			Str("component", "web_scraper").
+			Str("operation", "colly_error").
+			Str("url", r.Request.URL.String()).
+			Err(err).
+			Msg("Error visiting URL during comprehensive extraction")
 	})
 
 	// Start crawl
@@ -407,18 +437,22 @@ func (s *WebScrapingService) startScrapingJobWithStream(ctx context.Context, job
 	defer close(events)
 
 	var runErr error
+	logger.InfofCtx(ctx, "Starting scraping job stream - jobID: %s, URL: %s", job.ID.String(), job.URL)
+
 	defer func() {
 		if runErr != nil {
 			errStr := runErr.Error()
-			fmt.Printf("Job %s failed with error: %s\n", job.ID, errStr)
+			logger.ErrorfCtx(ctx, runErr, "Scraping job failed: %v", runErr)
+
 			s.sendScrapingEvent(ctx, events, ScrapingEvent{
 				Type:      "error",
 				JobID:     job.ID,
 				Message:   errStr,
 				Timestamp: time.Now(),
 			})
+
 			if updateErr := s.knowledgeRepo.UpdateScrapingJobStatus(job.ID, "failed", &errStr); updateErr != nil {
-				fmt.Printf("Failed to update job status to failed: %v\n", updateErr)
+				logger.ErrorfCtx(ctx, updateErr, "Failed to update job status to failed: %v", updateErr)
 			}
 		}
 	}()
@@ -540,8 +574,7 @@ func (s *WebScrapingService) startScrapingJobWithStream(ctx context.Context, job
 		LinksFound: totalLinks,
 		Timestamp:  time.Now(),
 	})
-
-	fmt.Printf("Scraping job %s discovered %d links awaiting user selection (key: %s)\n", job.ID, totalLinks, redisKey)
+	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d, redis_key: %s", job.ID.String(), totalLinks, redisKey)
 	runErr = nil
 }
 
@@ -858,7 +891,11 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 
 		// Update progress
 		if err := s.knowledgeRepo.UpdateScrapingJobProgress(jobID, processed, len(job.SelectedLinks)); err != nil {
-			fmt.Printf("warning: failed to update progress: %v\n", err)
+			logger.GetTxLogger(ctx).Warn().
+				Str("component", "web_scraper").
+				Str("job_id", jobID.String()).
+				Err(err).
+				Msg("Failed to update scraping progress")
 		}
 	}
 
@@ -874,7 +911,11 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 	})
 
 	if err := s.knowledgeRepo.UpdateScrapingJobProgress(jobID, 0, len(pagesForIndex)); err != nil {
-		fmt.Printf("warning: failed to initialise indexing progress: %v\n", err)
+		logger.GetTxLogger(ctx).Warn().
+			Str("component", "web_scraper").
+			Str("job_id", jobID.String()).
+			Err(err).
+			Msg("Failed to initialise indexing progress")
 	}
 
 	if err := s.knowledgeRepo.CreateScrapedPages(pagesForIndex); err != nil {
@@ -907,7 +948,13 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 	}
 
 	if err := s.knowledgeRepo.UpdateScrapingJobProgress(jobID, completed, len(pagesForIndex)); err != nil {
-		fmt.Printf("warning: failed to update indexing progress: %v\n", err)
+		logger.GetTxLogger(ctx).Warn().
+			Str("component", "web_scraper").
+			Str("job_id", jobID.String()).
+			Int("completed", completed).
+			Int("total_pages", len(pagesForIndex)).
+			Err(err).
+			Msg("Failed to update indexing progress")
 	}
 
 	if len(pagesToEmbed) > 0 {
@@ -952,7 +999,12 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 	}
 
 	if err := s.knowledgeRepo.UpdateScrapingJobProgress(jobID, len(pagesForIndex), len(pagesForIndex)); err != nil {
-		fmt.Printf("warning: failed to finalise indexing progress: %v\n", err)
+		logger.GetTxLogger(ctx).Warn().
+			Str("component", "web_scraper").
+			Str("job_id", jobID.String()).
+			Int("total_pages", len(pagesForIndex)).
+			Err(err).
+			Msg("Failed to finalise indexing progress")
 	}
 
 	if err := s.knowledgeRepo.CompleteIndexingJob(jobID); err != nil {
@@ -1055,10 +1107,18 @@ func (s *WebScrapingService) generateEmbeddingsForPages(ctx context.Context, pag
 	}
 
 	// Generate embeddings in batch
-	fmt.Printf("Starting embedding generation for %d pages...\n", len(pages))
+	txLogger := logger.GetTxLogger(ctx).With().
+		Str("component", "web_scraper").
+		Str("operation", "generate_embeddings").
+		Int("page_count", len(pages)).
+		Logger()
+
+	txLogger.Info().Msg("Starting embedding generation")
 	embeddings, err := s.embeddingService.GenerateEmbeddings(ctx, texts)
 	if err != nil {
-		fmt.Printf("Error generating embeddings: %v\n", err)
+		txLogger.Error().
+			Err(err).
+			Msg("Error generating embeddings")
 		return fmt.Errorf("failed to generate embeddings: %w", err)
 	}
 
@@ -1074,13 +1134,18 @@ func (s *WebScrapingService) generateEmbeddingsForPages(ctx context.Context, pag
 	}
 
 	// Update the database with the new embeddings
-	fmt.Printf("Updating database with embeddings for %d pages...\n", len(pages))
+	txLogger.Info().Msg("Updating database with embeddings")
 	err = s.knowledgeRepo.UpdatePageEmbeddings(pages)
 	if err != nil {
+		txLogger.Error().
+			Err(err).
+			Msg("Failed to update page embeddings")
 		return fmt.Errorf("failed to update page embeddings: %w", err)
 	}
 
-	fmt.Printf("Successfully assigned and saved embeddings to %d pages\n", len(pages))
+	txLogger.Info().
+		Int("updated_pages", len(pages)).
+		Msg("Successfully assigned and saved embeddings to pages")
 	return nil
 }
 
@@ -1247,7 +1312,12 @@ func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL s
 
 	// Error handling
 	c.OnError(func(r *colly.Response, err error) {
-		fmt.Printf("Error scraping %s: %v\n", r.Request.URL, err)
+		logger.GetTxLogger(ctx).Error().
+			Str("component", "web_scraper").
+			Str("operation", "scrape_theme_data").
+			Str("url", r.Request.URL.String()).
+			Err(err).
+			Msg("Error scraping theme data from URL")
 	})
 
 	// Visit the URL
