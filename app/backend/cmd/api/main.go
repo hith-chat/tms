@@ -156,6 +156,7 @@ func main() {
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
 	documentProcessorService := service.NewDocumentProcessorService(knowledgeRepo, embeddingService, "./uploads", cfg.Knowledge.MaxFileSize)
 	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge, redisService.GetClient())
+	publicURLAnalysisService := service.NewPublicURLAnalysisService(webScrapingService)
 	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
 	aiUsageService := service.NewAIUsageService(creditsRepo)
 
@@ -173,6 +174,7 @@ func main() {
 
 	// AI service (needs knowledge service for RAG, greeting services for agentic behavior, connection manager for handoff notifications, and auto assignment service)
 	aiService := service.NewAIService(&cfg.AI, &cfg.Agentic, chatSessionService, knowledgeService, aiUsageService, greetingDetectionService, brandGreetingService, connectionManager, howlingAlarmService)
+	aiBuilderService := service.NewAIBuilderService(chatWidgetService, webScrapingService, knowledgeService, aiService)
 
 	// Payment services
 	ipGeolocationService := service.NewIPGeolocationService(redisService, "ip_track", 15*24*time.Hour)
@@ -202,7 +204,8 @@ func main() {
 	chatSessionHandler := handlers.NewChatSessionHandler(chatSessionService, chatWidgetService, redisService)
 
 	// Knowledge management handlers
-	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService)
+	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService, publicURLAnalysisService)
+	aiBuilderHandler := handlers.NewAIBuilderHandler(aiBuilderService)
 
 	alarmHandler := handlers.NewAlarmHandler(howlingAlarmService)
 
@@ -225,7 +228,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, alarmHandler, paymentHandler, aiUsageHandler, stripeWebhookHandler, cashfreeWebhookHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, aiBuilderHandler, alarmHandler, paymentHandler, aiUsageHandler, stripeWebhookHandler, cashfreeWebhookHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -263,7 +266,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, aiUsageHandler *handlers.AIUsageHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, aiBuilderHandler *handlers.AIBuilderHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, aiUsageHandler *handlers.AIUsageHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -299,6 +302,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		publicRoutes.GET("/tickets/:ticketId", publicHandler.GetTicketByID)
 		publicRoutes.GET("/tickets/:ticketId/messages", publicHandler.GetTicketMessagesByID)
 		publicRoutes.POST("/tickets/:ticketId/messages", publicHandler.AddMessageByID)
+
+		// Public URL analysis endpoint
+		publicRoutes.POST("/analyze-url", knowledgeHandler.AnalyzePublicURL)
 	}
 
 	// Auth routes (not protected by auth middleware)
@@ -449,6 +455,8 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 			ais := projects.Group("/ai")
 			{
 				ais.POST("/usage/deduct", aiUsageHandler.DeductUsage)
+				ais.GET("/build", middleware.ProjectAdminMiddleware(), aiBuilderHandler.StreamBuild)
+				ais.POST("/build", middleware.ProjectAdminMiddleware(), aiBuilderHandler.StreamBuild)
 			}
 
 			// Alarms endpoints (Phase 4 implementation)
@@ -579,6 +587,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 				// Knowledge search
 				knowledge.POST("/search", knowledgeHandler.SearchKnowledgeBase)
 				knowledge.GET("/search", knowledgeHandler.SearchKnowledgeBaseGET)
+				knowledge.GET("/faq", knowledgeHandler.ListFAQItems)
 
 				// Settings
 				knowledge.GET("/settings", knowledgeHandler.GetKnowledgeSettings)

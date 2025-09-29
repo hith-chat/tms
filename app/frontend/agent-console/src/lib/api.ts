@@ -227,6 +227,17 @@ export interface ScrapedLinkPreview {
   selected: boolean
 }
 
+export interface KnowledgeFAQItem {
+  id: string
+  question: string
+  answer: string
+  source_url?: string
+  source_section?: string
+  metadata: Record<string, any>
+  created_at: string
+  updated_at: string
+}
+
 export interface ScrapingJobLinksResponse {
   links: ScrapedLinkPreview[]
   maxSelectableLinks: number
@@ -1353,6 +1364,13 @@ class APIClient {
     return response.data.jobs
   }
 
+  async getKnowledgeFAQ(_projectId: string): Promise<KnowledgeFAQItem[]> {
+    const response: AxiosResponse<{ items: KnowledgeFAQItem[] }> = await this.client.get(
+      `/knowledge/faq`
+    )
+    return response.data.items || []
+  }
+
   async getScrapingJobLinks(jobId: string): Promise<ScrapingJobLinksResponse> {
     const response: AxiosResponse<{ links: ScrapedLinkPreview[]; max_selectable_links?: number }> = await this.client.get(
       `/knowledge/scraping-jobs/${jobId}/links`
@@ -1385,6 +1403,20 @@ class APIClient {
 
     const baseUrl = this.client.defaults.baseURL || API_BASE_URL
     return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/knowledge/scraping-jobs/${jobId}/index/stream`
+  }
+
+  getAIBuilderStreamUrl(websiteUrl: string, depth: number = 3): string {
+    const tenantId = localStorage.getItem('tenant_id') || this.tenantId
+    const projectId = localStorage.getItem('project_id') || this.projectId
+
+    if (!tenantId || !projectId) {
+      throw new Error('Tenant and project must be selected before starting the AI builder')
+    }
+
+    const clampedDepth = Math.min(Math.max(depth, 1), 5)
+    const baseUrl = this.client.defaults.baseURL || API_BASE_URL
+    const params = new URLSearchParams({ url: websiteUrl, depth: clampedDepth.toString() })
+    return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/ai/build?${params.toString()}`
   }
 
   async searchKnowledge(_projectId: string, query: string): Promise<KnowledgeSearchResult> {

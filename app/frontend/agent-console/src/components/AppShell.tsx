@@ -17,6 +17,7 @@ import {
   Users,
   Brain,
   // Zap,
+  Sparkles,
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
 import { useAuth } from '../hooks/useAuth'
@@ -28,6 +29,7 @@ import { CommandPalette } from './CommandPalette'
 import { ProjectSelector } from './ProjectSelector'
 import { apiClient } from '../lib/api'
 import { ConnectionStatus } from './chat/ConnectionStatus'
+import { AIBuilderModal } from './AIBuilderModal'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -39,6 +41,7 @@ export function AppShell({ children }: AppShellProps) {
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(
     localStorage.getItem('project_id') || undefined
   )
+  const [builderOpen, setBuilderOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -64,6 +67,38 @@ export function AppShell({ children }: AppShellProps) {
     // Optionally refresh current page data when project changes
     window.location.reload()
   }
+
+  const markBuilderPrompted = () => {
+    if (!currentProjectId) return
+    try {
+      localStorage.setItem(`ai-builder-shown-${currentProjectId}`, 'true')
+    } catch (err) {
+      console.warn('Unable to persist AI builder prompt flag', err)
+    }
+  }
+
+  const handleOpenBuilder = () => {
+    markBuilderPrompted()
+    setBuilderOpen(true)
+  }
+
+  const handleCloseBuilder = () => {
+    setBuilderOpen(false)
+  }
+
+  useEffect(() => {
+    if (!currentProjectId) return
+    const storageKey = `ai-builder-shown-${currentProjectId}`
+    const alreadyShown = localStorage.getItem(storageKey)
+    if (alreadyShown) return
+
+    const timeout = window.setTimeout(() => {
+      setBuilderOpen(true)
+      markBuilderPrompted()
+    }, 800)
+
+    return () => window.clearTimeout(timeout)
+  }, [currentProjectId])
 
   // Command palette keyboard shortcut
   useEffect(() => {
@@ -212,6 +247,16 @@ export function AppShell({ children }: AppShellProps) {
               variant="md"
             />
             
+            {/* AI Builder */}
+            <button
+              onClick={handleOpenBuilder}
+              className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Launch AI Builder"
+              disabled={!currentProjectId}
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
+
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
@@ -253,6 +298,11 @@ export function AppShell({ children }: AppShellProps) {
         </main>
       </div>
       
+      <AIBuilderModal
+        open={builderOpen}
+        onClose={handleCloseBuilder}
+      />
+
       {/* Command Palette */}
       <CommandPalette 
         isOpen={commandPaletteOpen} 

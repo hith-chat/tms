@@ -693,6 +693,36 @@ type ThemeData interface {
 	GetMetaDesc() string
 }
 
+// KnowledgeLinkCandidate represents a discovered link that can be evaluated for indexing
+type KnowledgeLinkCandidate struct {
+	URL        string
+	Title      string
+	Depth      int
+	TokenCount int
+}
+
+// KnowledgeLinkSelection is the AI-ranked result for which links to index automatically
+type KnowledgeLinkSelection struct {
+	URL       string `json:"url"`
+	Category  string `json:"category"`
+	Rationale string `json:"rationale"`
+}
+
+// KnowledgeSectionSummary summarises scraped content for FAQ generation
+type KnowledgeSectionSummary struct {
+	URL     string
+	Title   string
+	Content string
+}
+
+// GeneratedFAQItem captures AI-produced FAQ entries prior to persistence
+type GeneratedFAQItem struct {
+	Question   string `json:"question"`
+	Answer     string `json:"answer"`
+	SourceURL  string `json:"source_url"`
+	SectionRef string `json:"section_reference"`
+}
+
 // GenerateWidgetTheme generates chat widget theme based on website analysis
 func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData) (*models.CreateChatWidgetRequest, error) {
 	if !s.IsEnabled() {
@@ -778,4 +808,225 @@ Keep messages professional but warm, and under 100 characters each.
 		themeData.GetBackgroundHues(),
 		themeData.GetFontFamilies(),
 	)
+}
+
+// SelectTopKnowledgeLinks asks the AI model to prioritise the most relevant links for knowledge ingestion
+func (s *AIService) SelectTopKnowledgeLinks(ctx context.Context, rootURL string, candidates []KnowledgeLinkCandidate, maxLinks int) ([]KnowledgeLinkSelection, error) {
+	if !s.IsEnabled() {
+		return nil, fmt.Errorf("AI service is not enabled")
+	}
+
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no link candidates provided")
+	}
+
+	if maxLinks <= 0 {
+		maxLinks = 5
+	}
+
+	var builder strings.Builder
+	for i, candidate := range candidates {
+		builder.WriteString(fmt.Sprintf("Candidate %d:\n", i+1))
+		builder.WriteString(fmt.Sprintf("URL: %s\n", candidate.URL))
+		builder.WriteString(fmt.Sprintf("Title: %s\n", candidate.Title))
+		builder.WriteString(fmt.Sprintf("Depth: %d\n", candidate.Depth))
+		builder.WriteString(fmt.Sprintf("ApproxTokens: %d\n\n", candidate.TokenCount))
+	}
+
+	prompt := fmt.Sprintf(`You are selecting the %d most useful pages to ingest for a customer-support knowledge base.
+The root website is %s.
+Pick a mix of pages that best represent documentation, pricing, support, and key marketing information while staying within the same domain.
+
+Here are the candidate pages:
+%s
+
+Respond with STRICT JSON using this schema (no additional commentary):
+{
+  "selections": [
+    {"url": "https://example.com/path", "category": "pricing|docs|support|homepage|blog|product", "rationale": "Short justification under 120 characters"}
+  ]
+}
+
+Return exactly %d unique URLs. Always include the homepage (%s) even if it was not in the candidates. All URLs must belong to the same domain.
+`,
+		maxLinks,
+		rootURL,
+		builder.String(),
+		maxLinks,
+		rootURL,
+	)
+
+	req := ChatCompletionRequest{
+		Model: "gpt-4",
+		Messages: []ChatCompletionMessage{
+			{Role: "system", Content: "You are an expert knowledge architect who curates high-signal website content for AI assistants."},
+			{Role: "user", Content: prompt},
+		},
+		Temperature: 0.2,
+		MaxTokens:   800,
+	}
+
+	response, _, err := s.callOpenAI(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to rank knowledge links: %w", err)
+	}
+
+	var parsed struct {
+		Selections []KnowledgeLinkSelection `json:"selections"`
+	}
+
+	if err := json.Unmarshal([]byte(response), &parsed); err != nil {
+		return nil, fmt.Errorf("failed to parse knowledge link selections: %w", err)
+	}
+
+	normalise := func(u string) string {
+		return strings.TrimRight(strings.TrimSpace(u), "/")
+	}
+
+	rootKey := normalise(rootURL)
+	selectionMap := make(map[string]KnowledgeLinkSelection)
+	ordered := make([]KnowledgeLinkSelection, 0, len(parsed.Selections))
+	for _, sel := range parsed.Selections {
+		url := normalise(sel.URL)
+		if url == "" {
+			continue
+		}
+		if _, exists := selectionMap[url]; exists {
+			continue
+		}
+		selectionMap[url] = sel
+		ordered = append(ordered, sel)
+	}
+
+	if _, exists := selectionMap[rootKey]; !exists {
+		selectionMap[rootKey] = KnowledgeLinkSelection{
+			URL:       rootURL,
+			Category:  "homepage",
+			Rationale: "Homepage baseline coverage",
+		}
+		ordered = append([]KnowledgeLinkSelection{selectionMap[rootKey]}, ordered...)
+	}
+
+	if len(ordered) < maxLinks {
+		candidateMap := make(map[string]KnowledgeLinkCandidate)
+		for _, c := range candidates {
+			candidateMap[normalise(c.URL)] = c
+		}
+		for _, c := range candidates {
+			norm := normalise(c.URL)
+			if _, exists := selectionMap[norm]; exists {
+				continue
+			}
+			selectionMap[norm] = KnowledgeLinkSelection{
+				URL:       c.URL,
+				Category:  "content",
+				Rationale: "High-signal page discovered during crawl",
+			}
+			ordered = append(ordered, selectionMap[norm])
+			if len(ordered) >= maxLinks {
+				break
+			}
+		}
+	}
+
+	if len(ordered) > maxLinks {
+		ordered = ordered[:maxLinks]
+	}
+
+	return ordered, nil
+}
+
+// GenerateKnowledgeFAQ produces curated FAQ entries from scraped sections
+func (s *AIService) GenerateKnowledgeFAQ(ctx context.Context, baseURL string, sections []KnowledgeSectionSummary, count int) ([]GeneratedFAQItem, error) {
+	if !s.IsEnabled() {
+		return nil, fmt.Errorf("AI service is not enabled")
+	}
+
+	if len(sections) == 0 {
+		return nil, fmt.Errorf("no knowledge sections provided")
+	}
+
+	if count <= 0 {
+		count = 10
+	}
+
+	var builder strings.Builder
+	for i, section := range sections {
+		content := strings.TrimSpace(section.Content)
+		if len(content) > 1600 {
+			content = content[:1600] + "..."
+		}
+		builder.WriteString(fmt.Sprintf("Section %d\nURL: %s\nTitle: %s\nExcerpt: %s\n\n", i+1, section.URL, section.Title, content))
+	}
+
+	prompt := fmt.Sprintf(`You are creating high-quality FAQ content for the website %s.
+Use the provided sections to generate the top %d customer questions and concise answers.
+Each FAQ must cite the most relevant section URL and, if possible, include a short section reference (e.g., pricing table, onboarding docs).
+
+Return STRICT JSON (no commentary) with the following schema:
+{
+  "items": [
+    {"question": "...", "answer": "...", "source_url": "https://example.com/path", "section_reference": "Short reference"}
+  ]
+}
+
+Constraints:
+- Answers must stay under 120 words.
+- Use only the provided sections; do not invent URLs.
+- Prefer actionable, customer-facing questions.
+- Keep language aligned with the brand tone implied by the excerpts.
+
+Here are the sections:
+%s
+`,
+		baseURL,
+		count,
+		builder.String(),
+	)
+
+	req := ChatCompletionRequest{
+		Model: "gpt-4",
+		Messages: []ChatCompletionMessage{
+			{Role: "system", Content: "You are a world-class product support specialist who writes crisp FAQs grounded strictly in the provided material."},
+			{Role: "user", Content: prompt},
+		},
+		Temperature: 0.3,
+		MaxTokens:   1600,
+	}
+
+	response, _, err := s.callOpenAI(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate FAQs: %w", err)
+	}
+
+	var parsed struct {
+		Items []GeneratedFAQItem `json:"items"`
+	}
+
+	if err := json.Unmarshal([]byte(response), &parsed); err != nil {
+		return nil, fmt.Errorf("failed to parse FAQ payload: %w", err)
+	}
+
+	root := strings.TrimRight(baseURL, "/")
+	fallbackURL := root
+
+	for i := range parsed.Items {
+		item := &parsed.Items[i]
+		item.Question = strings.TrimSpace(item.Question)
+		item.Answer = strings.TrimSpace(item.Answer)
+		item.SourceURL = strings.TrimSpace(item.SourceURL)
+		item.SectionRef = strings.TrimSpace(item.SectionRef)
+		if item.SourceURL == "" {
+			item.SourceURL = fallbackURL
+		}
+		if !strings.HasPrefix(item.SourceURL, root) {
+			item.SourceURL = fallbackURL
+		}
+	}
+
+	if len(parsed.Items) > count {
+		parsed.Items = parsed.Items[:count]
+	}
+
+	return parsed.Items, nil
 }

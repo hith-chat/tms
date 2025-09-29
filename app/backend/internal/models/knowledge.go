@@ -161,11 +161,25 @@ type UpdateKnowledgeSettingsRequest struct {
 
 // KnowledgeStats represents statistics about the knowledge base
 type KnowledgeStats struct {
-	TotalDocuments    int   `json:"total_documents"`
-	TotalChunks       int   `json:"total_chunks"`
-	TotalScrapingJobs int   `json:"total_scraping_jobs"`
-	TotalScrapedPages int   `json:"total_scraped_pages"`
-	TotalStorageBytes int64 `json:"total_storage_bytes"`
+    TotalDocuments    int   `json:"total_documents"`
+    TotalChunks       int   `json:"total_chunks"`
+    TotalScrapingJobs int   `json:"total_scraping_jobs"`
+    TotalScrapedPages int   `json:"total_scraped_pages"`
+    TotalStorageBytes int64 `json:"total_storage_bytes"`
+}
+
+// KnowledgeFAQItem represents an auto-generated FAQ entry for the knowledge base
+type KnowledgeFAQItem struct {
+    ID            uuid.UUID `db:"id" json:"id"`
+    TenantID      uuid.UUID `db:"tenant_id" json:"tenant_id"`
+    ProjectID     uuid.UUID `db:"project_id" json:"project_id"`
+    Question      string    `db:"question" json:"question"`
+    Answer        string    `db:"answer" json:"answer"`
+    SourceURL     *string   `db:"source_url" json:"source_url,omitempty"`
+    SourceSection *string   `db:"source_section" json:"source_section,omitempty"`
+    Metadata      JSONMap   `db:"metadata" json:"metadata"`
+    CreatedAt     time.Time `db:"created_at" json:"created_at"`
+    UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // DocumentProcessingStatus represents the processing status of a document

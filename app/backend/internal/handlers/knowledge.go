@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,17 +21,20 @@ type KnowledgeHandler struct {
 	documentProcessor *service.DocumentProcessorService
 	webScraper        *service.WebScrapingService
 	knowledgeService  *service.KnowledgeService
+	publicURLAnalysis *service.PublicURLAnalysisService
 }
 
 func NewKnowledgeHandler(
 	documentProcessor *service.DocumentProcessorService,
 	webScraper *service.WebScrapingService,
 	knowledgeService *service.KnowledgeService,
+	publicURLAnalysis *service.PublicURLAnalysisService,
 ) *KnowledgeHandler {
 	return &KnowledgeHandler{
 		documentProcessor: documentProcessor,
 		webScraper:        webScraper,
 		knowledgeService:  knowledgeService,
+		publicURLAnalysis: publicURLAnalysis,
 	}
 }
 
@@ -502,6 +506,24 @@ func (h *KnowledgeHandler) SearchKnowledgeBaseGET(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// ListFAQItems returns auto-generated FAQ pairs for the project
+func (h *KnowledgeHandler) ListFAQItems(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+
+	items, err := h.knowledgeService.ListFAQItems(c.Request.Context(), tenantID, projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load knowledge FAQs"})
+		return
+	}
+
+	if items == nil {
+		items = []*models.KnowledgeFAQItem{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
 // Settings endpoints
 
 // GetKnowledgeSettings returns knowledge settings for a project
@@ -550,6 +572,93 @@ func (h *KnowledgeHandler) GetKnowledgeStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// AnalyzePublicURL analyzes a public URL and returns associated URLs with token counts
+// @Summary Analyze public URL
+// @Description Analyze a public URL to discover associated URLs and their token counts up to specified depth
+// @Tags Public
+// @Accept json
+// @Produce text/event-stream
+// @Param request body service.URLAnalysisRequest true "URL analysis request"
+// @Success 200 {string} string "Server-sent events stream with analysis progress"
+// @Failure 400 {object} map[string]interface{} "Invalid request"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/analyze-url [post]
+func (h *KnowledgeHandler) AnalyzePublicURL(c *gin.Context) {
+	var req service.URLAnalysisRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Validate the request
+	if req.URL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL is required"})
+		return
+	}
+
+	// Set up context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	defer cancel()
+
+	// Create events channel
+	events := make(chan service.URLAnalysisEvent, 100)
+	defer close(events)
+
+	// Start analysis in goroutine
+	go func() {
+		_, err := h.publicURLAnalysis.AnalyzeURLWithStream(ctx, req, events)
+		if err != nil {
+			// Send error event if analysis fails
+			select {
+			case events <- service.URLAnalysisEvent{
+				Type:      "error",
+				Message:   fmt.Sprintf("Analysis failed: %v", err),
+				Timestamp: time.Now(),
+			}:
+			case <-ctx.Done():
+				// Context cancelled
+			}
+		}
+	}()
+
+	// Set up Server-Sent Events headers
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Stream events
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+
+			eventData := toJSON(event)
+			fmt.Fprintf(w, "data: %s\n\n", eventData)
+
+			// Close stream if analysis is completed or errored
+			if event.Type == "completed" || event.Type == "error" {
+				return false
+			}
+
+			return true
+		case <-ctx.Done():
+			// Context cancelled, close stream
+			return false
+		case <-time.After(30 * time.Second):
+			// Send keepalive ping
+			fmt.Fprintf(w, "data: %s\n\n", toJSON(service.URLAnalysisEvent{
+				Type:      "ping",
+				Message:   "keepalive",
+				Timestamp: time.Now(),
+			}))
+			return true
+		}
+	})
 }
 
 // toJSON helper function for SSE data formatting

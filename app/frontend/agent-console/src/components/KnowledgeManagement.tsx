@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { 
-  Upload, 
   FileText, 
   Globe, 
   Trash2, 
@@ -14,7 +13,7 @@ import {
   X
   ,ChevronDown,ChevronUp
 } from 'lucide-react'
-import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, ScrapedLinkPreview } from '../lib/api'
+import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, KnowledgeFAQItem, ScrapedLinkPreview } from '../lib/api'
 
 interface KnowledgeManagementProps {
   projectId: string | null
@@ -77,13 +76,14 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   // State for documents
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([])
   const [scrapingJobs, setScrapingJobs] = useState<KnowledgeScrapingJob[]>([])
+  const [faqItems, setFaqItems] = useState<KnowledgeFAQItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // Upload state
-  const [dragOver, setDragOver] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [_dragOver, _setDragOver] = useState(false)
+  const [_uploading, _setUploading] = useState(false)
 
   // Scraping state
   const [showScrapingForm, setShowScrapingForm] = useState(false)
@@ -157,14 +157,16 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     setError(null)
     try {
       console.log('Loading knowledge data for project:', projectId)
-      const [documentsData, jobsData, aboutMeData] = await Promise.all([
+      const [documentsData, jobsData, aboutMeData, faqData] = await Promise.all([
         apiClient.getDocuments(projectId),
         apiClient.getScrapingJobs(projectId),
-        apiClient.getAboutMeSettings().catch(() => ({ content: '' })) // Default to empty if not found
+        apiClient.getAboutMeSettings().catch(() => ({ content: '' })), // Default to empty if not found
+        apiClient.getKnowledgeFAQ(projectId).catch(() => [])
       ])
-      console.log('Successfully loaded:', { documents: documentsData?.length, jobs: jobsData?.length, aboutMe: aboutMeData?.content?.length })
+      console.log('Successfully loaded:', { documents: documentsData?.length, jobs: jobsData?.length, aboutMe: aboutMeData?.content?.length, faq: faqData?.length })
       setDocuments(documentsData || [])
       setScrapingJobs(jobsData || [])
+      setFaqItems(faqData || [])
       const content = aboutMeData?.content || ''
       setAboutMeContent(content)
       // Auto-collapse the About Me section when there is existing content
@@ -182,30 +184,30 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const _handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    setDragOver(true)
+    _setDragOver(true)
   }
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const _handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
-    setDragOver(false)
+    _setDragOver(false)
   }
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const _handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
-    setDragOver(false)
+    _setDragOver(false)
     
     const files = Array.from(e.dataTransfer.files)
-    await uploadFiles(files)
+    await _uploadFiles(files)
   }
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const _handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    await uploadFiles(files)
+    await _uploadFiles(files)
   }
 
-  const uploadFiles = async (files: File[]) => {
+  const _uploadFiles = async (files: File[]) => {
     if (!projectId) {
       setError('No project selected')
       return
@@ -218,7 +220,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
       return
     }
 
-    setUploading(true)
+    _setUploading(true)
     setError(null)
 
     try {
@@ -231,7 +233,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
       setError('Failed to upload documents')
       console.error('Upload error:', err)
     } finally {
-      setUploading(false)
+      _setUploading(false)
     }
   }
 
@@ -1439,6 +1441,55 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {faqItems.length > 0 && (
+        <div className="border rounded-lg p-6 bg-card">
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium">Knowledge Q&A</h3>
+              <p className="text-sm text-muted-foreground">Top questions and answers generated automatically from your website content</p>
+            </div>
+
+            <ul className="space-y-3">
+              {faqItems.map((faq) => (
+                <li key={faq.id} className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                  <div className="text-sm font-semibold text-foreground">
+                    {faq.question}
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
+                    {faq.answer}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {faq.source_url && (
+                      <a
+                        href={faq.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline break-all"
+                      >
+                        {faq.source_url}
+                      </a>
+                    )}
+                    {faq.source_section && (
+                      <span className="rounded-full border border-border/60 bg-background px-2 py-0.5">
+                        {faq.source_section}
+                      </span>
+                    )}
+                    {faq.metadata?.category && (
+                      <span className="rounded-full border border-border/60 bg-background px-2 py-0.5 capitalize">
+                        {String(faq.metadata.category)}
+                      </span>
+                    )}
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {new Date(faq.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

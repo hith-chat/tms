@@ -1,10 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
@@ -21,10 +24,11 @@ import (
 )
 
 type WebScrapingService struct {
-	knowledgeRepo    *repo.KnowledgeRepository
-	embeddingService *EmbeddingService
-	config           *config.KnowledgeConfig
-	redisClient      redis.UniversalClient
+	knowledgeRepo            *repo.KnowledgeRepository
+	embeddingService         *EmbeddingService
+	config                   *config.KnowledgeConfig
+	redisClient              redis.UniversalClient
+	headlessBrowserExtractor *HeadlessBrowserURLExtractor
 }
 
 const (
@@ -40,6 +44,16 @@ type discoveredLink struct {
 	Title      string `json:"title,omitempty"`
 	Depth      int    `json:"depth"`
 	TokenCount int    `json:"token_count"`
+}
+
+// URLExtractionRequest represents the request payload for yourgpt.ai URL extraction API
+type URLExtractionRequest struct {
+	URL string `json:"url"`
+}
+
+// URLExtractionResponse represents the response from yourgpt.ai URL extraction API
+type URLExtractionResponse struct {
+	URLs []string `json:"urls"`
 }
 
 type linkDiscoveryResult struct {
@@ -76,11 +90,15 @@ type ScrapingEvent struct {
 }
 
 func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig, redisClient redis.UniversalClient) *WebScrapingService {
+	// Initialize headless browser extractor with 30 second timeout
+	headlessExtractor := NewHeadlessBrowserURLExtractor(30*time.Second, "")
+
 	return &WebScrapingService{
-		knowledgeRepo:    knowledgeRepo,
-		embeddingService: embeddingService,
-		config:           cfg,
-		redisClient:      redisClient,
+		knowledgeRepo:            knowledgeRepo,
+		embeddingService:         embeddingService,
+		config:                   cfg,
+		redisClient:              redisClient,
+		headlessBrowserExtractor: headlessExtractor,
 	}
 }
 
@@ -173,6 +191,215 @@ func (s *WebScrapingService) validateURL(rawURL string) error {
 	return nil
 }
 
+// extractURLsFromAPI attempts to extract URLs using yourgpt.ai API
+func (s *WebScrapingService) extractURLsFromAPI(ctx context.Context, targetURL string) ([]string, error) {
+	requestPayload := URLExtractionRequest{URL: targetURL}
+	jsonData, err := json.Marshal(requestPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://yourgpt.ai/api/extractUrls", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers as provided in the curl command
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+	req.Header.Set("Origin", "https://yourgpt.ai")
+	req.Header.Set("Referer", "https://yourgpt.ai/tools/url-extractor")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var response URLExtractionResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return response.URLs, nil
+}
+
+// extractURLsManually extracts URLs using headless browser primarily, with colly as fallback
+func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	// Try headless browser extraction first
+	headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
+	fmt.Println("Healdess dataå. --- ", headlessLinks)
+	if err == nil && len(headlessLinks) > 0 {
+		return headlessLinks, nil
+	}
+
+	// Check if it's a Playwright installation issue
+	if err != nil && strings.Contains(err.Error(), "please install the driver") {
+		fmt.Printf("Playwright not installed locally, using comprehensive extraction instead\n")
+	} else {
+		fmt.Printf("Headless browser extraction failed (%v), falling back to comprehensive extraction\n", err)
+	}
+	return s.extractURLsComprehensively(ctx, targetURL, maxDepth)
+}
+
+// extractURLsWithHeadlessBrowser extracts URLs using a comprehensive HTTP-based approach
+func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	fmt.Println("Starting headless browser extraction for:", targetURL)
+	// Try headless browser extraction
+	var allLinks []discoveredLink
+	visited := make(map[string]bool)
+	toVisit := []struct {
+		url   string
+		depth int
+	}{{targetURL, 0}}
+
+	for len(toVisit) > 0 && len(allLinks) < 10 {
+		current := toVisit[0]
+		toVisit = toVisit[1:]
+
+		if current.depth > maxDepth || visited[current.url] {
+			continue
+		}
+
+		visited[current.url] = true
+
+		// Extract URLs from current page using headless browser
+		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
+		if err != nil {
+			fmt.Printf("Failed to extract URLs from %s: %v\n", current.url, err)
+			continue
+		}
+
+		// Get page title and content for token estimation
+		title, _ := s.headlessBrowserExtractor.GetPageTitle(ctx, current.url)
+		content, _ := s.headlessBrowserExtractor.GetPageContent(ctx, current.url)
+		tokenCount := s.estimateTokenCount(content)
+
+		// Add current page to results
+		allLinks = append(allLinks, discoveredLink{
+			URL:        current.url,
+			Title:      title,
+			Depth:      current.depth,
+			TokenCount: tokenCount,
+		})
+
+		// Add discovered URLs for next depth level
+		if current.depth < maxDepth {
+			for _, urlInfo := range extractedURLs {
+				if !visited[urlInfo.URL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+					toVisit = append(toVisit, struct {
+						url   string
+						depth int
+					}{urlInfo.URL, current.depth + 1})
+				}
+			}
+		}
+	}
+
+	return allLinks, nil
+}
+
+func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
+	// Initialize the comprehensive URL extractor
+	extractor, err := NewComprehensiveURLExtractor(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create URL extractor: %w", err)
+	}
+
+	c := colly.NewCollector(
+		colly.UserAgent(s.config.ScrapeUserAgent),
+	)
+
+	c.SetRequestTimeout(s.config.ScrapeTimeout)
+	c.Limit(&colly.LimitRule{
+		DomainGlob:  "*",
+		Parallelism: 2, // Conservative parallelism for comprehensive extraction
+		Delay:       s.config.ScrapeRateLimit,
+	})
+	c.AllowURLRevisit = false
+
+	var discoveredLinks []discoveredLink
+	visitedURLs := map[string]bool{targetURL: true}
+	maxLinks := 500 // Increased limit for comprehensive extraction
+
+	// Process each page comprehensively
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		depth := e.Request.Depth
+		if depth > maxDepth || len(discoveredLinks) >= maxLinks {
+			return
+		}
+
+		currentURL := e.Request.URL.String()
+
+		// Extract title
+		title := e.ChildText("title")
+		if title == "" {
+			title = e.ChildText("h1")
+		}
+		title = strings.TrimSpace(title)
+
+		// Extract text content and estimate tokens
+		pageContent := s.extractTextContent(e)
+		tokenCount := s.estimateTokenCount(pageContent)
+
+		// Add current page to discovered links
+		link := discoveredLink{
+			URL:        currentURL,
+			Title:      title,
+			Depth:      depth,
+			TokenCount: tokenCount,
+		}
+		discoveredLinks = append(discoveredLinks, link)
+
+		// Use comprehensive URL extraction if we haven't reached max depth
+		if depth < maxDepth && len(discoveredLinks) < maxLinks {
+			// Get the HTML content as bytes
+			htmlContent := []byte(e.Response.Body)
+
+			// Extract URLs comprehensively
+			extractedURLs := extractor.ExtractURLsFromHTML(htmlContent, currentURL)
+
+			// Visit extracted URLs
+			for _, extractedURL := range extractedURLs {
+				if len(discoveredLinks) >= maxLinks {
+					break
+				}
+
+				if s.shouldFollowLink(extractedURL, currentURL) && !visitedURLs[extractedURL] {
+					visitedURLs[extractedURL] = true
+					e.Request.Visit(extractedURL)
+				}
+			}
+		}
+	})
+
+	// Error logging
+	c.OnError(func(r *colly.Response, err error) {
+		fmt.Printf("Error visiting %s: %v\n", r.Request.URL, err)
+	})
+
+	// Start crawl
+	if err := c.Visit(targetURL); err != nil {
+		return nil, fmt.Errorf("failed to start comprehensive crawl: %w", err)
+	}
+
+	c.Wait()
+	return discoveredLinks, nil
+}
+
 // startScrapingJobWithStream discovers links with real-time progress streaming
 func (s *WebScrapingService) startScrapingJobWithStream(ctx context.Context, job *models.KnowledgeScrapingJob, events chan<- ScrapingEvent) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute) // Shorter timeout for link discovery
@@ -209,103 +436,84 @@ func (s *WebScrapingService) startScrapingJobWithStream(ctx context.Context, job
 		Timestamp: time.Now(),
 	})
 
-	c := colly.NewCollector(
-		colly.UserAgent(s.config.ScrapeUserAgent),
-	)
-
-	c.SetRequestTimeout(s.config.ScrapeTimeout)
-	c.Limit(&colly.LimitRule{
-		DomainGlob:  "*",
-		Parallelism: 1,
-		Delay:       s.config.ScrapeRateLimit,
-	})
-	c.AllowURLRevisit = false
-
 	var discoveredLinks []discoveredLink
-	visitedURLs := map[string]bool{job.URL: true}
-	maxLinks := 100
 
-	c.OnHTML("html", func(e *colly.HTMLElement) {
-		depth := e.Request.Depth
-		if depth > job.MaxDepth || len(discoveredLinks) >= maxLinks {
-			return
-		}
+	// Try API-based URL extraction first
+	s.sendScrapingEvent(ctx, events, ScrapingEvent{
+		Type:      "info",
+		JobID:     job.ID,
+		Message:   "Attempting API-based URL extraction...",
+		URL:       job.URL,
+		Timestamp: time.Now(),
+	})
 
-		currentURL := e.Request.URL.String()
-		title := e.ChildText("title")
-		if title == "" {
-			title = e.ChildText("h1")
-		}
-
-		// Add current page to discovered links
-		// Extract a cleaned text preview of the page and estimate token count
-		pageContent := s.extractTextContent(e)
-		tokenCount := s.estimateTokenCount(pageContent)
-
-		link := discoveredLink{
-			URL:        currentURL,
-			Title:      strings.TrimSpace(title),
-			Depth:      depth,
-			TokenCount: tokenCount,
-		}
-		discoveredLinks = append(discoveredLinks, link)
-
+	apiURLs, apiErr := s.extractURLsFromAPI(ctx, job.URL)
+	if apiErr == nil && len(apiURLs) > 0 {
 		s.sendScrapingEvent(ctx, events, ScrapingEvent{
-			Type:         "link_found",
-			JobID:        job.ID,
-			Message:      fmt.Sprintf("Found link: %s", title),
-			URL:          currentURL,
-			CurrentDepth: depth,
-			MaxDepth:     job.MaxDepth,
-			LinksFound:   len(discoveredLinks),
-			Timestamp:    time.Now(),
+			Type:       "info",
+			JobID:      job.ID,
+			Message:    fmt.Sprintf("API extracted %d URLs successfully", len(apiURLs)),
+			URL:        job.URL,
+			LinksFound: len(apiURLs),
+			Timestamp:  time.Now(),
 		})
 
-		// Discover more links if we haven't reached max depth
-		if depth < job.MaxDepth && len(discoveredLinks) < maxLinks {
-			e.ForEach("a[href]", func(_ int, linkEl *colly.HTMLElement) {
-				linkURL := linkEl.Attr("href")
-				absoluteURL := e.Request.AbsoluteURL(linkURL)
+		// Convert API URLs to discoveredLink format
+		for i, url := range apiURLs {
+			if i >= 100 { // Limit to avoid overwhelming
+				break
+			}
+			if err := s.validateURL(url); err != nil {
+				continue // Skip invalid URLs
+			}
 
-				if s.shouldFollowLink(absoluteURL, currentURL) && !visitedURLs[absoluteURL] {
-					visitedURLs[absoluteURL] = true
-					e.Request.Visit(linkURL)
-				}
+			link := discoveredLink{
+				URL:        url,
+				Title:      "", // Will be fetched during indexing
+				Depth:      0,  // API URLs are at depth 0
+				TokenCount: 0,  // Set to 0 as requested for API-extracted URLs
+			}
+			discoveredLinks = append(discoveredLinks, link)
+
+			s.sendScrapingEvent(ctx, events, ScrapingEvent{
+				Type:       "link_found",
+				JobID:      job.ID,
+				Message:    fmt.Sprintf("Found URL from API: %s", url),
+				URL:        url,
+				LinksFound: len(discoveredLinks),
+				Timestamp:  time.Now(),
 			})
 		}
-	})
-
-	c.OnError(func(r *colly.Response, e error) {
-		fmt.Printf("Error visiting %s: %v\n", r.Request.URL, e)
+	} else {
+		// Fallback to manual extraction
 		s.sendScrapingEvent(ctx, events, ScrapingEvent{
 			Type:      "warning",
 			JobID:     job.ID,
-			Message:   fmt.Sprintf("Error visiting %s: %v", r.Request.URL, e),
-			URL:       r.Request.URL.String(),
+			Message:   fmt.Sprintf("API extraction failed (%v), falling back to manual discovery...", apiErr),
+			URL:       job.URL,
 			Timestamp: time.Now(),
 		})
-	})
 
-	c.OnRequest(func(r *colly.Request) {
-		fmt.Printf("Visiting: %s (depth: %d)\n", r.URL.String(), r.Depth)
-		s.sendScrapingEvent(ctx, events, ScrapingEvent{
-			Type:         "visiting",
-			JobID:        job.ID,
-			Message:      fmt.Sprintf("Visiting: %s", r.URL.String()),
-			URL:          r.URL.String(),
-			CurrentDepth: r.Depth,
-			MaxDepth:     job.MaxDepth,
-			LinksFound:   len(discoveredLinks),
-			Timestamp:    time.Now(),
-		})
-	})
+		manualLinks, manualErr := s.extractURLsManually(ctx, job.URL, job.MaxDepth)
+		if manualErr != nil {
+			runErr = fmt.Errorf("both API and manual URL extraction failed: API error: %v, Manual error: %v", apiErr, manualErr)
+			return
+		}
 
-	if runErr = c.Visit(job.URL); runErr != nil {
-		runErr = fmt.Errorf("failed to start link discovery: %w", runErr)
-		return
+		discoveredLinks = manualLinks
+		for _, link := range discoveredLinks {
+			s.sendScrapingEvent(ctx, events, ScrapingEvent{
+				Type:         "link_found",
+				JobID:        job.ID,
+				Message:      fmt.Sprintf("Found link: %s", link.Title),
+				URL:          link.URL,
+				CurrentDepth: link.Depth,
+				MaxDepth:     job.MaxDepth,
+				LinksFound:   len(discoveredLinks),
+				Timestamp:    time.Now(),
+			})
+		}
 	}
-
-	c.Wait()
 
 	totalLinks := len(discoveredLinks)
 	if totalLinks == 0 {
@@ -389,15 +597,6 @@ func (s *WebScrapingService) loadDiscoveredLinksFromRedis(ctx context.Context, r
 	}
 
 	return &result, nil
-}
-
-func (s *WebScrapingService) previewContent(text string) string {
-	maxLen := 240
-	trimmed := strings.TrimSpace(text)
-	if len(trimmed) <= maxLen {
-		return trimmed
-	}
-	return trimmed[:maxLen] + "…"
 }
 
 func (s *WebScrapingService) sendIndexingEvent(ctx context.Context, ch chan<- IndexingEvent, event IndexingEvent) {
