@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/db"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
 	"github.com/bareuptime/tms/internal/service"
@@ -15,19 +15,21 @@ import (
 )
 
 func main() {
-	fmt.Println("=== End-to-End Job Completion Test ===")
-	fmt.Println()
+	logger.Info("=== End-to-End Job Completion Test ===")
+	logger.Info("")
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		logger.Errorf("Failed to load config: %v", err)
+		return
 	}
 
 	// Connect to database
 	database, err := db.Connect(&cfg.Database)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Errorf("Failed to connect to database: %v", err)
+		return
 	}
 	defer database.Close()
 
@@ -41,12 +43,12 @@ func main() {
 	tenantID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 	projectID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 
-	fmt.Printf("🎯 Testing with tenant: %s, project: %s\n", tenantID, projectID)
-	fmt.Printf("🔧 Embedding service enabled: %v\n", embeddingService.IsEnabled())
-	fmt.Println()
+	logger.Infof("🎯 Testing with tenant: %s, project: %s", tenantID, projectID)
+	logger.Infof("🔧 Embedding service enabled: %v", embeddingService.IsEnabled())
+	logger.Info("")
 
 	// Test 1: Create and run a scraping job
-	fmt.Println("🔍 Test: Full Scraping Job Lifecycle")
+	logger.Info("🔍 Test: Full Scraping Job Lifecycle")
 
 	// Create scraping request
 	req := &models.CreateScrapingJobRequest{
@@ -54,19 +56,20 @@ func main() {
 		MaxDepth: 1,
 	}
 
-	fmt.Printf("🚀 Creating scraping job for URL: %s\n", req.URL)
+	logger.Infof("🚀 Creating scraping job for URL: %s", req.URL)
 
 	// Create the job using the service
 	job, err := webScraperService.CreateScrapingJob(context.Background(), tenantID, projectID, req)
 	if err != nil {
-		log.Fatalf("❌ Failed to create scraping job: %v", err)
+		logger.Errorf("❌ Failed to create scraping job: %v", err)
+		return
 	}
 
-	fmt.Printf("✅ Created job: %s\n", job.ID)
-	fmt.Printf("📊 Initial status: %s\n", job.Status)
+	logger.Infof("✅ Created job: %s", job.ID)
+	logger.Infof("📊 Initial status: %s", job.Status)
 
 	// Monitor job status for completion
-	fmt.Println("\n⏰ Monitoring job status changes...")
+	logger.Info("⏰ Monitoring job status changes...")
 
 	maxWait := 60 * time.Second
 	checkInterval := 2 * time.Second
@@ -76,93 +79,93 @@ func main() {
 		// Get current job status
 		currentJob, err := webScraperService.GetScrapingJob(context.Background(), job.ID, job.TenantID, job.ProjectID)
 		if err != nil {
-			log.Printf("❌ Error getting job status: %v", err)
+			logger.Errorf("❌ Error getting job status: %v", err)
 			time.Sleep(checkInterval)
 			continue
 		}
 
 		elapsed := time.Since(startTime)
-		fmt.Printf("📊 [%s] Status: %s, Pages: %d",
+		statusMsg := fmt.Sprintf("📊 [%s] Status: %s, Pages: %d",
 			elapsed.Round(time.Second),
 			currentJob.Status,
 			currentJob.PagesScraped)
 
 		if currentJob.StartedAt != nil {
-			fmt.Printf(", Started: %s", currentJob.StartedAt.Format("15:04:05"))
+			statusMsg += fmt.Sprintf(", Started: %s", currentJob.StartedAt.Format("15:04:05"))
 		}
 		if currentJob.CompletedAt != nil {
-			fmt.Printf(", Completed: %s", currentJob.CompletedAt.Format("15:04:05"))
+			statusMsg += fmt.Sprintf(", Completed: %s", currentJob.CompletedAt.Format("15:04:05"))
 		}
 		if currentJob.ErrorMessage != nil {
-			fmt.Printf(", Error: %s", *currentJob.ErrorMessage)
+			statusMsg += fmt.Sprintf(", Error: %s", *currentJob.ErrorMessage)
 		}
-		fmt.Println()
+		logger.Info(statusMsg)
 
 		// Check if job is complete
 		if currentJob.Status == "completed" {
-			fmt.Println("\n🎉 SUCCESS: Job completed successfully!")
+			logger.Info("🎉 SUCCESS: Job completed successfully!")
 
 			// Verify completion details
-			fmt.Printf("✅ Final status: %s\n", currentJob.Status)
-			fmt.Printf("✅ Pages scraped: %d\n", currentJob.PagesScraped)
-			fmt.Printf("✅ Started at: %v\n", currentJob.StartedAt)
-			fmt.Printf("✅ Completed at: %v\n", currentJob.CompletedAt)
+			logger.Infof("✅ Final status: %s", currentJob.Status)
+			logger.Infof("✅ Pages scraped: %d", currentJob.PagesScraped)
+			logger.Infof("✅ Started at: %v", currentJob.StartedAt)
+			logger.Infof("✅ Completed at: %v", currentJob.CompletedAt)
 
 			if currentJob.StartedAt != nil && currentJob.CompletedAt != nil {
 				duration := currentJob.CompletedAt.Sub(*currentJob.StartedAt)
-				fmt.Printf("✅ Processing time: %s\n", duration.Round(time.Millisecond))
+				logger.Infof("✅ Processing time: %s", duration.Round(time.Millisecond))
 			}
 
 			// Check scraped pages
 			pages, err := webScraperService.GetJobPages(context.Background(), job.ID, job.TenantID, job.ProjectID)
 			if err != nil {
-				log.Printf("❌ Error getting scraped pages: %v", err)
+				logger.Errorf("❌ Error getting scraped pages: %v", err)
 			} else {
-				fmt.Printf("📄 Scraped pages: %d\n", len(pages))
+				logger.Infof("📄 Scraped pages: %d", len(pages))
 				for i, page := range pages {
-					fmt.Printf("   Page %d: %s (tokens: %d)\n", i+1, page.URL, page.TokenCount)
+					logger.Infof("   Page %d: %s (tokens: %d)", i+1, page.URL, page.TokenCount)
 					if page.Title != nil {
-						fmt.Printf("           Title: %s\n", *page.Title)
+						logger.Infof("           Title: %s", *page.Title)
 					}
 				}
 			}
 
-			fmt.Println("\n✅ JOB COMPLETION STATUS TEST PASSED!")
-			fmt.Println("✅ Status properly updated from 'pending' → 'running' → 'completed'")
-			fmt.Println("✅ Timestamps correctly set")
-			fmt.Println("✅ Pages scraped and saved")
+			logger.Info("✅ JOB COMPLETION STATUS TEST PASSED!")
+			logger.Info("✅ Status properly updated from 'pending' → 'running' → 'completed'")
+			logger.Info("✅ Timestamps correctly set")
+			logger.Info("✅ Pages scraped and saved")
 			break
 		} else if currentJob.Status == "failed" || currentJob.Status == "error" {
-			fmt.Printf("\n❌ Job failed with status: %s\n", currentJob.Status)
+			logger.Infof("❌ Job failed with status: %s", currentJob.Status)
 			if currentJob.ErrorMessage != nil {
-				fmt.Printf("❌ Error: %s\n", *currentJob.ErrorMessage)
+				logger.Infof("❌ Error: %s", *currentJob.ErrorMessage)
 			}
 
-			fmt.Println("\n✅ JOB FAILURE STATUS TEST PASSED!")
-			fmt.Println("✅ Status properly updated to indicate failure")
-			fmt.Println("✅ Error message set")
+			logger.Info("✅ JOB FAILURE STATUS TEST PASSED!")
+			logger.Info("✅ Status properly updated to indicate failure")
+			logger.Info("✅ Error message set")
 			break
 		} else if currentJob.Status == "running" {
 			// Continue monitoring
 		} else if currentJob.Status == "pending" {
 			// Still waiting to start
 		} else {
-			fmt.Printf("❓ Unknown status: %s\n", currentJob.Status)
+			logger.Infof("❓ Unknown status: %s", currentJob.Status)
 		}
 
 		time.Sleep(checkInterval)
 	}
 
 	if time.Since(startTime) >= maxWait {
-		fmt.Println("\n⏰ Test timeout reached")
+		logger.Info("⏰ Test timeout reached")
 
 		// Get final status
 		finalJob, err := webScraperService.GetScrapingJob(context.Background(), job.ID, job.TenantID, job.ProjectID)
 		if err == nil {
-			fmt.Printf("📊 Final status: %s\n", finalJob.Status)
-			fmt.Printf("📊 Pages scraped: %d\n", finalJob.PagesScraped)
+			logger.Infof("📊 Final status: %s", finalJob.Status)
+			logger.Infof("📊 Pages scraped: %d", finalJob.PagesScraped)
 		}
 	}
 
-	fmt.Println("\n=== End-to-End Job Completion Test Complete ===")
+	logger.Info("=== End-to-End Job Completion Test Complete ===")
 }

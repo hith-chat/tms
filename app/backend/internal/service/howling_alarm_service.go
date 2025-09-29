@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/bareuptime/tms/internal/config"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
 	ws "github.com/bareuptime/tms/internal/websocket"
@@ -33,7 +33,7 @@ func NewHowlingAlarmService(cfg *config.Config, connectionMgr *ws.ConnectionMana
 		stopChannel:   make(chan bool, 1),
 	}
 
-	log.Printf("HowlingAlarmService initialized successfully")
+	logger.Info("HowlingAlarmService initialized successfully")
 	return service
 }
 
@@ -74,7 +74,7 @@ func (s *HowlingAlarmService) TriggerAlarm(ctx context.Context, tenantID, projec
 	// Send initial notification
 	s.sendAlarmNotification(alarm)
 
-	log.Printf("Howling alarm triggered: ID=%s, Level=%s",
+	logger.InfofCtx(ctx, "Howling alarm triggered: ID=%s, Level=%s",
 		alarm.ID, alarm.CurrentLevel)
 
 	return alarm, nil
@@ -91,14 +91,14 @@ func (s *HowlingAlarmService) AcknowledgeAlarm(ctx context.Context, tenantID, al
 	// Get the updated alarm for notification
 	alarm, err := s.alarmRepo.GetAlarmByID(ctx, tenantID, alarmID)
 	if err != nil {
-		log.Printf("Failed to get acknowledged alarm for notification: %v", err)
+		logger.ErrorfCtx(ctx, err, "Failed to get acknowledged alarm for notification: %v", err)
 		return nil // Don't fail the acknowledgment if we can't notify
 	}
 
 	// Send acknowledgment notification
 	s.sendAcknowledgmentNotification(alarm, agentID, response)
 
-	log.Printf("Alarm acknowledged: ID=%s, Agent=%s", alarmID, agentID)
+	logger.InfofCtx(ctx, "Alarm acknowledged: ID=%s, Agent=%s", alarmID, agentID)
 	return nil
 }
 
@@ -239,7 +239,7 @@ func (s *HowlingAlarmService) sendAlarmNotification(alarm *models.Alarm) {
 
 	data, err := json.Marshal(notification)
 	if err != nil {
-		log.Printf("Failed to marshal alarm notification: %v", err)
+		logger.Errorf("Failed to marshal alarm notification: %v", err)
 		return
 	}
 
@@ -257,11 +257,11 @@ func (s *HowlingAlarmService) sendAlarmNotification(alarm *models.Alarm) {
 	// The connection manager will handle routing to the correct agent connections
 	err = s.connectionMgr.SendToProjectAgents(alarm.ProjectID, wsMessage)
 	if err != nil {
-		log.Printf("Failed to publish alarm notification to project %s: %v", alarm.ProjectID, err)
+		logger.Errorf("Failed to publish alarm notification to project %s: %v", alarm.ProjectID, err)
 		return
 	}
 
-	log.Printf("Alarm notification sent to project agents: ID=%s, Level=%s, Project=%s",
+	logger.Infof("Alarm notification sent to project agents: ID=%s, Level=%s, Project=%s",
 		alarm.ID, alarm.CurrentLevel, alarm.ProjectID)
 }
 
@@ -283,7 +283,7 @@ func (s *HowlingAlarmService) sendAcknowledgmentNotification(alarm *models.Alarm
 
 	data, err := json.Marshal(notification)
 	if err != nil {
-		log.Printf("Failed to marshal acknowledgment notification: %v", err)
+		logger.Errorf("Failed to marshal acknowledgment notification: %v", err)
 		return
 	}
 
@@ -299,11 +299,11 @@ func (s *HowlingAlarmService) sendAcknowledgmentNotification(alarm *models.Alarm
 
 	err = s.connectionMgr.SendToProjectAgents(alarm.ProjectID, wsMessage)
 	if err != nil {
-		log.Printf("Failed to deliver acknowledgment notification to project %s: %v", alarm.ProjectID, err)
+		logger.Errorf("Failed to deliver acknowledgment notification to project %s: %v", alarm.ProjectID, err)
 		return
 	}
 
-	log.Printf("Alarm acknowledgment notification sent to project agents: ID=%s, Project=%s",
+	logger.Infof("Alarm acknowledgment notification sent to project agents: ID=%s, Project=%s",
 		alarm.ID, alarm.ProjectID)
 }
 

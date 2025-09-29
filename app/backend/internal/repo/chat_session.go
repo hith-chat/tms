@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 )
 
@@ -109,7 +110,7 @@ func (r *ChatSessionRepo) GetChatSessionByClientSessionID(ctx context.Context, c
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		fmt.Println("Error fetching chat session:", err.Error())
+		logger.ErrorCtx(ctx, err, "Error fetching chat session")
 		return nil, err
 	}
 	return &session, nil

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/bareuptime/tms/internal/config"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/repo"
 	ws "github.com/bareuptime/tms/internal/websocket"
@@ -80,7 +80,7 @@ func (s *EnhancedNotificationService) CreateAgentAssignmentNotification(ctx cont
 		_, err = s.howlingAlarmSvc.TriggerAlarm(ctx, tenantID, projectID,
 			title, message, priority, alarmMetadata)
 		if err != nil {
-			log.Printf("Failed to trigger alarm for assignment %s: %v", assignmentID, err)
+			logger.ErrorfCtx(ctx, err, "Failed to trigger alarm for assignment %s: %v", assignmentID, err)
 		}
 	}
 
@@ -113,7 +113,7 @@ func (s *EnhancedNotificationService) CreateUrgentRequestNotification(ctx contex
 
 		err := s.CreateAndDeliverNotification(ctx, notification)
 		if err != nil {
-			log.Printf("Failed to create urgent request notification for agent %s: %v", agentID, err)
+			logger.ErrorfCtx(ctx, err, "Failed to create urgent request notification for agent %s: %v", agentID, err)
 			continue
 		}
 
@@ -127,7 +127,7 @@ func (s *EnhancedNotificationService) CreateUrgentRequestNotification(ctx contex
 		_, err = s.howlingAlarmSvc.TriggerAlarm(ctx, tenantID, projectID,
 			title, message, models.NotificationPriorityUrgent, alarmMetadata)
 		if err != nil {
-			log.Printf("Failed to trigger alarm for urgent request: %v", err)
+			logger.ErrorfCtx(ctx, err, "Failed to trigger alarm for urgent request: %v", err)
 		}
 	}
 
@@ -194,7 +194,7 @@ func (s *EnhancedNotificationService) CreateAndDeliverNotification(ctx context.C
 func (s *EnhancedNotificationService) deliverEnhancedNotification(notification *models.Notification) {
 	// Skip WebSocket delivery if connection manager is nil (for testing)
 	if s.connectionMgr == nil {
-		log.Printf("Skipping WebSocket delivery (no connection manager) for notification: %s", notification.Title)
+		logger.Infof("Skipping WebSocket delivery (no connection manager) for notification: %s", notification.Title)
 		return
 	}
 
@@ -232,7 +232,7 @@ func (s *EnhancedNotificationService) deliverEnhancedNotification(notification *
 	// Marshal enhanced notification data
 	notificationData, err := json.Marshal(enhancedData)
 	if err != nil {
-		log.Printf("Failed to marshal enhanced notification: %v", err)
+		logger.Errorf("Failed to marshal enhanced notification: %v", err)
 		return
 	}
 
@@ -249,7 +249,7 @@ func (s *EnhancedNotificationService) deliverEnhancedNotification(notification *
 	// Use existing delivery mechanism
 	err = s.connectionMgr.DeliverWebSocketMessage(uuid.Nil, wsMessage)
 	if err != nil {
-		log.Printf("Failed to deliver enhanced notification via WebSocket: %v", err)
+		logger.Errorf("Failed to deliver enhanced notification via WebSocket: %v", err)
 	}
 }
 
@@ -468,14 +468,14 @@ func (s *EnhancedNotificationService) broadcastNotificationCount(ctx context.Con
 
 	count, err := s.GetNotificationCount(ctx, tenantID, agentID)
 	if err != nil {
-		log.Printf("Failed to get notification count for agent %s: %v", agentID, err)
+		logger.ErrorfCtx(ctx, err, "Failed to get notification count for agent %s: %v", agentID, err)
 		return
 	}
 
 	// Marshal count data
 	countData, err := json.Marshal(count)
 	if err != nil {
-		log.Printf("Failed to marshal notification count: %v", err)
+		logger.ErrorfCtx(ctx, err, "Failed to marshal notification count: %v", err)
 		return
 	}
 
@@ -490,6 +490,6 @@ func (s *EnhancedNotificationService) broadcastNotificationCount(ctx context.Con
 
 	err = s.connectionMgr.DeliverWebSocketMessage(uuid.Nil, wsMessage)
 	if err != nil {
-		log.Printf("Failed to deliver notification count via WebSocket: %v", err)
+		logger.ErrorfCtx(ctx, err, "Failed to deliver notification count via WebSocket: %v", err)
 	}
 }

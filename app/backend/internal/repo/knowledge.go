@@ -12,6 +12,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/pgvector/pgvector-go"
 
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 )
 
@@ -330,7 +331,7 @@ func (r *KnowledgeRepository) CreateScrapedPage(page *models.KnowledgeScrapedPag
 }
 
 func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrapedPage) error {
-	fmt.Println("Creating scraped pages with content-aware deduplication...")
+	logger.Info("Creating scraped pages with content-aware deduplication...")
 	if len(pages) == 0 {
 		return nil
 	}
@@ -405,7 +406,7 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 			}
 		}
 
-		fmt.Printf("Analysis: %d new pages, %d updated pages, %d duplicates skipped\n",
+		logger.Infof("Analysis: %d new pages, %d updated pages, %d duplicates skipped",
 			len(newPages), len(updatedPages), duplicateCount)
 
 		// Insert new pages
@@ -442,7 +443,7 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 			}
 		}
 
-		fmt.Printf("Successfully processed: %d inserted, %d updated, %d skipped\n",
+		logger.Infof("Successfully processed: %d inserted, %d updated, %d skipped",
 			len(newPages), len(updatedPages), duplicateCount)
 	}
 

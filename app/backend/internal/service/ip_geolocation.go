@@ -6,11 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
 
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/redis"
 )
 
@@ -122,7 +122,7 @@ func (s *IPGeolocationService) GetIPDetails(ctx context.Context, clientIP string
 
 	// For private/localhost IPs, return default values instead of API call
 	if isPrivate {
-		log.Printf("Returning default values for private/local IP: %s", clientIP)
+		logger.InfofCtx(ctx, "Returning default values for private/local IP: %s", clientIP)
 		return s.getDefaultIPDetails(clientIP), nil
 	}
 
@@ -132,15 +132,15 @@ func (s *IPGeolocationService) GetIPDetails(ctx context.Context, clientIP string
 		// Cache hit - deserialize and return cached data
 		var details IPDetails
 		if err := json.Unmarshal([]byte(cachedData), &details); err == nil {
-			log.Printf("Cache hit for IP: %s", clientIP)
+			logger.InfofCtx(ctx, "Cache hit for IP: %s", clientIP)
 			return &details, nil
 		}
 		// If deserialization fails, continue to API call
-		log.Printf("Failed to deserialize cached data for IP %s: %v", clientIP, err)
+		logger.WarnfCtx(ctx, "Failed to deserialize cached data for IP %s: %v", clientIP, err)
 	}
 
 	// Step 2: Cache miss - fetch from external API
-	log.Printf("Cache miss for IP: %s, fetching from API", clientIP)
+	logger.InfofCtx(ctx, "Cache miss for IP: %s, fetching from API", clientIP)
 	details, err := s.fetchFromAPI(ctx, clientIP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch IP details from API: %w", err)
@@ -149,7 +149,7 @@ func (s *IPGeolocationService) GetIPDetails(ctx context.Context, clientIP string
 	// Step 3: Cache the result for future requests
 	if err := s.cacheIPDetails(ctx, cacheKey, details); err != nil {
 		// Log caching error but don't fail the request
-		log.Printf("Failed to cache IP details for %s: %v", clientIP, err)
+		logger.WarnfCtx(ctx, "Failed to cache IP details for %s: %v", clientIP, err)
 	}
 
 	return details, nil
@@ -227,7 +227,7 @@ func (s *IPGeolocationService) cacheIPDetails(ctx context.Context, cacheKey stri
 		return fmt.Errorf("failed to store in Redis: %w", err)
 	}
 
-	log.Printf("Cached IP details for key: %s (TTL: %v)", cacheKey, s.cacheTTL)
+	logger.Infof("Cached IP details for key: %s (TTL: %v)", cacheKey, s.cacheTTL)
 	return nil
 }
 

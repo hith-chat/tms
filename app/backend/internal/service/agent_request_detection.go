@@ -7,20 +7,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/bareuptime/tms/internal/config"
+	"github.com/bareuptime/tms/internal/logger"
 )
 
 // AgentRequestType represents different types of agent requests
 type AgentRequestType string
 
 const (
-	AgentRequestTypeGeneral    AgentRequestType = "general"
-	AgentRequestTypeUrgent     AgentRequestType = "urgent"
-	AgentRequestTypeComplaint  AgentRequestType = "complaint"
-	AgentRequestTypeTechnical  AgentRequestType = "technical"
-	AgentRequestTypeBilling    AgentRequestType = "billing"
-	AgentRequestTypeSupport    AgentRequestType = "support"
+	AgentRequestTypeGeneral   AgentRequestType = "general"
+	AgentRequestTypeUrgent    AgentRequestType = "urgent"
+	AgentRequestTypeComplaint AgentRequestType = "complaint"
+	AgentRequestTypeTechnical AgentRequestType = "technical"
+	AgentRequestTypeBilling   AgentRequestType = "billing"
+	AgentRequestTypeSupport   AgentRequestType = "support"
 )
 
 // AgentRequestUrgency represents the urgency level of an agent request
@@ -59,7 +59,7 @@ func NewAgentRequestDetectionService(agenticConfig *config.AgenticConfig) *Agent
 // DetectAgentRequest analyzes a message to determine if the customer is requesting a human agent
 func (s *AgentRequestDetectionService) DetectAgentRequest(ctx context.Context, message string) (*AgentRequestResult, error) {
 	startTime := time.Now()
-	
+
 	// Check if agent request detection is enabled
 	if !s.config.AgentRequestDetection {
 		return &AgentRequestResult{
@@ -87,7 +87,7 @@ func (s *AgentRequestDetectionService) DetectAgentRequest(ctx context.Context, m
 	}
 
 	result := &AgentRequestResult{
-		Keywords: []string{},
+		Keywords:  []string{},
 		Reasoning: []string{},
 	}
 
@@ -110,14 +110,8 @@ func (s *AgentRequestDetectionService) DetectAgentRequest(ctx context.Context, m
 
 	result.ProcessingTimeMs = time.Since(startTime).Milliseconds()
 
-	log.Debug().
-		Str("message", message).
-		Bool("is_agent_request", result.IsAgentRequest).
-		Float64("confidence", result.Confidence).
-		Str("type", string(result.RequestType)).
-		Str("urgency", string(result.Urgency)).
-		Strs("keywords", result.Keywords).
-		Msg("Agent request detection completed")
+	logger.DebugfCtx(ctx, "Agent request detection completed - message: %s, is_agent_request: %v, confidence: %f, type: %s, urgency: %s, keywords: %v",
+		message, result.IsAgentRequest, result.Confidence, string(result.RequestType), string(result.Urgency), result.Keywords)
 
 	return result, nil
 }

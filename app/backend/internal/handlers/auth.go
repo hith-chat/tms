@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/bareuptime/tms/internal/logger"
@@ -23,10 +22,7 @@ type AuthHandler struct {
 
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService, aiAgentLoginAccessKey string) *AuthHandler {
-	logger.GetLoggerInstance().WithComponent("auth_handler").Info().
-		Str("operation", "init_handler").
-		Bool("ai_agent_key_configured", aiAgentLoginAccessKey != "").
-		Msg("Initializing AuthHandler")
+	logger.Infof("Initializing AuthHandler - operation: init_handler, ai_agent_key_configured: %v", aiAgentLoginAccessKey != "")
 
 	return &AuthHandler{
 		authService:           authService,
@@ -75,33 +71,20 @@ type User struct {
 // @Failure 401 {object} map[string]interface{} "Authentication failed"
 // @Router /v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
-	// Get transaction logger from middleware
-	txLogger := middleware.GetTxLoggerFromGin(c).With().
-		Str("handler", "auth").
-		Str("action", "login").
-		Logger()
-
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		txLogger.Warn().
-			Err(err).
-			Msg("Invalid request body for login")
+		logger.WarnfCtx(c.Request.Context(), "Invalid request body for login: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
 	if err := h.validator.Struct(req); err != nil {
-		txLogger.Warn().
-			Err(err).
-			Str("email", req.Email).
-			Msg("Login validation failed")
+		logger.WarnfCtx(c.Request.Context(), "Login validation failed for email %s: %v", req.Email, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
 		return
 	}
 
-	txLogger.Info().
-		Str("email", req.Email).
-		Msg("Processing login request")
+	logger.InfofCtx(c.Request.Context(), "Processing login request for email: %s", req.Email)
 
 	loginReq := service.LoginRequest{
 		Email:    req.Email,
@@ -110,10 +93,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response, err := h.authService.Login(c.Request.Context(), loginReq)
 	if err != nil {
-		txLogger.Error().
-			Err(err).
-			Str("email", req.Email).
-			Msg("Login authentication failed")
+		logger.ErrorfCtx(c.Request.Context(), err, "Login authentication failed for email %s: %v", req.Email, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
@@ -135,11 +115,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 	}
 
-	txLogger.Info().
-		Str("user_id", response.Agent.ID.String()).
-		Str("tenant_id", response.Agent.TenantID.String()).
-		Str("primary_role", primaryRole).
-		Msg("Login successful")
+	logger.InfofCtx(c.Request.Context(), "Login successful - user_id: %s, tenant_id: %s, primary_role: %s",
+		response.Agent.ID.String(), response.Agent.TenantID.String(), primaryRole)
 
 	c.JSON(http.StatusOK, LoginResponse{
 		AccessToken:  response.AccessToken,
@@ -193,7 +170,7 @@ func (h *AuthHandler) AiAgentLogin(c *gin.Context) {
 		Password: req.Password,
 	}
 	tenantIDstr, errT := c.Params.Get("tenant_id")
-	fmt.Println("Tenant ID from param:", tenantIDstr, "Found:", errT)
+	logger.InfofCtx(c.Request.Context(), "Tenant ID from param: %s, Found: %v", tenantIDstr, errT)
 	if !errT || tenantIDstr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant ID is required"})
 		return
@@ -443,7 +420,7 @@ func (h *AuthHandler) VerifySignupOTP(c *gin.Context) {
 		Email: req.Email,
 		OTP:   req.OTP,
 	}
-	fmt.Print("Verifying signup OTP for email:", req.Email)
+	logger.InfofCtx(c.Request.Context(), "Verifying signup OTP for email: %s", req.Email)
 
 	response, err := h.authService.VerifySignupOTP(c.Request.Context(), verifyReq)
 	if err != nil {
@@ -462,7 +439,7 @@ func (h *AuthHandler) VerifySignupOTP(c *gin.Context) {
 			break
 		}
 	}
-	fmt.Println("Primary role assigned:", primaryRole)
+	logger.InfofCtx(c.Request.Context(), "Primary role assigned: %s", primaryRole)
 
 	c.JSON(http.StatusOK, LoginResponse{
 		AccessToken:  response.AccessToken,
