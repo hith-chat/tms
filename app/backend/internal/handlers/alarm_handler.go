@@ -23,6 +23,19 @@ func NewAlarmHandler(howlingAlarmService *service.HowlingAlarmService) *AlarmHan
 }
 
 // GetActiveAlarms retrieves active alarms for a project
+// @Summary Get active alarms
+// @Description Retrieve all active alarms for a specific project
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Success 200 {object} object{alarms=[]models.Alarm,total=int}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/alarms/active [get]
 func (h *AlarmHandler) GetActiveAlarms(c *gin.Context) {
 	// Extract tenant ID from JWT context
 	tenantID := middleware.GetTenantID(c)
@@ -47,6 +60,19 @@ func (h *AlarmHandler) GetActiveAlarms(c *gin.Context) {
 }
 
 // GetAlarmStats retrieves alarm statistics for a project
+// @Summary Get alarm statistics
+// @Description Retrieve alarm statistics and metrics for a project
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Success 200 {object} models.AlarmStats
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/alarms/stats [get]
 func (h *AlarmHandler) GetAlarmStats(c *gin.Context) {
 	// Extract tenant ID from JWT context
 	tenantID := middleware.GetTenantID(c)
@@ -65,6 +91,21 @@ func (h *AlarmHandler) GetAlarmStats(c *gin.Context) {
 }
 
 // AcknowledgeAlarm acknowledges a specific alarm
+// @Summary Acknowledge alarm
+// @Description Acknowledge a specific alarm to mark it as seen/handled
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param alarm_id path string true "Alarm ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/alarms/{alarm_id}/acknowledge [post]
 func (h *AlarmHandler) AcknowledgeAlarm(c *gin.Context) {
 	// Extract tenant ID from JWT context
 	tenantID := middleware.GetTenantID(c)
@@ -102,6 +143,19 @@ func (h *AlarmHandler) AcknowledgeAlarm(c *gin.Context) {
 }
 
 // GetNotificationPreferences retrieves notification preferences for an agent
+// @Summary Get notification preferences
+// @Description Retrieve notification preferences for alarm notifications
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param agent_id header string true "Agent ID"
+// @Success 200 {object} object{agent_id=string,tenant_id=string,desktop_enabled=boolean,email_enabled=boolean,browser_enabled=boolean,sound_enabled=boolean,vibration_enabled=boolean,escalation_timeout_minutes=int}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/alarms/notification-preferences [get]
 func (h *AlarmHandler) GetNotificationPreferences(c *gin.Context) {
 	// Extract tenant ID from JWT context
 	tenantIDInterface, exists := c.Get("tenantID")
@@ -143,6 +197,20 @@ func (h *AlarmHandler) GetNotificationPreferences(c *gin.Context) {
 }
 
 // UpdateNotificationPreferences updates notification preferences for an agent
+// @Summary Update notification preferences
+// @Description Update notification preferences for alarm notifications
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param agent_id header string true "Agent ID"
+// @Param preferences body object{desktop_enabled=boolean,email_enabled=boolean,browser_enabled=boolean,sound_enabled=boolean,vibration_enabled=boolean,escalation_timeout_minutes=int} true "Notification preferences to update"
+// @Success 200 {object} object{message=string,agent_id=string,tenant_id=string,preferences=object}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/alarms/notification-preferences [put]
 func (h *AlarmHandler) UpdateNotificationPreferences(c *gin.Context) {
 	// Extract tenant ID from JWT context
 	tenantID := middleware.GetTenantID(c)

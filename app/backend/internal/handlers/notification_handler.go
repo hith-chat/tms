@@ -22,6 +22,21 @@ func NewNotificationHandler(notificationService *service.NotificationService) *N
 }
 
 // GetNotifications retrieves all notifications for the authenticated user
+// @Summary Get notifications
+// @Description Retrieve notifications for the authenticated agent with pagination
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param agent_id header string true "Agent ID"
+// @Param limit query int false "Number of notifications to return (default: 20, max: 100)"
+// @Param offset query int false "Number of notifications to skip (default: 0)"
+// @Success 200 {object} object{notifications=[]models.Notification,total=int,unread_count=int}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/notifications [get]
 func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 	tenantIDStr := c.MustGet("tenant_id").(string)
 	tenantID, err := uuid.Parse(tenantIDStr)
@@ -92,6 +107,22 @@ func (h *NotificationHandler) GetNotificationCount(c *gin.Context) {
 }
 
 // MarkNotificationAsRead marks a specific notification as read
+// MarkNotificationAsRead marks a specific notification as read
+// @Summary Mark notification as read
+// @Description Mark a specific notification as read by its ID
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param agent_id header string true "Agent ID"
+// @Param id path string true "Notification ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/notifications/{id}/read [put]
 func (h *NotificationHandler) MarkNotificationAsRead(c *gin.Context) {
 	tenantIDStr := c.MustGet("tenant_id").(string)
 	tenantID, err := uuid.Parse(tenantIDStr)

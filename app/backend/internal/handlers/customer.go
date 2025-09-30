@@ -19,6 +19,20 @@ func NewCustomerHandler(customerService *service.CustomerService) *CustomerHandl
 }
 
 // CreateCustomer handles POST /tenants/:tenant_id/customers
+// @Summary Create a new customer
+// @Description Create a new customer record for the tenant
+// @Tags Customers
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param customer body service.CreateCustomerRequest true "Customer creation data"
+// @Security BearerAuth
+// @Success 201 {object} models.Customer "Customer created successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data or customer already exists"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/customers [post]
 func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	creatorAgentID := middleware.GetAgentID(c)
@@ -73,6 +87,22 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 }
 
 // UpdateCustomer handles PUT /tenants/:tenant_id/customers/:customer_id
+// @Summary Update customer information
+// @Description Update an existing customer's information
+// @Tags Customers
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param customer_id path string true "Customer ID" format(uuid)
+// @Param customer body service.UpdateCustomerRequest true "Customer update data"
+// @Security BearerAuth
+// @Success 200 {object} models.Customer "Customer updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Customer not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/customers/{customer_id} [put]
 func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	requestorAgentID := middleware.GetAgentID(c)
@@ -126,6 +156,21 @@ func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 }
 
 // DeleteCustomer handles DELETE /tenants/:tenant_id/customers/:customer_id
+// @Summary Delete customer
+// @Description Delete a customer record (requires tenant admin permissions)
+// @Tags Customers
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param customer_id path string true "Customer ID" format(uuid)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "Customer deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid customer ID"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Customer not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/customers/{customer_id} [delete]
 func (h *CustomerHandler) DeleteCustomer(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	requestorAgentID := middleware.GetAgentID(c)
@@ -155,6 +200,22 @@ func (h *CustomerHandler) DeleteCustomer(c *gin.Context) {
 }
 
 // ListCustomers handles GET /tenants/:tenant_id/customers
+// @Summary List customers
+// @Description Get a paginated list of customers in the tenant
+// @Tags Customers
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param email query string false "Filter by customer email"
+// @Param search query string false "Search customers by name or email"
+// @Param cursor query string false "Pagination cursor"
+// @Param limit query int false "Number of customers per page" minimum(1) maximum(100) default(50)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "List of customers with pagination info"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid query parameters"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/customers [get]
 func (h *CustomerHandler) ListCustomers(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	agentID := middleware.GetAgentID(c)

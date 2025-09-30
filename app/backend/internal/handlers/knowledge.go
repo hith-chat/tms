@@ -41,6 +41,20 @@ func NewKnowledgeHandler(
 // Document endpoints
 
 // UploadDocument handles document upload
+// @Summary Upload document
+// @Description Upload a document file for knowledge base processing
+// @Tags knowledge
+// @Accept multipart/form-data
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param file formData file true "Document file to upload"
+// @Success 200 {object} models.KnowledgeDocument
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/knowledge/documents/upload [post]
 func (h *KnowledgeHandler) UploadDocument(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -64,6 +78,20 @@ func (h *KnowledgeHandler) UploadDocument(c *gin.Context) {
 }
 
 // ListDocuments returns a list of documents
+// ListDocuments lists all documents in knowledge base
+// @Summary List documents
+// @Description Retrieve all documents in the knowledge base for a project
+// @Tags knowledge
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Success 200 {object} object{documents=[]models.KnowledgeDocument}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/knowledge/documents [get]
 func (h *KnowledgeHandler) ListDocuments(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -138,6 +166,21 @@ func (h *KnowledgeHandler) DeleteDocument(c *gin.Context) {
 // Web scraping endpoints
 
 // CreateScrapingJob creates a new web scraping job
+// CreateScrapingJob creates a web scraping job
+// @Summary Create scraping job
+// @Description Create a new web scraping job to extract content from websites
+// @Tags knowledge
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param job body models.CreateScrapingJobRequest true "Scraping job configuration"
+// @Success 201 {object} models.KnowledgeScrapingJob
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/knowledge/scraping-jobs [post]
 func (h *KnowledgeHandler) CreateScrapingJob(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)

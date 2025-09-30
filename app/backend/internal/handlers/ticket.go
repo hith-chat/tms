@@ -29,6 +29,21 @@ func NewTicketHandler(ticketService *service.TicketService, messageService *serv
 }
 
 // CreateTicket handles ticket creation
+// @Summary Create a new ticket
+// @Description Create a new support ticket with customer information and initial message
+// @Tags Tickets
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param project_id path string true "Project ID" format(uuid)
+// @Param ticket body service.CreateTicketRequest true "Ticket creation data"
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Success 201 {object} models.Ticket "Ticket created successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/tickets [post]
 func (h *TicketHandler) CreateTicket(c *gin.Context) {
 	var req service.CreateTicketRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -55,6 +70,24 @@ func (h *TicketHandler) CreateTicket(c *gin.Context) {
 }
 
 // UpdateTicket handles ticket updates
+// @Summary Update an existing ticket
+// @Description Update ticket properties such as status, priority, assignee, etc.
+// @Tags Tickets
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param project_id path string true "Project ID" format(uuid)
+// @Param ticket_id path string true "Ticket ID" format(uuid)
+// @Param ticket body service.UpdateTicketRequest true "Ticket update data"
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Success 200 {object} models.Ticket "Ticket updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Ticket not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/tickets/{ticket_id} [patch]
 func (h *TicketHandler) UpdateTicket(c *gin.Context) {
 	var req service.UpdateTicketRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,6 +126,22 @@ func (h *TicketHandler) UpdateTicket(c *gin.Context) {
 }
 
 // GetTicket handles ticket retrieval
+// @Summary Get ticket details
+// @Description Retrieve detailed information about a specific ticket
+// @Tags Tickets
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param project_id path string true "Project ID" format(uuid)
+// @Param ticket_id path string true "Ticket ID" format(uuid)
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Success 200 {object} models.Ticket "Ticket details"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid ticket ID"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 404 {object} map[string]interface{} "Ticket not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/tickets/{ticket_id} [get]
 func (h *TicketHandler) GetTicket(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -111,6 +160,30 @@ func (h *TicketHandler) GetTicket(c *gin.Context) {
 }
 
 // ListTickets handles ticket listing
+// @Summary List tickets
+// @Description Get a paginated list of tickets with optional filtering
+// @Tags Tickets
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param project_id path string true "Project ID" format(uuid)
+// @Param status query []string false "Filter by status" collectionFormat(multi)
+// @Param priority query []string false "Filter by priority" collectionFormat(multi)
+// @Param assignee_id query string false "Filter by assignee ID" format(uuid)
+// @Param customer_id query string false "Filter by customer ID" format(uuid)
+// @Param tags query []string false "Filter by tags" collectionFormat(multi)
+// @Param search query string false "Search in ticket content"
+// @Param source query []string false "Filter by source" collectionFormat(multi)
+// @Param type query []string false "Filter by type" collectionFormat(multi)
+// @Param limit query int false "Number of tickets per page" minimum(1) maximum(100) default(20)
+// @Param cursor query string false "Pagination cursor"
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{} "List of tickets with pagination info"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid query parameters"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/tickets [get]
 func (h *TicketHandler) ListTickets(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	fmt.Println("Tenant ID:", tenantID)

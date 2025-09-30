@@ -27,6 +27,23 @@ func NewAIBuilderHandler(builder *service.AIBuilderService) *AIBuilderHandler {
 	return &AIBuilderHandler{builder: builder}
 }
 
+// StreamBuild builds AI knowledge base from website URL with streaming response
+// @Summary Stream AI knowledge base build
+// @Description Build AI knowledge base from website URL and stream the progress
+// @Tags ai-builder
+// @Accept json
+// @Produce text/event-stream
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param url query string false "Website URL to scrape"
+// @Param depth query int false "Scraping depth (1-5, default: 3)"
+// @Param build body aiBuildRequest false "Build request (alternative to query params)"
+// @Success 200 {string} string "Server-sent events stream"
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/ai-builder/stream [post]
 func (h *AIBuilderHandler) StreamBuild(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)

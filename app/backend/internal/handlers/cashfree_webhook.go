@@ -115,6 +115,18 @@ type CashfreePaymentSuccessData struct {
 }
 
 // HandleCashfreeWebhook processes incoming Cashfree webhook events
+// @Summary Handle Cashfree webhook
+// @Description Process incoming Cashfree payment webhook events for payment status updates
+// @Tags webhooks
+// @Accept json
+// @Produce json
+// @Param X-CF-Signature header string true "Cashfree webhook signature for verification"
+// @Param webhook body CashfreeWebhookEvent true "Cashfree webhook event payload"
+// @Success 200 {string} string "OK"
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized - Invalid signature"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /webhooks/cashfree [post]
 func (h *CashfreeWebhookHandler) HandleCashfreeWebhook(w http.ResponseWriter, r *http.Request) {
 	// Read the request body
 	body, err := io.ReadAll(r.Body)

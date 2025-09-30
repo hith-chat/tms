@@ -19,6 +19,17 @@ func NewTenantHandler(tenantService *service.TenantService) *TenantHandler {
 }
 
 // ListTenants handles GET /tenants - Admin only
+// @Summary List tenants
+// @Description Get a list of all tenants (requires super admin permissions)
+// @Tags Tenants
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "List of tenants"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/enterprise/tenants [get]
 func (h *TenantHandler) ListTenants(c *gin.Context) {
 	// Get requestor agent ID from JWT claims
 	agentIDInterface, exists := c.Get("agent_id")

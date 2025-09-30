@@ -47,6 +47,19 @@ type ApiKeyWithValueResponse struct {
 }
 
 // ListApiKeys handles GET /tenants/:tenant_id/api-keys
+// @Summary List API keys
+// @Description Get a list of API keys for the project
+// @Tags API Keys
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param project_id path string true "Project ID" format(uuid)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "List of API keys"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/api-keys [get]
 func (h *ApiKeyHandler) ListApiKeys(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c) // Get from middleware context
 	projectID := middleware.GetProjectID(c)
@@ -77,6 +90,21 @@ func (h *ApiKeyHandler) ListApiKeys(c *gin.Context) {
 }
 
 // CreateApiKey handles POST /tenants/:tenant_id/api-keys
+// @Summary Create API key
+// @Description Create a new API key for the project
+// @Tags API Keys
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param project_id path string true "Project ID" format(uuid)
+// @Param apikey body ApiKeyRequest true "API key creation data"
+// @Security BearerAuth
+// @Success 201 {object} ApiKeyWithValueResponse "API key created successfully (key value shown only once)"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/api-keys [post]
 func (h *ApiKeyHandler) CreateApiKey(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)   // Get from middleware context
 	agentID := middleware.GetAgentID(c)     // Get from middleware context

@@ -70,6 +70,19 @@ type VerifyOTPRequest struct {
 }
 
 // CreateConnector creates a new email connector
+// @Summary Create email connector
+// @Description Create a new email connector for incoming emails
+// @Tags email
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param connector body CreateConnectorRequest true "Email connector configuration"
+// @Success 201 {object} models.EmailConnector
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/email/connectors [post]
 func (h *EmailHandler) CreateConnector(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 

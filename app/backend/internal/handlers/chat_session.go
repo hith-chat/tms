@@ -31,6 +31,21 @@ func NewChatSessionHandler(chatSessionService *service.ChatSessionService, chatW
 }
 
 // GetChatSession gets a chat session by ID
+// @Summary Get chat session
+// @Description Retrieve a specific chat session by its ID
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param session_id path string true "Chat Session ID"
+// @Success 200 {object} models.ChatSession
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/{session_id} [get]
 func (h *ChatSessionHandler) GetChatSession(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -56,6 +71,23 @@ func (h *ChatSessionHandler) GetChatSession(c *gin.Context) {
 }
 
 // ListChatSessions lists chat sessions for a project
+// @Summary List chat sessions
+// @Description Retrieve a list of chat sessions for a project with optional filtering
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param status query string false "Filter by session status"
+// @Param agent_id query string false "Filter by assigned agent ID"
+// @Param limit query int false "Number of sessions to return (default: 50)"
+// @Param offset query int false "Number of sessions to skip (default: 0)"
+// @Success 200 {object} object{sessions=[]models.ChatSession,total=int}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions [get]
 func (h *ChatSessionHandler) ListChatSessions(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -99,6 +131,22 @@ func (h *ChatSessionHandler) ListChatSessions(c *gin.Context) {
 }
 
 // AssignAgent assigns an agent to a chat session
+// @Summary Assign agent to chat session
+// @Description Assign a specific agent to handle a chat session
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param session_id path string true "Chat Session ID"
+// @Param assignment body object{agent_id=string} true "Agent assignment request"
+// @Success 200 {object} models.ChatSession
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/{session_id}/assign [post]
 func (h *ChatSessionHandler) AssignAgent(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -126,6 +174,21 @@ func (h *ChatSessionHandler) AssignAgent(c *gin.Context) {
 }
 
 // GetChatMessages gets messages for a chat session
+// @Summary Get chat messages
+// @Description Retrieve all messages for a specific chat session
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param session_id path string true "Chat Session ID"
+// @Success 200 {object} object{messages=[]models.ChatMessage}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/{session_id}/messages [get]
 func (h *ChatSessionHandler) GetChatMessages(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -152,7 +215,21 @@ func (h *ChatSessionHandler) GetChatMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"messages": messages})
 }
 
-// MarkMessagesAsRead marks messages as read
+// MarkAgentMessagesAsRead marks agent messages as read
+// @Summary Mark agent messages as read
+// @Description Mark all agent messages in a chat session as read by the customer
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param session_id path string true "Chat Session ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/{session_id}/mark-agent-messages-read [post]
 func (h *ChatSessionHandler) MarkAgentMessagesAsRead(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -173,6 +250,17 @@ func (h *ChatSessionHandler) MarkAgentMessagesAsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Messages marked as read"})
 }
 
+// IsCustomerOnline checks if customer is online in chat session
+// @Summary Check customer online status
+// @Description Check if a customer is currently online in a chat session
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param session_id header string true "Session ID"
+// @Success 200 {object} object{online=boolean}
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/customer-online [get]
 func (h *ChatSessionHandler) IsCustomerOnline(c *gin.Context) {
 	sessionID := middleware.GetSessionID(c)
 	sessionKey := fmt.Sprintf("livechat:session:%s", sessionID)
@@ -191,6 +279,18 @@ func (h *ChatSessionHandler) IsCustomerOnline(c *gin.Context) {
 }
 
 // MarkVisitorMessagesAsRead marks messages as read (visitor endpoint)
+// @Summary Mark visitor messages as read
+// @Description Mark messages as read from the visitor/customer perspective
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param session_id header string true "Session ID"
+// @Param message_id path string true "Message ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/visitor/mark-messages-read/{message_id} [post]
 func (h *ChatSessionHandler) MarkVisitorMessagesAsRead(c *gin.Context) {
 	sessionID := middleware.GetSessionID(c)
 	messageID := c.Param("message_id")
@@ -210,6 +310,22 @@ func (h *ChatSessionHandler) MarkVisitorMessagesAsRead(c *gin.Context) {
 }
 
 // EscalateSession escalates a chat session to human agents with alarm notification
+// @Summary Escalate chat session
+// @Description Escalate a chat session to human agents with alarm notification
+// @Tags chat-sessions
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param agent_id header string true "Agent ID (who is escalating)"
+// @Param session_id path string true "Chat Session ID"
+// @Param escalation body object{reason=string} true "Escalation reason"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-sessions/{session_id}/escalate [post]
 func (h *ChatSessionHandler) EscalateSession(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)

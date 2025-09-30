@@ -34,6 +34,19 @@ type deductUsageRequest struct {
 }
 
 // DeductUsage handles credit deductions for AI token usage.
+// @Summary Deduct AI usage credits
+// @Description Deduct credits based on AI token usage for a specific tenant
+// @Tags ai-usage
+// @Accept json
+// @Produce json
+// @Security S2SAuth
+// @Param tenant_id path string true "Tenant ID"
+// @Param usage body deductUsageRequest true "AI usage deduction request"
+// @Success 200 {object} object{message=string,remaining_credits=int64}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/ai-usage/{tenant_id}/deduct [post]
 func (h *AIUsageHandler) DeductUsage(c *gin.Context) {
 	if h.usageService == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "usage service unavailable"})

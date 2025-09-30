@@ -22,6 +22,21 @@ func NewAgentHandler(agentService *service.AgentService) *AgentHandler {
 }
 
 // ListAgents handles GET /agents
+// @Summary List agents
+// @Description Get a paginated list of agents in the tenant
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param search query string false "Search agents by name or email"
+// @Param cursor query string false "Pagination cursor"
+// @Param limit query int false "Number of agents per page" minimum(1) maximum(100) default(50)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "List of agents with pagination info"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid query parameters"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents [get]
 func (h *AgentHandler) ListAgents(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	agentID := middleware.GetAgentID(c)
@@ -62,6 +77,21 @@ func (h *AgentHandler) ListAgents(c *gin.Context) {
 }
 
 // DeleteAgent handles DELETE /agents/:agent_id
+// @Summary Delete agent
+// @Description Delete an agent from the tenant (requires tenant admin permissions)
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent_id path string true "Agent ID" format(uuid)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "Agent deleted successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid agent ID"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Agent not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents/{agent_id} [delete]
 func (h *AgentHandler) DeleteAgent(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
 	agentIDStr := c.Param("agent_id")
@@ -89,6 +119,21 @@ func (h *AgentHandler) DeleteAgent(c *gin.Context) {
 }
 
 // CreateAgent handles POST /agents
+// @Summary Create a new agent
+// @Description Create a new agent in the tenant (requires tenant admin permissions)
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent body service.CreateAgentRequest true "Agent creation data"
+// @Security BearerAuth
+// @Success 201 {object} models.Agent "Agent created successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 409 {object} map[string]interface{} "Conflict - Agent already exists"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents [post]
 func (h *AgentHandler) CreateAgent(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	creatorAgentID := middleware.GetAgentID(c)
@@ -120,6 +165,21 @@ func (h *AgentHandler) CreateAgent(c *gin.Context) {
 }
 
 // GetAgent handles GET /agents/:agent_id
+// @Summary Get agent details
+// @Description Retrieve detailed information about a specific agent
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent_id path string true "Agent ID" format(uuid)
+// @Security BearerAuth
+// @Success 200 {object} models.Agent "Agent details"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid agent ID"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Agent not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents/{agent_id} [get]
 func (h *AgentHandler) GetAgent(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	paramAgentIDStr := c.Param("agent_id")
@@ -147,6 +207,22 @@ func (h *AgentHandler) GetAgent(c *gin.Context) {
 }
 
 // UpdateAgent handles PATCH /agents/:agent_id
+// @Summary Update agent information
+// @Description Update an existing agent's information
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent_id path string true "Agent ID" format(uuid)
+// @Param agent body service.UpdateAgentRequest true "Agent update data"
+// @Security BearerAuth
+// @Success 200 {object} models.Agent "Agent updated successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Agent not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents/{agent_id} [patch]
 func (h *AgentHandler) UpdateAgent(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	paramsAgentIDStr := c.Param("agent_id")
@@ -179,6 +255,22 @@ func (h *AgentHandler) UpdateAgent(c *gin.Context) {
 }
 
 // AssignRole handles POST /agents/:agent_id/roles
+// @Summary Assign role to agent
+// @Description Assign a role to an agent (requires tenant admin permissions)
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent_id path string true "Agent ID" format(uuid)
+// @Param role body service.AssignRoleRequest true "Role assignment data"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "Role assigned successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Agent not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents/{agent_id}/roles [post]
 func (h *AgentHandler) AssignRole(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	isTenantAdmin := middleware.IsTenantAdmin(c)
@@ -212,6 +304,22 @@ func (h *AgentHandler) AssignRole(c *gin.Context) {
 }
 
 // RemoveRole handles DELETE /agents/:agent_id/roles
+// @Summary Remove role from agent
+// @Description Remove a role from an agent (requires tenant admin permissions)
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent_id path string true "Agent ID" format(uuid)
+// @Param role body service.RemoveRoleRequest true "Role removal data"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "Role removed successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Agent not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents/{agent_id}/roles [delete]
 func (h *AgentHandler) RemoveRole(c *gin.Context) {
 
 	tenantID := middleware.GetTenantID(c)
@@ -239,6 +347,21 @@ func (h *AgentHandler) RemoveRole(c *gin.Context) {
 }
 
 // GetAgentRoles handles GET /agents/:agent_id/roles
+// @Summary Get agent roles
+// @Description Retrieve all roles assigned to an agent
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Param agent_id path string true "Agent ID" format(uuid)
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{} "List of agent roles"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid agent ID"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing authentication"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Insufficient permissions"
+// @Failure 404 {object} map[string]interface{} "Agent not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/agents/{agent_id}/roles [get]
 func (h *AgentHandler) GetAgentRoles(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	agentIDStr := c.Param("agent_id")

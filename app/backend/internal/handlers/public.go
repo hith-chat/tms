@@ -61,6 +61,17 @@ func NewPublicHandler(publicService *service.PublicService) *PublicHandler {
 }
 
 // GetTicketByMagicLink handles public ticket access via magic link
+// @Summary Get ticket by magic link
+// @Description Retrieve ticket details and messages using a magic link token (no authentication required)
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param token path string true "Magic link token"
+// @Success 200 {object} map[string]interface{} "Ticket details with messages"
+// @Failure 400 {object} map[string]interface{} "Bad request - Missing or invalid token"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or expired token"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/tickets/tokens/{token} [get]
 func (h *PublicHandler) GetTicketByMagicLink(c *gin.Context) {
 	magicToken := c.Param("token")
 	if magicToken == "" {
@@ -96,6 +107,19 @@ func (h *PublicHandler) GetTicketByMagicLink(c *gin.Context) {
 }
 
 // GetTicketMessagesByMagicLink handles public ticket messages access via magic link
+// @Summary Get ticket messages by magic link
+// @Description Retrieve paginated messages for a ticket using a magic link token
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param token path string true "Magic link token"
+// @Param cursor query string false "Pagination cursor"
+// @Param limit query int false "Number of messages per page" minimum(1) maximum(100) default(50)
+// @Success 200 {object} map[string]interface{} "Paginated list of messages"
+// @Failure 400 {object} map[string]interface{} "Bad request - Missing or invalid token"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or expired token"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/tickets/tokens/{token}/messages [get]
 func (h *PublicHandler) GetTicketMessagesByMagicLink(c *gin.Context) {
 	magicToken := c.Param("token")
 	if magicToken == "" {
@@ -131,6 +155,18 @@ func (h *PublicHandler) GetTicketMessagesByMagicLink(c *gin.Context) {
 }
 
 // AddMessageByMagicLink handles adding a public message via magic link
+// @Summary Add message by magic link
+// @Description Add a new message to a ticket using a magic link token
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param token path string true "Magic link token"
+// @Param message body service.AddPublicMessageRequest true "Message content"
+// @Success 201 {object} PublicMessage "Message created successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or expired token"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/tickets/tokens/{token}/messages [post]
 func (h *PublicHandler) AddMessageByMagicLink(c *gin.Context) {
 	magicToken := c.Param("token")
 	if magicToken == "" {
@@ -170,6 +206,17 @@ func (h *PublicHandler) AddMessageByMagicLink(c *gin.Context) {
 }
 
 // GetTicketByID handles public ticket access via ticket ID
+// @Summary Get ticket by ID
+// @Description Retrieve ticket details and messages using ticket ID (no authentication required)
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param ticketId path string true "Ticket ID" format(uuid)
+// @Success 200 {object} map[string]interface{} "Ticket details with messages"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid ticket ID format"
+// @Failure 404 {object} map[string]interface{} "Ticket not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/tickets/{ticketId} [get]
 func (h *PublicHandler) GetTicketByID(c *gin.Context) {
 	ticketIdStr := c.Param("ticketId")
 	if ticketIdStr == "" {
@@ -211,6 +258,19 @@ func (h *PublicHandler) GetTicketByID(c *gin.Context) {
 }
 
 // GetTicketMessagesByID handles public ticket messages access via ticket ID
+// @Summary Get ticket messages by ID
+// @Description Retrieve paginated messages for a ticket using ticket ID
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param ticketId path string true "Ticket ID" format(uuid)
+// @Param cursor query string false "Pagination cursor"
+// @Param limit query int false "Number of messages per page" minimum(1) maximum(100) default(50)
+// @Success 200 {object} map[string]interface{} "Paginated list of messages"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid ticket ID format"
+// @Failure 404 {object} map[string]interface{} "Ticket not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/tickets/{ticketId}/messages [get]
 func (h *PublicHandler) GetTicketMessagesByID(c *gin.Context) {
 	ticketIdStr := c.Param("ticketId")
 	if ticketIdStr == "" {
@@ -252,6 +312,18 @@ func (h *PublicHandler) GetTicketMessagesByID(c *gin.Context) {
 }
 
 // AddMessageByID handles adding a public message via ticket ID
+// @Summary Add message by ticket ID
+// @Description Add a new message to a ticket using ticket ID
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param ticketId path string true "Ticket ID" format(uuid)
+// @Param message body service.AddPublicMessageRequest true "Message content"
+// @Success 201 {object} PublicMessage "Message created successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 404 {object} map[string]interface{} "Ticket not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/tickets/{ticketId}/messages [post]
 func (h *PublicHandler) AddMessageByID(c *gin.Context) {
 	ticketIdStr := c.Param("ticketId")
 	if ticketIdStr == "" {
@@ -298,6 +370,16 @@ func (h *PublicHandler) AddMessageByID(c *gin.Context) {
 
 // GenerateMagicLink generates a magic link for testing purposes
 // This endpoint should be removed in production
+// @Summary Generate magic link (Testing only)
+// @Description Generate a magic link token for testing purposes - should be removed in production
+// @Tags Public API
+// @Accept json
+// @Produce json
+// @Param request body map[string]string true "Ticket ID and Customer ID"
+// @Success 200 {object} map[string]interface{} "Magic link token and URL"
+// @Failure 400 {object} map[string]interface{} "Bad request - Invalid input data"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/public/generate-magic-link [post]
 func (h *PublicHandler) GenerateMagicLink(c *gin.Context) {
 	type GenerateMagicLinkRequest struct {
 		TicketID   string `json:"ticket_id" binding:"required"`
@@ -343,6 +425,14 @@ type HealthResponse struct {
 }
 
 // Health handles health check endpoint
+// @Summary Health check
+// @Description Check the health status of the API server
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} HealthResponse "Service is healthy"
+// @Router /health [get]
+// @Router /api/public/health [get]
 func (h *PublicHandler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, HealthResponse{
 		Status:  "healthy",
