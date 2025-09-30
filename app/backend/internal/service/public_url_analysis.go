@@ -8,8 +8,12 @@ import (
 )
 
 // PublicURLAnalysisService handles public URL analysis operations
+type urlExtractor interface {
+	extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error)
+}
+
 type PublicURLAnalysisService struct {
-	webScrapingService *WebScrapingService
+	webScrapingService urlExtractor
 }
 
 // NewPublicURLAnalysisService creates a new public URL analysis service

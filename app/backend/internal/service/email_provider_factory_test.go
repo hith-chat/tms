@@ -40,3 +40,15 @@ func TestNewEmailProvider_Unsupported(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, provider)
 }
+
+func TestNewEmailProvider_MailerooMissingAPIKey(t *testing.T) {
+	emailCfg := &config.EmailConfig{Provider: "maileroo"}
+	resendCfg := &config.ResendConfig{}
+	mailerooCfg := &config.MailerooConfig{}
+
+	provider, err := NewEmailProvider(emailCfg, resendCfg, mailerooCfg, "production")
+
+	assert.Error(t, err)
+	assert.Nil(t, provider)
+	assert.Contains(t, err.Error(), "maileroo api key")
+}
