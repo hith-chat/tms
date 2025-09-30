@@ -24,13 +24,15 @@ type Tenant struct {
 
 // Project represents a project within a tenant
 type Project struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	TenantID  uuid.UUID `db:"tenant_id" json:"tenant_id"`
-	Key       string    `db:"key" json:"key"`
-	Name      string    `db:"name" json:"name"`
-	Status    string    `db:"status" json:"status"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	TenantID  uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	Key       string     `db:"key" json:"key"`
+	Name      string     `db:"name" json:"name"`
+	Status    string     `db:"status" json:"status"`
+	IsPublic  bool       `db:"is_public" json:"is_public"`
+	ExpiresAt *time.Time `db:"expires_at" json:"expires_at,omitempty"`
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // Agent represents an agent (user) in the system
