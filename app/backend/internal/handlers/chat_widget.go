@@ -27,6 +27,20 @@ func NewChatWidgetHandler(chatWidgetService *service.ChatWidgetService, webScrap
 }
 
 // CreateChatWidget creates a new chat widget
+// @Summary Create chat widget
+// @Description Create a new chat widget for a project
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param widget body models.CreateChatWidgetRequest true "Chat widget creation request"
+// @Success 201 {object} models.ChatWidget
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-widgets [post]
 func (h *ChatWidgetHandler) CreateChatWidget(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -47,6 +61,21 @@ func (h *ChatWidgetHandler) CreateChatWidget(c *gin.Context) {
 }
 
 // GetChatWidget gets a chat widget by ID
+// @Summary Get chat widget
+// @Description Retrieve a chat widget by its ID
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param widget_id path string true "Chat Widget ID"
+// @Success 200 {object} models.ChatWidget
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-widgets/{widget_id} [get]
 func (h *ChatWidgetHandler) GetChatWidget(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -72,6 +101,19 @@ func (h *ChatWidgetHandler) GetChatWidget(c *gin.Context) {
 }
 
 // ListChatWidgets lists all chat widgets for a project
+// @Summary List chat widgets
+// @Description Retrieve all chat widgets for a project
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Success 200 {object} object{widgets=[]models.ChatWidget}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-widgets [get]
 func (h *ChatWidgetHandler) ListChatWidgets(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -90,6 +132,22 @@ func (h *ChatWidgetHandler) ListChatWidgets(c *gin.Context) {
 }
 
 // UpdateChatWidget updates a chat widget
+// @Summary Update chat widget
+// @Description Update an existing chat widget
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param widget_id path string true "Chat Widget ID"
+// @Param widget body models.UpdateChatWidgetRequest true "Chat widget update request"
+// @Success 200 {object} models.ChatWidget
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-widgets/{widget_id} [put]
 func (h *ChatWidgetHandler) UpdateChatWidget(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -117,6 +175,21 @@ func (h *ChatWidgetHandler) UpdateChatWidget(c *gin.Context) {
 }
 
 // DeleteChatWidget deletes a chat widget
+// @Summary Delete chat widget
+// @Description Delete a chat widget by its ID
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param widget_id path string true "Chat Widget ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-widgets/{widget_id} [delete]
 func (h *ChatWidgetHandler) DeleteChatWidget(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -137,6 +210,18 @@ func (h *ChatWidgetHandler) DeleteChatWidget(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
+// GetChatWidgetByPublicId gets a chat widget by public ID
+// @Summary Get chat widget by public ID
+// @Description Retrieve a chat widget by its public ID (for public access)
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Param widget_id path string true "Chat Widget Public ID"
+// @Success 200 {object} models.ChatWidget
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /public/chat-widgets/{widget_id} [get]
 func (h *ChatWidgetHandler) GetChatWidgetByPublicId(c *gin.Context) {
 	widgetIDStr := c.Param("widget_id")
 	widgetID, err := uuid.Parse(widgetIDStr)
@@ -162,6 +247,20 @@ func (h *ChatWidgetHandler) GetChatWidgetByPublicId(c *gin.Context) {
 }
 
 // ScrapeWebsiteTheme scrapes a website and generates theme configuration using AI
+// @Summary Scrape website theme
+// @Description Scrape a website and generate theme configuration using AI
+// @Tags chat-widget
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param url body object{url=string} true "Website URL to scrape"
+// @Success 200 {object} object{theme=object}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/chat-widgets/scrape-theme [post]
 func (h *ChatWidgetHandler) ScrapeWebsiteTheme(c *gin.Context) {
 	// Get URL from query parameter
 	url := c.Query("url")

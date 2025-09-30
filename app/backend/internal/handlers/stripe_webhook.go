@@ -53,6 +53,18 @@ type StripeWebhookEvent struct {
 }
 
 // HandleStripeWebhook processes incoming Stripe webhook events
+// @Summary Handle Stripe webhook
+// @Description Process incoming Stripe payment webhook events for payment status updates
+// @Tags webhooks
+// @Accept json
+// @Produce json
+// @Param Stripe-Signature header string true "Stripe webhook signature for verification"
+// @Param webhook body StripeWebhookEvent true "Stripe webhook event payload"
+// @Success 200 {string} string "OK"
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized - Invalid signature"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /webhooks/stripe [post]
 func (h *StripeWebhookHandler) HandleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 	// Read the request body
 	body, err := io.ReadAll(r.Body)

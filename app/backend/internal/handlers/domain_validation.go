@@ -39,6 +39,20 @@ type VerifyDomainRequest struct {
 }
 
 // CreateDomainName creates a new domain validation
+// @Summary Create domain validation
+// @Description Create a new domain validation request for domain ownership verification
+// @Tags domain-validation
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param domain body CreateDomainValidationRequest true "Domain validation request"
+// @Success 201 {object} models.EmailDomain
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/domains [post]
 func (h *DomainNameHandler) CreateDomainName(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -59,6 +73,21 @@ func (h *DomainNameHandler) CreateDomainName(c *gin.Context) {
 }
 
 // VerifyDomain verifies domain ownership
+// @Summary Verify domain ownership
+// @Description Verify domain ownership using provided verification proof
+// @Tags domain-validation
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param domain_id path string true "Domain ID"
+// @Param proof body VerifyDomainRequest true "Domain verification proof"
+// @Success 200 {object} object{message=string,verified_at=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/domains/{domain_id}/verify [post]
 func (h *DomainNameHandler) VerifyDomain(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 
@@ -88,6 +117,19 @@ func (h *DomainNameHandler) VerifyDomain(c *gin.Context) {
 }
 
 // ListDomainNames lists all domain validations for a project
+// @Summary List domain validations
+// @Description Retrieve all domain validations for a project
+// @Tags domain-validation
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Success 200 {object} object{domains=[]models.EmailDomain}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/domains [get]
 func (h *DomainNameHandler) ListDomainNames(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)
@@ -111,6 +153,21 @@ func (h *DomainNameHandler) ListDomainNames(c *gin.Context) {
 }
 
 // DeleteDomainName deletes a domain validation
+// @Summary Delete domain validation
+// @Description Delete a domain validation by its ID
+// @Tags domain-validation
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param domain_id path string true "Domain ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/domains/{domain_id} [delete]
 func (h *DomainNameHandler) DeleteDomainName(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectID := middleware.GetProjectID(c)

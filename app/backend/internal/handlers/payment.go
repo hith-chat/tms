@@ -92,6 +92,21 @@ func NewPaymentHandler(paymentService *service.PaymentService) *PaymentHandler {
 //	  "currency": "USD",
 //	  "expires_at": "2023-12-25T12:00:00Z"
 //	}
+//
+// CreatePaymentSession creates a payment session with automatic gateway selection
+// @Summary Create payment session
+// @Description Create a payment session with automatic gateway selection based on user location
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param payment body object{amount=number,currency=string,type=string} true "Payment session request"
+// @Success 200 {object} object{payment_url=string,session_id=string,gateway=string,amount=number,currency=string,expires_at=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/payments/create-session [post]
 func (h *PaymentHandler) CreatePaymentSession(c *gin.Context) {
 	// Extract tenant ID from authenticated user context
 	tenantUUID := middleware.GetTenantID(c)
@@ -177,6 +192,20 @@ func (h *PaymentHandler) CreatePaymentSession(c *gin.Context) {
 //	  "country_code": "IN",
 //	  "currency": "INR"
 //	}
+//
+// GetPaymentGatewayPreview gets payment gateway based on location
+// @Summary Get payment gateway preview
+// @Description Get the recommended payment gateway based on user's location
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Success 200 {object} object{gateway=string,country=string,currency=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/payments/gateway-preview [get]
 func (h *PaymentHandler) GetPaymentGatewayPreview(c *gin.Context) {
 	// Extract client IP (use query param if provided, otherwise detect)
 	clientIP := c.Query("ip")

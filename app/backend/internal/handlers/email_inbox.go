@@ -104,6 +104,27 @@ type SyncEmailsResponse struct {
 }
 
 // ListEmails handles GET /emails
+// @Summary List emails
+// @Description Retrieve a filtered list of emails from the inbox
+// @Tags email-inbox
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id query string false "Filter by project ID"
+// @Param mailbox_address query string false "Filter by mailbox address"
+// @Param is_read query boolean false "Filter by read status"
+// @Param has_ticket query boolean false "Filter by ticket association"
+// @Param search query string false "Search in subject and content"
+// @Param limit query int false "Number of emails to return (default: 50)"
+// @Param offset query int false "Number of emails to skip (default: 0)"
+// @Param order_by query string false "Order by field (default: received_at)"
+// @Param order_dir query string false "Order direction (default: DESC)"
+// @Success 200 {object} object{emails=[]EmailResponse,total=int,page=int}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/emails [get]
 func (h *EmailInboxHandler) ListEmails(c *gin.Context) {
 
 	tenantUUID := middleware.GetTenantID(c)
@@ -140,6 +161,20 @@ func (h *EmailInboxHandler) ListEmails(c *gin.Context) {
 }
 
 // GetEmail handles GET /emails/:id
+// @Summary Get email
+// @Description Retrieve a specific email by its ID
+// @Tags email-inbox
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param id path string true "Email ID"
+// @Success 200 {object} EmailResponse
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/emails/{id} [get]
 func (h *EmailInboxHandler) GetEmail(c *gin.Context) {
 
 	tenantUUID := middleware.GetTenantID(c)
@@ -175,6 +210,21 @@ func (h *EmailInboxHandler) GetEmail(c *gin.Context) {
 }
 
 // MarkAsRead handles PUT /emails/:id/read
+// MarkAsRead marks an email as read
+// @Summary Mark email as read
+// @Description Mark a specific email as read
+// @Tags email-inbox
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param id path string true "Email ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/emails/{id}/mark-read [post]
 func (h *EmailInboxHandler) MarkAsRead(c *gin.Context) {
 
 	tenantUUID := middleware.GetTenantID(c)
@@ -196,6 +246,21 @@ func (h *EmailInboxHandler) MarkAsRead(c *gin.Context) {
 }
 
 // ConvertToTicket handles POST /emails/:id/convert-to-ticket
+// ConvertToTicket converts an email to a support ticket
+// @Summary Convert email to ticket
+// @Description Convert an email message to a support ticket
+// @Tags email-inbox
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param id path string true "Email ID"
+// @Success 200 {object} models.Ticket
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/emails/{id}/convert-to-ticket [post]
 func (h *EmailInboxHandler) ConvertToTicket(c *gin.Context) {
 
 	tenantUUID := middleware.GetTenantID(c)

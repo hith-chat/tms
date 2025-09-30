@@ -20,7 +20,21 @@ func NewIntegrationHandler(integrationService *service.IntegrationService) *Inte
 	}
 }
 
-// Integration CRUD operations
+// CreateIntegration creates a new integration
+// @Summary Create integration
+// @Description Create a new third-party integration for a project
+// @Tags integrations
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Param integration body models.CreateIntegrationRequest true "Integration creation request"
+// @Success 201 {object} models.Integration
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/integrations [post]
 func (h *IntegrationHandler) CreateIntegration(c *gin.Context) {
 	tenantID := getTenantID(c)
 	projectID := getProjectID(c)
@@ -40,6 +54,21 @@ func (h *IntegrationHandler) CreateIntegration(c *gin.Context) {
 	c.JSON(http.StatusCreated, integration)
 }
 
+// GetIntegration retrieves a specific integration
+// @Summary Get integration
+// @Description Retrieve a specific integration by its ID
+// @Tags integrations
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param id path string true "Integration ID"
+// @Success 200 {object} models.Integration
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/integrations/{id} [get]
 func (h *IntegrationHandler) GetIntegration(c *gin.Context) {
 	tenantID := getTenantID(c)
 	integrationID, err := uuid.Parse(c.Param("id"))
@@ -57,6 +86,20 @@ func (h *IntegrationHandler) GetIntegration(c *gin.Context) {
 	c.JSON(http.StatusOK, integration)
 }
 
+// ListIntegrations lists all integrations for a project
+// @Summary List integrations
+// @Description Retrieve all integrations for a project
+// @Tags integrations
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id header string true "Project ID"
+// @Success 200 {object} object{integrations=[]models.Integration}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/integrations [get]
 func (h *IntegrationHandler) ListIntegrations(c *gin.Context) {
 	tenantID := getTenantID(c)
 	projectID := getProjectID(c)

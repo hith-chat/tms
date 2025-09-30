@@ -18,6 +18,22 @@ import (
 	ws "github.com/bareuptime/tms/internal/websocket"
 )
 
+// ChatWebSocketRequest represents incoming WebSocket messages from visitors
+// @Description WebSocket message structure for visitor chat communication
+type ChatWebSocketRequest struct {
+	Type    string      `json:"type" example:"chat_message"`
+	Payload interface{} `json:"payload"`
+}
+
+// ChatWebSocketResponse represents outgoing WebSocket messages to visitors
+// @Description WebSocket response structure for visitor chat communication
+type ChatWebSocketResponse struct {
+	Type      string      `json:"type" example:"chat_message"`
+	Payload   interface{} `json:"payload"`
+	MessageID string      `json:"message_id,omitempty"`
+	Timestamp string      `json:"timestamp,omitempty"`
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		// In production, implement proper origin checking
@@ -45,7 +61,18 @@ func NewChatWebSocketHandler(chatSessionService *service.ChatSessionService, con
 	}
 }
 
-// HandleWebSocket handles WebSocket connections for real-time chat from visitors
+// HandleWebSocketPublic handles WebSocket connections for real-time chat from visitors
+// @Summary Public chat WebSocket connection
+// @Description Establish WebSocket connection for real-time chat communication from visitors
+// @Tags chat-websocket
+// @Accept json
+// @Produce json
+// @Param session_token header string true "Session token for authentication"
+// @Success 101 "Switching Protocols - WebSocket connection established"
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /public/chat/ws [get]
 func (h *ChatWebSocketHandler) HandleWebSocketPublic(c *gin.Context) {
 	sessionToken := middleware.GetSessionToken(c)
 	widgetID := middleware.GetWidgetID(c)

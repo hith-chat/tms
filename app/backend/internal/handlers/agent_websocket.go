@@ -18,6 +18,58 @@ import (
 	ws "github.com/bareuptime/tms/internal/websocket"
 )
 
+// AgentWebSocketRequest represents WebSocket message types that agents can send
+// @Description WebSocket message format for agent communications
+type AgentWebSocketRequest struct {
+	Type            string      `json:"type" example:"chat_message" enums:"chat_message,typing_start,typing_stop,ping,session_subscribe,session_unsubscribe"`
+	ClientSessionID *string     `json:"client_session_id,omitempty" example:"123e4567-e89b-12d3-a456-426614174000"`
+	AgentSessionID  *string     `json:"agent_session_id,omitempty" example:"123e4567-e89b-12d3-a456-426614174000"`
+	ProjectID       *string     `json:"project_id,omitempty" example:"123e4567-e89b-12d3-a456-426614174000"`
+	Data            interface{} `json:"data,omitempty"`
+	Timestamp       time.Time   `json:"timestamp" example:"2023-09-29T10:00:00Z"`
+	MessageID       *string     `json:"message_id,omitempty" example:"123e4567-e89b-12d3-a456-426614174000"`
+}
+
+// AgentWebSocketResponse represents WebSocket message types that agents receive
+// @Description WebSocket message format for agent responses
+type AgentWebSocketResponse struct {
+	Type      string      `json:"type" example:"agent_connected" enums:"agent_connected,pong,error,chat_message,typing_start,typing_stop,notification"`
+	SessionID string      `json:"session_id" example:"123e4567-e89b-12d3-a456-426614174000"`
+	Data      interface{} `json:"data"`
+	FromType  string      `json:"from_type" example:"agent" enums:"agent,customer,system"`
+	Timestamp time.Time   `json:"timestamp" example:"2023-09-29T10:00:00Z"`
+}
+
+// ChatMessageData represents the data structure for chat messages
+// @Description Chat message data structure
+type ChatMessageData struct {
+	Content     string `json:"content" example:"Hello, how can I help you?"`
+	MessageType string `json:"message_type" example:"text" enums:"text,file,image"`
+}
+
+// AgentConnectedData represents the data for agent connection confirmation
+// @Description Agent connection confirmation data
+type AgentConnectedData struct {
+	Type    string `json:"type" example:"connected"`
+	Message string `json:"message" example:"Connected to console"`
+	AgentID string `json:"agent_id" example:"123e4567-e89b-12d3-a456-426614174000"`
+}
+
+// ErrorData represents error message data
+// @Description Error message data structure
+type ErrorData struct {
+	Error   string `json:"error" example:"Failed to send message"`
+	Details string `json:"details,omitempty" example:"Session not found"`
+}
+
+// TypingIndicatorData represents typing indicator data
+// @Description Typing indicator data structure
+type TypingIndicatorData struct {
+	AuthorType string `json:"author_type" example:"agent" enums:"agent,customer"`
+	AuthorName string `json:"author_name" example:"John Doe"`
+	IsTyping   bool   `json:"is_typing" example:"true"`
+}
+
 type AgentWebSocketHandler struct {
 	chatSessionService *service.ChatSessionService
 	connectionManager  *ws.ConnectionManager
@@ -37,6 +89,18 @@ func NewAgentWebSocketHandler(chatSessionService *service.ChatSessionService, co
 }
 
 // HandleAgentWebSocket handles a single WebSocket connection per agent for all sessions
+// @Summary Establish WebSocket connection for agent
+// @Description Establishes a WebSocket connection for an agent to handle real-time chat across all sessions they have access to. The agent can send messages, typing indicators, and subscribe to specific chat sessions.
+// @Tags Agent WebSocket
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "Tenant ID" format(uuid)
+// @Security BearerAuth
+// @Success 101 {object} AgentWebSocketResponse "WebSocket connection established"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Unauthorized - Invalid or missing JWT token"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /v1/tenants/{tenant_id}/chat/agent/ws [get]
 func (h *AgentWebSocketHandler) HandleAgentWebSocket(c *gin.Context) {
 	agentID := middleware.GetAgentID(c)
 	tenantID := middleware.GetTenantID(c)

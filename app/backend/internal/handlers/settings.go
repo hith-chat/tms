@@ -53,6 +53,18 @@ type AboutMeSettings struct {
 }
 
 // GetBrandingSettings retrieves branding settings for a tenant
+// @Summary Get branding settings
+// @Description Retrieve branding configuration settings for the current tenant
+// @Tags settings
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Success 200 {object} BrandingSettings
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/settings/branding [get]
 func (h *SettingsHandler) GetBrandingSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectIDStr, _ := c.Params.Get("project_id")
@@ -77,6 +89,20 @@ func (h *SettingsHandler) GetBrandingSettings(c *gin.Context) {
 }
 
 // UpdateBrandingSettings updates branding settings for a tenant
+// @Summary Update branding settings
+// @Description Update branding configuration settings for a project
+// @Tags settings
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param branding body BrandingSettings true "Branding settings to update"
+// @Success 200 {object} BrandingSettings
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/settings/projects/{project_id}/branding [put]
 func (h *SettingsHandler) UpdateBrandingSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectIDStr, _ := c.Params.Get("project_id")
@@ -107,6 +133,19 @@ func (h *SettingsHandler) UpdateBrandingSettings(c *gin.Context) {
 }
 
 // GetAutomationSettings retrieves automation settings for a tenant
+// @Summary Get automation settings
+// @Description Retrieve automation configuration settings for a project
+// @Tags settings
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Success 200 {object} AutomationSettings
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/settings/projects/{project_id}/automation [get]
 func (h *SettingsHandler) GetAutomationSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectIDStr, _ := c.Params.Get("project_id")
@@ -131,6 +170,20 @@ func (h *SettingsHandler) GetAutomationSettings(c *gin.Context) {
 }
 
 // UpdateAutomationSettings updates automation settings for a tenant
+// @Summary Update automation settings
+// @Description Update automation configuration settings for a project
+// @Tags settings
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param automation body AutomationSettings true "Automation settings to update"
+// @Success 200 {object} AutomationSettings
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/settings/projects/{project_id}/automation [put]
 func (h *SettingsHandler) UpdateAutomationSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectIDStr, _ := c.Params.Get("project_id")
@@ -161,6 +214,19 @@ func (h *SettingsHandler) UpdateAutomationSettings(c *gin.Context) {
 }
 
 // GetAboutMeSettings retrieves about me settings for a tenant
+// @Summary Get about me settings
+// @Description Retrieve about me configuration settings for a project
+// @Tags settings
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Success 200 {object} AboutMeSettings
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/settings/projects/{project_id}/about-me [get]
 func (h *SettingsHandler) GetAboutMeSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectIDStr, _ := c.Params.Get("project_id")
@@ -185,6 +251,20 @@ func (h *SettingsHandler) GetAboutMeSettings(c *gin.Context) {
 }
 
 // UpdateAboutMeSettings updates about me settings for a tenant
+// @Summary Update about me settings
+// @Description Update about me configuration settings for a project
+// @Tags settings
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id header string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param about_me body AboutMeSettings true "About me settings to update"
+// @Success 200 {object} AboutMeSettings
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/settings/projects/{project_id}/about-me [put]
 func (h *SettingsHandler) UpdateAboutMeSettings(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	projectIDStr, _ := c.Params.Get("project_id")

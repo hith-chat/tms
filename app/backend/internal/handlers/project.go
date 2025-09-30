@@ -82,6 +82,20 @@ func hasAccess(roleBindings []string, tenantID uuid.UUID) bool {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// GetProject gets a specific project by ID
+// @Summary Get project
+// @Description Retrieve a specific project by its ID
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id path string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Success 200 {object} models.Project
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
 // @Router /api/v1/tenants/{tenant_id}/projects/{project_id} [get]
 func (h *ProjectHandler) GetProject(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
