@@ -9,16 +9,28 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/bareuptime/tms/internal/models"
-	"github.com/bareuptime/tms/internal/repo"
 	ws "github.com/bareuptime/tms/internal/websocket"
 )
 
-type NotificationService struct {
-	notificationRepo *repo.NotificationRepo
-	connectionMgr    *ws.ConnectionManager
+type NotificationRepository interface {
+	CreateNotification(ctx context.Context, notification *models.Notification) error
+	GetNotifications(ctx context.Context, tenantID, agentID uuid.UUID, limit, offset int) ([]models.Notification, error)
+	GetNotificationCount(ctx context.Context, tenantID, agentID uuid.UUID) (*models.NotificationCount, error)
+	MarkNotificationAsRead(ctx context.Context, tenantID, agentID, notificationID uuid.UUID) error
+	MarkAllNotificationsAsRead(ctx context.Context, tenantID, agentID uuid.UUID) error
+	CleanupOldNotifications(ctx context.Context) error
 }
 
-func NewNotificationService(notificationRepo *repo.NotificationRepo, connectionMgr *ws.ConnectionManager) *NotificationService {
+type WebSocketBroadcaster interface {
+	DeliverWebSocketMessage(sessionID uuid.UUID, message *ws.Message) error
+}
+
+type NotificationService struct {
+	notificationRepo NotificationRepository
+	connectionMgr    WebSocketBroadcaster
+}
+
+func NewNotificationService(notificationRepo NotificationRepository, connectionMgr WebSocketBroadcaster) *NotificationService {
 	return &NotificationService{
 		notificationRepo: notificationRepo,
 		connectionMgr:    connectionMgr,
@@ -181,14 +193,6 @@ func (s *NotificationService) broadcastNotificationCount(ctx context.Context, te
 	if err != nil {
 		log.Printf("Failed to deliver notification count via WebSocket: %v", err)
 	}
-}
-
-// truncateMessage truncates a message to specified length
-func (s *NotificationService) truncateMessage(message string, maxLength int) string {
-	if len(message) <= maxLength {
-		return message
-	}
-	return message[:maxLength-3] + "..."
 }
 
 // CleanupOldNotifications removes old notifications

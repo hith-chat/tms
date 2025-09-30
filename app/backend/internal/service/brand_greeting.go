@@ -7,20 +7,23 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/bareuptime/tms/internal/repo"
 )
 
 // BrandGreetingService generates brand-aware greeting responses
 type BrandGreetingService struct {
-	settingsRepo *repo.SettingsRepository
+	settingsRepo BrandSettingsRepository
 }
 
 // NewBrandGreetingService creates a new brand greeting service
-func NewBrandGreetingService(settingsRepo *repo.SettingsRepository) *BrandGreetingService {
+func NewBrandGreetingService(settingsRepo BrandSettingsRepository) *BrandGreetingService {
 	return &BrandGreetingService{
 		settingsRepo: settingsRepo,
 	}
+}
+
+// BrandSettingsRepository represents the subset of settings repository functionality used by the service.
+type BrandSettingsRepository interface {
+	GetSetting(ctx context.Context, tenantID, projectID uuid.UUID, settingKey string) (map[string]interface{}, int, error)
 }
 
 // BrandInfo represents the brand information used for greetings
