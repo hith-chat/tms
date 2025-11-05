@@ -3,3 +3,4 @@ packages:
   - 'agent-console'
   - 'public-view'
   - 'landing'
+  - 'new-landing'
