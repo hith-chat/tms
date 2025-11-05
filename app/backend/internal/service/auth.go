@@ -535,24 +535,24 @@ type ResendSignupOTPRequest struct {
 func (s *AuthService) SignUp(ctx context.Context, req SignUpRequest) error {
 
 	// Validate corporate email domain if required
-	if s.featureFlags.RequireCorporateEmail {
-		if err := s.isValidCorporateEmail(req.Email); err != nil {
-			return err
-		}
-	}
+	// if s.featureFlags.RequireCorporateEmail {
+	// 	if err := s.isValidCorporateEmail(req.Email); err != nil {
+	// 		return err
+	// 	}
+	// }
 
-	domainNameFromEmail := strings.Split(req.Email, "@")[1]
-	domainName, err := s.domainRepo.GetDomainByNameWithoutTenant(ctx, domainNameFromEmail)
-	if err != nil {
-		return fmt.Errorf("failed to get domain by name: %w", err)
-	}
+	// domainNameFromEmail := strings.Split(req.Email, "@")[1]
+	// domainName, err := s.domainRepo.GetDomainByNameWithoutTenant(ctx, domainNameFromEmail)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get domain by name: %w", err)
+	// }
 
-	if domainName != nil && domainName.Status == models.DomainValidationStatusVerified {
-		return fmt.Errorf("domain is already registered, please verify your email or contact support")
-	}
+	// if domainName != nil && domainName.Status == models.DomainValidationStatusVerified {
+	// 	return fmt.Errorf("domain is already registered, please verify your email or contact support")
+	// }
 
 	// Check if agent already exists
-	_, err = s.agentRepo.GetByEmailWithoutTenantID(ctx, req.Email)
+	_, err := s.agentRepo.GetByEmailWithoutTenantID(ctx, req.Email)
 	if err == nil {
 		return fmt.Errorf("agent with email %s already exists", req.Email)
 	}
