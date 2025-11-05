@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from './Button';
-import { Sparkles, MessageSquare, Zap, Users, Check } from 'lucide-react';
 import styles from './WidgetHero.module.css';
 
 interface BuilderEvent {
@@ -16,11 +15,6 @@ export const WidgetHero = () => {
   const [buildProgress, setBuildProgress] = useState(0);
   const [buildStatus, setBuildStatus] = useState('');
   const [buildMessage, setBuildMessage] = useState('');
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    setIsVisible(true);
-  }, []);
 
   function validateUrl(url: string): boolean {
     try {
@@ -50,7 +44,6 @@ export const WidgetHero = () => {
     setBuildStatus('Initializing');
     setBuildMessage('Connecting to your website...');
 
-    // Start SSE connection
     const encodedUrl = encodeURIComponent(websiteUrl);
     const email = 'sumansaurabh@hith.chat';
     const sseUrl = `/api/public/ai-widget-builder?url=${encodedUrl}&email=${encodeURIComponent(email)}`;
@@ -63,7 +56,6 @@ export const WidgetHero = () => {
         const data: BuilderEvent = JSON.parse(event.data);
         handleBuilderEvent(data);
 
-        // Update progress
         if (data.type === 'builder_started') setBuildProgress(10);
         else if (data.type === 'widget_stage_started') setBuildProgress(20);
         else if (data.type === 'widget_theme_ready') setBuildProgress(40);
@@ -101,11 +93,11 @@ export const WidgetHero = () => {
         break;
       case 'widget_stage_started':
         setBuildStatus('Creating Widget');
-        setBuildMessage('Analyzing your website theme and branding...');
+        setBuildMessage('Analyzing your website theme...');
         break;
       case 'widget_theme_ready':
         setBuildStatus('Widget Created');
-        setBuildMessage('Custom branding applied successfully!');
+        setBuildMessage('Custom branding applied');
         break;
       case 'knowledge_stage_started':
         setBuildStatus('Building Knowledge Base');
@@ -119,10 +111,10 @@ export const WidgetHero = () => {
         break;
       case 'faq_generation_started':
         setBuildStatus('Generating FAQs');
-        setBuildMessage('AI is creating intelligent responses...');
+        setBuildMessage('Creating intelligent responses...');
         break;
       case 'completed':
-        setBuildStatus('Complete!');
+        setBuildStatus('Complete');
         setBuildMessage('Preparing your preview...');
         setTimeout(() => redirectToPreview(event.data), 1000);
         break;
@@ -146,181 +138,84 @@ export const WidgetHero = () => {
 
   return (
     <section className={styles.hero}>
-      <div className={styles.background}>
-        <div className={styles.gradientOrb1}></div>
-        <div className={styles.gradientOrb2}></div>
-        <div className={styles.gradientOrb3}></div>
-      </div>
-
       <div className={styles.container}>
-        <div
-          className={styles.content}
-          style={{
-            transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
-            opacity: isVisible ? 1 : 0,
-            transition: 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-        >
-          {/* Badge */}
-          <div className={styles.badge}>
-            <Sparkles size={16} />
-            <span>AI-Powered Chat Widget</span>
-          </div>
-
-          {/* Main Headline */}
+        <div className={styles.content}>
           <h1 className={styles.headline}>
-            Turn Website Visitors
-            <br />
-            into <span className={styles.gradientText}>Happy Customers</span>
+            The all-in-one AI chat widget for your website
           </h1>
-
           <p className={styles.subheadline}>
-            AI chat widget that answers questions, schedules meetings, and generates leads automatically.
-            <br />
-            <strong>Set up in 60 seconds.</strong>
+            Answer questions, schedule meetings, and capture leads automatically.
+            Deploy in under 60 seconds.
           </p>
 
-          {/* Widget Builder Form */}
           {!isBuilding ? (
-            <div className={styles.builderCard}>
-              <div className={styles.cardHeader}>
-                <h3>Try it on your website</h3>
-                <p>Enter your URL to see the magic happen ✨</p>
-              </div>
-
+            <div className={styles.formWrapper}>
               <form onSubmit={handleSubmit} className={styles.form}>
-                <div className={styles.inputWrapper}>
-                  <input
-                    type="url"
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    placeholder="https://yourwebsite.com"
-                    className={styles.input}
-                    disabled={isBuilding}
-                  />
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className={styles.submitBtn}
-                    disabled={isBuilding}
-                  >
-                    Build My Widget
-                    <Zap size={18} />
-                  </Button>
-                </div>
-                {error && <div className={styles.error}>{error}</div>}
+                <input
+                  type="url"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="https://yourwebsite.com"
+                  className={styles.input}
+                  disabled={isBuilding}
+                />
+                <Button
+                  type="submit"
+                  size="lg"
+                  className={styles.submitBtn}
+                  disabled={isBuilding}
+                >
+                  Get Started Free
+                </Button>
               </form>
-
-              {/* Trust Indicators */}
-              <div className={styles.trustIndicators}>
-                <div className={styles.trustItem}>
-                  <Check size={16} />
-                  <span>No credit card required</span>
-                </div>
-                <div className={styles.trustItem}>
-                  <Check size={16} />
-                  <span>Free forever plan</span>
-                </div>
-                <div className={styles.trustItem}>
-                  <Check size={16} />
-                  <span>Setup in 60 seconds</span>
-                </div>
-              </div>
+              {error && <div className={styles.error}>{error}</div>}
+              <p className={styles.subtext}>
+                No credit card required • Free forever plan • 2 minute setup
+              </p>
             </div>
           ) : (
-            <div className={styles.builderCard}>
-              <div className={styles.loadingState}>
-                <div className={styles.spinner}>
-                  <div className={styles.spinnerRing}></div>
-                  <div className={styles.spinnerRing}></div>
-                  <div className={styles.spinnerRing}></div>
-                </div>
-
-                <h3 className={styles.loadingTitle}>{buildStatus}</h3>
-                <p className={styles.loadingMessage}>{buildMessage}</p>
-
+            <div className={styles.loadingWrapper}>
+              <div className={styles.loadingCard}>
+                <div className={styles.spinner}></div>
+                <h3>{buildStatus}</h3>
+                <p>{buildMessage}</p>
                 <div className={styles.progressBar}>
                   <div
                     className={styles.progressFill}
                     style={{ width: `${buildProgress}%` }}
                   ></div>
                 </div>
-
-                <div className={styles.progressPercent}>
-                  {Math.round(buildProgress)}%
-                </div>
               </div>
             </div>
           )}
-
-          {/* Feature Pills */}
-          <div className={styles.featurePills}>
-            <div className={styles.pill}>
-              <MessageSquare size={16} />
-              <span>24/7 AI Support</span>
-            </div>
-            <div className={styles.pill}>
-              <Users size={16} />
-              <span>Lead Generation</span>
-            </div>
-            <div className={styles.pill}>
-              <Zap size={16} />
-              <span>Instant Setup</span>
-            </div>
-          </div>
         </div>
 
-        {/* Hero Visual */}
-        <div
-          className={styles.visual}
-          style={{
-            transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
-            opacity: isVisible ? 1 : 0,
-            transition: 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.2s',
-          }}
-        >
+        <div className={styles.visual}>
           <div className={styles.mockup}>
-            <div className={styles.browserFrame}>
-              <div className={styles.browserHeader}>
+            <div className={styles.browserWindow}>
+              <div className={styles.browserBar}>
                 <div className={styles.browserDots}>
                   <span></span>
                   <span></span>
                   <span></span>
                 </div>
-                <div className={styles.browserUrl}>yourwebsite.com</div>
               </div>
-
               <div className={styles.browserContent}>
                 <img
                   src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=800&fit=crop&q=80"
-                  alt="Website Preview"
+                  alt="Dashboard Preview"
                 />
-
-                {/* Animated Chat Widget */}
-                <div className={styles.chatWidget}>
+                <div className={styles.chatBubble}>
                   <div className={styles.chatHeader}>
-                    <div className={styles.chatAvatar}>
-                      <MessageSquare size={20} />
-                    </div>
-                    <div className={styles.chatInfo}>
-                      <div className={styles.chatName}>AI Assistant</div>
-                      <div className={styles.chatStatus}>
-                        <span className={styles.statusDot}></span>
-                        Online
-                      </div>
+                    <div className={styles.chatAvatar}></div>
+                    <div>
+                      <div className={styles.chatName}>Support Assistant</div>
+                      <div className={styles.chatStatus}>Online</div>
                     </div>
                   </div>
-
-                  <div className={styles.chatMessages}>
-                    <div className={styles.chatMessage}>
-                      <div className={styles.messageBubble}>
-                        Hi! 👋 How can I help you today?
-                      </div>
-                    </div>
-                    <div className={styles.chatMessage}>
-                      <div className={styles.messageBubble}>
-                        I can answer questions, schedule meetings, or connect you with our team!
-                      </div>
+                  <div className={styles.chatBody}>
+                    <div className={styles.message}>
+                      Hi! How can I help you today?
                     </div>
                   </div>
                 </div>
