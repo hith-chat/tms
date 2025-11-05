@@ -1,31 +1,25 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { HeroSection } from '../components/HeroSection';
-import { FeaturesSection } from '../components/FeaturesSection';
-import { PricingSection } from '../components/PricingSection';
-import { TestimonialsSection } from '../components/TestimonialsSection';
-import { CTASection } from '../components/CTASection';
+import { WidgetHero } from '../components/WidgetHero';
+import { WidgetFeatures } from '../components/WidgetFeatures';
 import { Footer } from '../components/Footer';
 
 export default function IndexPage() {
   return (
     <>
       <Helmet>
-        <title>Hith | Modern Ticket Management & AI Chat</title>
+        <title>AI Chat Widget for Websites | Hith</title>
         <meta
           name="description"
-          content="Streamline your customer support with our integrated ticket management system and AI-powered chat platform. Fast, efficient, and intelligent solutions."
+          content="AI-powered chat widget that answers questions, schedules meetings, and generates leads automatically. Set up in 60 seconds."
         />
       </Helmet>
-      
+
       <main>
-        <HeroSection />
-        <FeaturesSection />
-        <PricingSection />
-        <TestimonialsSection />
-        <CTASection />
+        <WidgetHero />
+        <WidgetFeatures />
       </main>
-      
+
       <Footer />
     </>
   );
