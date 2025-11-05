@@ -223,3 +223,9 @@ func CustomRateLimit(rateLimiter *rate.RateLimiter, limitType string, requests i
 		c.Next()
 	}
 }
+
+// PublicWidgetBuilderRateLimit creates rate limiting middleware for public AI widget builder endpoint
+// Stricter limit: 2 requests per 6 hours per IP
+func PublicWidgetBuilderRateLimit(rateLimiter *rate.RateLimiter) gin.HandlerFunc {
+	return CustomRateLimit(rateLimiter, "public_widget_builder", 2, 6*time.Hour)
+}
