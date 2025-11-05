@@ -7,6 +7,7 @@ import Page_Privacy from "./pages/privacy.tsx";
 import Terms_of_Service from "./pages/terms.tsx";
 import Contact_Page from "./pages/contact.tsx";
 import Integrations_Page from "./pages/integrations.tsx";
+import Preview_Page from "./pages/preview.tsx";
 
 if (!window.requestIdleCallback) {
   window.requestIdleCallback = (cb) => {
@@ -26,7 +27,8 @@ const fileNameToRoute = new Map([
   ["./pages/terms.tsx", "/terms"],
   ["./pages/contact.tsx", "/contact"],
   ["./pages/integrations.tsx", "/integrations"],
-  
+  ["./pages/preview.tsx", "/preview"],
+
 ]);
 const fileNameToComponent: Map<string, React.ComponentType<any>> = new Map([
   ["./pages/_index.tsx", Page_0],
@@ -34,6 +36,7 @@ const fileNameToComponent: Map<string, React.ComponentType<any>> = new Map([
   ["./pages/terms.tsx", Terms_of_Service],
   ["./pages/contact.tsx", Contact_Page],
   ["./pages/integrations.tsx", Integrations_Page],
+  ["./pages/preview.tsx", Preview_Page],
 ]);
 
 function makePageRoute(filename: string) {
@@ -125,6 +128,7 @@ export function App() {
 "./pages/terms.tsx": PageLayout_0,
 "./pages/contact.tsx": PageLayout_0,
 "./pages/integrations.tsx": PageLayout_0,
+"./pages/preview.tsx": [],
 }), fileNameToRoute, makePageRoute })} 
           <Route path="*" element={<NotFound />} />
         </Routes>
