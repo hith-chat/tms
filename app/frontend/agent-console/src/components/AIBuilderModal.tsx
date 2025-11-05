@@ -8,13 +8,6 @@ import {
 } from '@shared/components/ui/dialog'
 import { Button } from '@shared/components/ui/button'
 import { Input } from '@shared/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shared/components/ui/select'
 import { Badge } from '@shared/components/ui/badge'
 import { apiClient } from '../lib/api'
 import {
@@ -65,7 +58,7 @@ const STAGE_ORDER: Array<{ key: string; label: string }> = [
 
 export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBuilderModalProps) {
   const [urlInput, setUrlInput] = useState(defaultUrl || '')
-  const [depth, setDepth] = useState('3')
+  const depth = '3' // Fixed crawl depth
   const [events, setEvents] = useState<BuilderEvent[]>([])
   const [status, setStatus] = useState<BuilderStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -358,7 +351,7 @@ export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBui
             AI Builder Copilot
           </DialogTitle>
           <DialogDescription>
-            Give the builder your website URL and it will craft the chat widget, curate your knowledge base, and publish ready-to-use FAQs automatically.
+            Give the builder your website URL and it will craft the chat widget.
           </DialogDescription>
         </DialogHeader>
 
@@ -376,21 +369,6 @@ export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBui
                     disabled={status === 'running'}
                   />
                 </div>
-              </div>
-              <div className="w-full md:w-32">
-                <label className="text-xs font-medium text-muted-foreground">Crawl Depth</label>
-                <Select value={depth} onValueChange={setDepth} disabled={status === 'running'}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <SelectItem key={value} value={String(value)}>
-                        Depth {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <Button
                 onClick={handleStart}

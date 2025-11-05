@@ -4,8 +4,12 @@ definitions:
     properties:
       created_at:
         type: string
+      expires_at:
+        type: string
       id:
         type: string
+      is_public:
+        type: boolean
       key:
         maxLength: 50
         minLength: 1
@@ -460,6 +464,15 @@ definitions:
         type: integer
     required:
     - model
+    type: object
+  handlers.publicAIBuildRequest:
+    properties:
+      depth:
+        type: integer
+      url:
+        type: string
+    required:
+    - url
     type: object
   models.Agent:
     properties:
@@ -1311,8 +1324,12 @@ definitions:
     properties:
       created_at:
         type: string
+      expires_at:
+        type: string
       id:
         type: string
+      is_public:
+        type: boolean
       key:
         type: string
       name:
@@ -3641,6 +3658,54 @@ paths:
       summary: Get payment gateway preview
       tags:
       - payments
+  /api/public/ai-widget-builder:
+    post:
+      consumes:
+      - application/json
+      description: Automatically creates a public project and builds an AI-powered
+        chat widget by scraping the provided website URL. Streams progress events.
+        Limited to 2 requests per 6 hours per IP address.
+      parameters:
+      - description: Website URL to scrape
+        in: query
+        name: url
+        type: string
+      - description: 'Scraping depth (1-5, default: 3)'
+        in: query
+        name: depth
+        type: integer
+      - description: Build request (alternative to query params)
+        in: body
+        name: build
+        schema:
+          $ref: '#/definitions/handlers.publicAIBuildRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Server-sent events stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Build public AI widget from website URL
+      tags:
+      - public-ai-builder
   /api/public/analyze-url:
     post:
       consumes:

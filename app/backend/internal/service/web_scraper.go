@@ -238,29 +238,58 @@ func (s *WebScrapingService) extractURLsFromAPI(ctx context.Context, targetURL s
 	return response.URLs, nil
 }
 
-// extractURLsManually extracts URLs using headless browser primarily, with colly as fallback
+// extractURLsManually extracts URLs using multiple fallback strategies
+// Priority order: 1. Playwright (headless browser), 2. YourGPT API, 3. Comprehensive (Colly)
 func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
 	logger.InfofCtx(ctx, "Starting URL extraction - target: %s, max_depth: %d", targetURL, maxDepth)
 
-	// Try headless browser extraction first
-	logger.DebugCtx(ctx, "Starting headless browser extraction")
+	// Step 1: Try Playwright headless browser extraction first
+	logger.DebugCtx(ctx, "Step 1: Attempting Playwright headless browser extraction")
 	headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
 
-	logger.InfofCtx(ctx, "Headless browser found %d links", len(headlessLinks))
+	logger.InfofCtx(ctx, "Playwright headless browser found %d links", len(headlessLinks))
 
 	if err == nil && len(headlessLinks) > 0 {
-		logger.InfofCtx(ctx, "Headless browser extraction successful - found %d links", len(headlessLinks))
+		logger.InfofCtx(ctx, "Playwright extraction successful - found %d links", len(headlessLinks))
 		return headlessLinks, nil
 	}
 
-	// Check if it's a Playwright installation issue
-	if err != nil && strings.Contains(err.Error(), "please install the driver") {
-		logger.WarnCtx(ctx, "Playwright not installed locally, using comprehensive extraction instead")
-	} else {
-		logger.WarnfCtx(ctx, "Headless browser extraction failed: %v - falling back to comprehensive extraction", err)
+	// Log Playwright failure reason
+	if err != nil {
+		if strings.Contains(err.Error(), "please install the driver") {
+			logger.WarnCtx(ctx, "Playwright not installed, trying next method")
+		} else {
+			logger.WarnfCtx(ctx, "Playwright extraction failed: %v - trying next method", err)
+		}
 	}
 
-	logger.InfoCtx(ctx, "Falling back to comprehensive extraction")
+	// Step 2: Try YourGPT API extraction as second fallback
+	logger.InfoCtx(ctx, "Step 2: Attempting YourGPT API extraction")
+	apiURLs, apiErr := s.extractURLsFromAPI(ctx, targetURL)
+
+	if apiErr == nil && len(apiURLs) > 0 {
+		logger.InfofCtx(ctx, "YourGPT API extraction successful - found %d URLs", len(apiURLs))
+
+		// Convert API URLs to discoveredLink format
+		var apiLinks []discoveredLink
+		for _, urlStr := range apiURLs {
+			apiLinks = append(apiLinks, discoveredLink{
+				URL:        urlStr,
+				Title:      "",
+				Depth:      0,
+				TokenCount: 0, // Will be estimated later if needed
+			})
+		}
+
+		return apiLinks, nil
+	}
+
+	if apiErr != nil {
+		logger.WarnfCtx(ctx, "YourGPT API extraction failed: %v - trying final fallback", apiErr)
+	}
+
+	// Step 3: Final fallback to comprehensive extraction (Colly)
+	logger.InfoCtx(ctx, "Step 3: Falling back to comprehensive extraction (Colly)")
 	return s.extractURLsComprehensively(ctx, targetURL, maxDepth)
 }
 

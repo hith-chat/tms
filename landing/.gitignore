@@ -1,0 +1,75 @@
+# Node modules
+node_modules/
+
+# Build outputs
+/dist/
+/build/
+/out/
+
+# Vite cache (optional)
+.vite/
+.pnpm-store/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.iml
+
+# Test coverage
+/coverage/
+coverage-final.json
+nyc_output/
+
+# Local env files (keep examples in repo)
+.env
+.env.*.local
+.env.local
+
+# Misc caches
+.eslintcache
+.parcel-cache/
+.cache/
+.turbo/
+
+# Next / Gatsby / other frameworks
+.next/
+.cache/
+/.parcel-cache/
+
+# Storybook
+node_modules/.cache/storybook
+
+# Optional lockfiles from other package managers
+package-lock.json
+yarn.lock
+
+# Temporary files
+*.log
+
+# Playwright / Cypress
+/playwright-report/
+test-results/
+
+# Mac-specific
+.Spotlight-V100
+.Trashes
+
+# JetBrains
+/.idea/

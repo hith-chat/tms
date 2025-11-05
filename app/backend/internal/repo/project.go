@@ -22,8 +22,8 @@ func NewProjectRepository(database *sqlx.DB) ProjectRepository {
 
 func (r *projectRepository) Create(ctx context.Context, project *db.Project) error {
 	query := `
-		INSERT INTO projects (id, tenant_id, key, name, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO projects (id, tenant_id, key, name, status, is_public, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -32,6 +32,8 @@ func (r *projectRepository) Create(ctx context.Context, project *db.Project) err
 		project.Key,
 		project.Name,
 		project.Status,
+		project.IsPublic,
+		project.ExpiresAt,
 		project.CreatedAt,
 		project.UpdatedAt,
 	)
@@ -41,9 +43,10 @@ func (r *projectRepository) Create(ctx context.Context, project *db.Project) err
 
 func (r *projectRepository) GetByID(ctx context.Context, tenantID, projectID uuid.UUID) (*db.Project, error) {
 	query := `
-		SELECT id, tenant_id, key, name, status, created_at, updated_at
+		SELECT id, tenant_id, key, name, status, is_public, expires_at, created_at, updated_at
 		FROM projects
 		WHERE id = $1 AND tenant_id = $2
+			AND (expires_at IS NULL OR expires_at > NOW())
 	`
 
 	var project db.Project
@@ -60,9 +63,10 @@ func (r *projectRepository) GetByID(ctx context.Context, tenantID, projectID uui
 
 func (r *projectRepository) GetByKey(ctx context.Context, tenantID uuid.UUID, key string) (*db.Project, error) {
 	query := `
-		SELECT id, tenant_id, key, name, status, created_at, updated_at
+		SELECT id, tenant_id, key, name, status, is_public, expires_at, created_at, updated_at
 		FROM projects
 		WHERE key = $1 AND tenant_id = $2
+			AND (expires_at IS NULL OR expires_at > NOW())
 	`
 
 	var project db.Project
@@ -131,9 +135,10 @@ func (r *projectRepository) Delete(ctx context.Context, tenantID, projectID uuid
 
 func (r *projectRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*db.Project, error) {
 	query := `
-		SELECT id, tenant_id, key, name, status, created_at, updated_at
+		SELECT id, tenant_id, key, name, status, is_public, expires_at, created_at, updated_at
 		FROM projects
 		WHERE tenant_id = $1
+			AND (expires_at IS NULL OR expires_at > NOW())
 		ORDER BY name ASC
 	`
 
@@ -148,10 +153,11 @@ func (r *projectRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*db
 
 func (r *projectRepository) ListForAgent(ctx context.Context, tenantID, agentID uuid.UUID) ([]*db.Project, error) {
 	query := `
-		SELECT DISTINCT p.id, p.tenant_id, p.key, p.name, p.status, p.created_at, p.updated_at
+		SELECT DISTINCT p.id, p.tenant_id, p.key, p.name, p.status, p.is_public, p.expires_at, p.created_at, p.updated_at
 		FROM projects p
 		INNER JOIN agent_project_roles apr ON p.id = apr.project_id
 		WHERE p.tenant_id = $1 AND apr.agent_id = $2 AND p.status = 'active'
+			AND (p.expires_at IS NULL OR p.expires_at > NOW())
 		ORDER BY p.name ASC
 	`
 
@@ -166,9 +172,10 @@ func (r *projectRepository) ListForAgent(ctx context.Context, tenantID, agentID 
 
 func (r *projectRepository) ListForAgentAdmin(ctx context.Context, tenantID uuid.UUID) ([]*db.Project, error) {
 	query := `
-		SELECT DISTINCT p.id, p.tenant_id, p.key, p.name, p.status, p.created_at, p.updated_at
+		SELECT DISTINCT p.id, p.tenant_id, p.key, p.name, p.status, p.is_public, p.expires_at, p.created_at, p.updated_at
 		FROM projects p
 		WHERE p.tenant_id = $1
+			AND (p.expires_at IS NULL OR p.expires_at > NOW())
 	`
 
 	var projects []*db.Project
@@ -182,11 +189,39 @@ func (r *projectRepository) ListForAgentAdmin(ctx context.Context, tenantID uuid
 
 // Count returns the number of projects for a tenant
 func (r *projectRepository) Count(ctx context.Context, tenantID uuid.UUID) (int, error) {
-	query := `SELECT COUNT(1) FROM projects WHERE tenant_id = $1`
+	query := `SELECT COUNT(1) FROM projects WHERE tenant_id = $1 AND (expires_at IS NULL OR expires_at > NOW())`
 	var count int
 	err := r.db.GetContext(ctx, &count, query, tenantID)
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
+}
+
+// GetActivePublicProjectByDomain checks if an active public project exists for the given domain
+func (r *projectRepository) GetActivePublicProjectByDomain(ctx context.Context, tenantID uuid.UUID, domain string) (*db.Project, error) {
+	query := `
+		SELECT id, tenant_id, key, name, status, is_public, expires_at, created_at, updated_at
+		FROM projects
+		WHERE tenant_id = $1
+			AND is_public = true
+			AND key LIKE $2
+			AND (expires_at IS NULL OR expires_at > NOW())
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	// Convert domain to key pattern (e.g., "example.com" -> "EXAMPLE-COM-%")
+	domainKey := "%" + domain + "%"
+
+	var project db.Project
+	err := r.db.GetContext(ctx, &project, query, tenantID, domainKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &project, nil
 }

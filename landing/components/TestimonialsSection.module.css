@@ -1,0 +1,110 @@
+.testimonials {
+  background-color: var(--background);
+  padding: var(--spacing-16) 0;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-8);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--spacing-12);
+}
+
+.title {
+  font-family: var(--font-family-heading);
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 var(--spacing-4);
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .title {
+    font-size: 2.75rem;
+  }
+}
+
+.subtitle {
+  font-size: 1.125rem;
+  color: var(--muted-foreground);
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-8);
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.card {
+  background-color: var(--card);
+  padding: var(--spacing-8);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.starRating {
+  display: flex;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-4);
+  color: var(--warning);
+}
+
+.filledStar {
+  fill: currentColor;
+}
+
+.emptyStar {
+  color: var(--muted);
+}
+
+.quote {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--card-foreground);
+  margin: 0 0 var(--spacing-6);
+  flex-grow: 1;
+  font-style: italic;
+}
+
+.author {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-top: auto;
+}
+
+.authorInfo {
+  line-height: 1.4;
+}
+
+.authorName {
+  font-weight: 600;
+  color: var(--card-foreground);
+}
+
+.authorTitle {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}

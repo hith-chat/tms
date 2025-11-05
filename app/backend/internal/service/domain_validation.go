@@ -13,19 +13,29 @@ import (
 
 	"github.com/bareuptime/tms/internal/mail"
 	"github.com/bareuptime/tms/internal/models"
-	"github.com/bareuptime/tms/internal/repo"
 )
 
 type DomainNameService struct {
-	domainRepo   *repo.DomainValidationRepo
+	domainRepo   DomainValidationRepository
 	emailService *mail.Service
+	dnsLookup    func(string) ([]string, error)
 }
 
-func NewDomainValidationService(domainRepo *repo.DomainValidationRepo, emailService *mail.Service) *DomainNameService {
+func NewDomainValidationService(domainRepo DomainValidationRepository, emailService *mail.Service) *DomainNameService {
 	return &DomainNameService{
 		domainRepo:   domainRepo,
 		emailService: emailService,
+		dnsLookup:    net.LookupTXT,
 	}
+}
+
+// DomainValidationRepository captures the data access needs for domain validation workflows.
+type DomainValidationRepository interface {
+	CreateDomainValidation(ctx context.Context, validation *models.EmailDomain) error
+	GetDomainByID(ctx context.Context, tenantID uuid.UUID, validationID uuid.UUID) (*models.EmailDomain, error)
+	UpdateDomainValidation(ctx context.Context, validation *models.EmailDomain) error
+	ListDomainNames(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.EmailDomain, error)
+	DeleteDomainName(ctx context.Context, tenantID, projectID, domainID uuid.UUID) error
 }
 
 // CreateDomainValidation initiates domain validation process
@@ -180,7 +190,12 @@ func extractDomainFromEmail(email string) string {
 func (s *DomainNameService) verifyDNSRecord(domain, expectedValue string) (bool, error) {
 	recordName := fmt.Sprintf("_tms-validation.%s", domain)
 
-	txtRecords, err := net.LookupTXT(recordName)
+	lookup := s.dnsLookup
+	if lookup == nil {
+		lookup = net.LookupTXT
+	}
+
+	txtRecords, err := lookup(recordName)
 	if err != nil {
 		return false, fmt.Errorf("failed to lookup DNS TXT record: %w", err)
 	}

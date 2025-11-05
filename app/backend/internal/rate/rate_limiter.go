@@ -148,11 +148,12 @@ func (rl *RateLimiter) ResetRateLimit(ctx context.Context, key string) error {
 
 // DefaultLimits defines common rate limiting configurations
 var DefaultLimits = map[string]LimitConfig{
-	"public_api":      {Requests: 100, Window: time.Minute},     // 100 requests per minute for public APIs
-	"auth":            {Requests: 10, Window: time.Minute},      // 10 auth attempts per minute
-	"password_reset":  {Requests: 3, Window: time.Hour},        // 3 password resets per hour
-	"registration":    {Requests: 5, Window: time.Hour},        // 5 registrations per hour per IP
-	"payment":         {Requests: 20, Window: time.Minute},     // 20 payment requests per minute
-	"file_upload":     {Requests: 50, Window: time.Minute},     // 50 file uploads per minute
-	"api_strict":      {Requests: 30, Window: time.Minute},     // 30 requests per minute for strict endpoints
+	"public_api":           {Requests: 100, Window: time.Minute},     // 100 requests per minute for public APIs
+	"auth":                 {Requests: 10, Window: time.Minute},      // 10 auth attempts per minute
+	"password_reset":       {Requests: 3, Window: time.Hour},         // 3 password resets per hour
+	"registration":         {Requests: 5, Window: time.Hour},         // 5 registrations per hour per IP
+	"payment":              {Requests: 20, Window: time.Minute},      // 20 payment requests per minute
+	"file_upload":          {Requests: 50, Window: time.Minute},      // 50 file uploads per minute
+	"api_strict":           {Requests: 30, Window: time.Minute},      // 30 requests per minute for strict endpoints
+	"public_widget_builder": {Requests: 2, Window: 6 * time.Hour},    // 2 requests per 6 hours for public AI widget builder
 }

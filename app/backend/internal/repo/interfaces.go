@@ -87,6 +87,8 @@ type ProjectRepository interface {
 	ListForAgent(ctx context.Context, tenantID, agentID uuid.UUID) ([]*db.Project, error)
 	// Count returns number of projects for the tenant
 	Count(ctx context.Context, tenantID uuid.UUID) (int, error)
+	// GetActivePublicProjectByDomain checks if an active public project exists for the given domain
+	GetActivePublicProjectByDomain(ctx context.Context, tenantID uuid.UUID, domain string) (*db.Project, error)
 }
 
 // TenantRepository interface

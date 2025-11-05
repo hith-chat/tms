@@ -3100,6 +3100,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/public/ai-widget-builder": {
+            "post": {
+                "description": "Automatically creates a public project and builds an AI-powered chat widget by scraping the provided website URL. Streams progress events. Limited to 2 requests per 6 hours per IP address.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "public-ai-builder"
+                ],
+                "summary": "Build public AI widget from website URL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Website URL to scrape",
+                        "name": "url",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Scraping depth (1-5, default: 3)",
+                        "name": "depth",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Build request (alternative to query params)",
+                        "name": "build",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.publicAIBuildRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Server-sent events stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/public/analyze-url": {
             "post": {
                 "description": "Analyze a public URL to discover associated URLs and their token counts up to specified depth",
@@ -6532,8 +6602,14 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "expires_at": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
+                },
+                "is_public": {
+                    "type": "boolean"
                 },
                 "key": {
                     "type": "string",
@@ -7189,6 +7265,20 @@ const docTemplate = `{
                 },
                 "total_tokens": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.publicAIBuildRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "depth": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         },
@@ -8374,8 +8464,14 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "expires_at": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
+                },
+                "is_public": {
+                    "type": "boolean"
                 },
                 "key": {
                     "type": "string"

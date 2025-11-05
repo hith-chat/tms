@@ -11,21 +11,31 @@ import (
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
-	"github.com/bareuptime/tms/internal/repo"
 	ws "github.com/bareuptime/tms/internal/websocket"
 )
 
 // HowlingAlarmService manages critical notifications with escalating alerts
+type AlarmRepository interface {
+	AcknowledgeAlarm(ctx context.Context, tenantID, alarmID, agentID uuid.UUID, response string) error
+	GetAlarmByID(ctx context.Context, tenantID, alarmID uuid.UUID) (*models.Alarm, error)
+	GetActiveAlarms(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.Alarm, error)
+	GetAlarmStats(ctx context.Context, tenantID, projectID uuid.UUID) (*models.AlarmStats, error)
+}
+
+type ProjectBroadcaster interface {
+	SendToProjectAgents(projectID uuid.UUID, message *ws.Message) error
+}
+
 type HowlingAlarmService struct {
 	config           *config.Config
-	connectionMgr    *ws.ConnectionManager
-	alarmRepo        *repo.AlarmRepository
+	connectionMgr    ProjectBroadcaster
+	alarmRepo        AlarmRepository
 	escalationTicker *time.Ticker
 	stopChannel      chan bool
 }
 
 // NewHowlingAlarmService creates a new howling alarm service
-func NewHowlingAlarmService(cfg *config.Config, connectionMgr *ws.ConnectionManager, alarmRepo *repo.AlarmRepository) *HowlingAlarmService {
+func NewHowlingAlarmService(cfg *config.Config, connectionMgr ProjectBroadcaster, alarmRepo AlarmRepository) *HowlingAlarmService {
 	service := &HowlingAlarmService{
 		config:        cfg,
 		connectionMgr: connectionMgr,
