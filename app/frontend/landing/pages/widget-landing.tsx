@@ -6,7 +6,7 @@ import { WidgetShowcase } from '../components/WidgetShowcase';
 import { CTASection } from '../components/CTASection';
 import { Footer } from '../components/Footer';
 
-export default function IndexPage() {
+export default function WidgetLandingPage() {
   return (
     <>
       <Helmet>
