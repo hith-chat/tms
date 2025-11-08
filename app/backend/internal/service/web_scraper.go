@@ -146,6 +146,36 @@ func (s *WebScrapingService) CreateScrapingJob(ctx context.Context, tenantID, pr
 	return job, nil
 }
 
+// CreateScrapingJobWithStreamAndBrowser creates a new web scraping job with shared browser context and depth-based strategy
+func (s *WebScrapingService) CreateScrapingJobWithStreamAndBrowser(ctx context.Context, tenantID, projectID uuid.UUID, req *models.CreateScrapingJobRequest, sharedBrowser *SharedBrowserContext, maxDepth int, events chan<- ScrapingEvent) (*models.KnowledgeScrapingJob, error) {
+	// Validate URL
+	if err := s.validateURL(req.URL); err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Create scraping job
+	job := &models.KnowledgeScrapingJob{
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		ProjectID: projectID,
+		URL:       req.URL,
+		MaxDepth:  req.MaxDepth,
+		Status:    "pending",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	// Save to database
+	if err := s.knowledgeRepo.CreateScrapingJob(job); err != nil {
+		return nil, fmt.Errorf("failed to create scraping job: %w", err)
+	}
+
+	// Start scraping with depth-based strategy (Playwright for 0-1, Colly for 2+)
+	go s.startScrapingJobWithStreamAndBrowser(ctx, job, sharedBrowser, maxDepth, events)
+
+	return job, nil
+}
+
 // CreateScrapingJobWithStream creates a new web scraping job and streams progress
 func (s *WebScrapingService) CreateScrapingJobWithStream(ctx context.Context, tenantID, projectID uuid.UUID, req *models.CreateScrapingJobRequest, events chan<- ScrapingEvent) (*models.KnowledgeScrapingJob, error) {
 	// Validate URL
@@ -257,24 +287,24 @@ func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL 
 	logger.InfofCtx(ctx, "Starting URL extraction - target: %s, max_depth: %d", targetURL, maxDepth)
 
 	// Step 1: Try Playwright headless browser extraction first
-	logger.DebugCtx(ctx, "Step 1: Attempting Playwright headless browser extraction")
-	headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
+	// logger.DebugCtx(ctx, "Step 1: Attempting Playwright headless browser extraction")
+	// headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
 
-	logger.InfofCtx(ctx, "Playwright headless browser found %d links", len(headlessLinks))
+	// logger.InfofCtx(ctx, "Playwright headless browser found %d links", len(headlessLinks))
 
-	if err == nil && len(headlessLinks) > 0 {
-		logger.InfofCtx(ctx, "Playwright extraction successful - found %d links", len(headlessLinks))
-		return headlessLinks, nil
-	}
+	// if err == nil && len(headlessLinks) > 0 {
+	// 	logger.InfofCtx(ctx, "Playwright extraction successful - found %d links", len(headlessLinks))
+	// 	return headlessLinks, nil
+	// }
 
-	// Log Playwright failure reason
-	if err != nil {
-		if strings.Contains(err.Error(), "please install the driver") {
-			logger.WarnCtx(ctx, "Playwright not installed, trying next method")
-		} else {
-			logger.WarnfCtx(ctx, "Playwright extraction failed: %v - trying next method", err)
-		}
-	}
+	// // Log Playwright failure reason
+	// if err != nil {
+	// 	if strings.Contains(err.Error(), "please install the driver") {
+	// 		logger.WarnCtx(ctx, "Playwright not installed, trying next method")
+	// 	} else {
+	// 		logger.WarnfCtx(ctx, "Playwright extraction failed: %v - trying next method", err)
+	// 	}
+	// }
 
 	// Step 2: Try YourGPT API extraction as second fallback
 	logger.InfoCtx(ctx, "Step 2: Attempting YourGPT API extraction")
@@ -523,6 +553,126 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 
 	c.Wait()
 	return discoveredLinks, nil
+}
+
+// startScrapingJobWithStreamAndBrowser discovers links using depth-based strategy with shared browser
+func (s *WebScrapingService) startScrapingJobWithStreamAndBrowser(ctx context.Context, job *models.KnowledgeScrapingJob, sharedBrowser *SharedBrowserContext, maxDepth int, events chan<- ScrapingEvent) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	defer close(events)
+
+	var runErr error
+	logger.InfofCtx(ctx, "Starting scraping job with browser reuse - jobID: %s, URL: %s, maxDepth: %d", job.ID.String(), job.URL, maxDepth)
+
+	defer func() {
+		if runErr != nil {
+			errStr := runErr.Error()
+			logger.ErrorfCtx(ctx, runErr, "Scraping job failed: %v", runErr)
+
+			s.sendScrapingEvent(ctx, events, ScrapingEvent{
+				Type:      "error",
+				JobID:     job.ID,
+				Message:   errStr,
+				Timestamp: time.Now(),
+			})
+
+			if updateErr := s.knowledgeRepo.UpdateScrapingJobStatus(job.ID, "failed", &errStr); updateErr != nil {
+				logger.ErrorfCtx(ctx, updateErr, "Failed to update job status to failed: %v", updateErr)
+			}
+		}
+	}()
+
+	if runErr = s.knowledgeRepo.StartScrapingJob(job.ID); runErr != nil {
+		return
+	}
+
+	s.sendScrapingEvent(ctx, events, ScrapingEvent{
+		Type:      "started",
+		JobID:     job.ID,
+		Message:   fmt.Sprintf("Starting link discovery for %s (depth-based strategy)", job.URL),
+		URL:       job.URL,
+		MaxDepth:  job.MaxDepth,
+		Timestamp: time.Now(),
+	})
+
+	var discoveredLinks []discoveredLink
+
+	// Use Playwright for depth 0-1, Colly for depth 2+
+	if maxDepth <= 1 {
+		s.sendScrapingEvent(ctx, events, ScrapingEvent{
+			Type:      "info",
+			JobID:     job.ID,
+			Message:   "Using Playwright browser for shallow crawl (depth 0-1)",
+			Timestamp: time.Now(),
+		})
+
+		// Use Playwright with shared browser for depth 0-1
+		playwrightLinks, playwrightErr := s.extractURLsWithHeadlessBrowser(ctx, job.URL, job.MaxDepth)
+		if playwrightErr != nil {
+			runErr = fmt.Errorf("playwright extraction failed: %w", playwrightErr)
+			return
+		}
+
+		discoveredLinks = playwrightLinks
+	} else {
+		s.sendScrapingEvent(ctx, events, ScrapingEvent{
+			Type:      "info",
+			JobID:     job.ID,
+			Message:   "Using lightweight Colly for deep crawl (depth 2+)",
+			Timestamp: time.Now(),
+		})
+
+		// Use Colly for deeper crawls (more efficient)
+		collyLinks, collyErr := s.extractURLsManually(ctx, job.URL, job.MaxDepth)
+		if collyErr != nil {
+			runErr = fmt.Errorf("colly extraction failed: %w", collyErr)
+			return
+		}
+
+		discoveredLinks = collyLinks
+	}
+
+	// Stream discovered links
+	for _, link := range discoveredLinks {
+		s.sendScrapingEvent(ctx, events, ScrapingEvent{
+			Type:         "link_found",
+			JobID:        job.ID,
+			Message:      fmt.Sprintf("Found link: %s", link.Title),
+			URL:          link.URL,
+			CurrentDepth: link.Depth,
+			MaxDepth:     job.MaxDepth,
+			LinksFound:   len(discoveredLinks),
+			Timestamp:    time.Now(),
+		})
+	}
+
+	totalLinks := len(discoveredLinks)
+	if totalLinks == 0 {
+		runErr = fmt.Errorf("no links were discovered")
+		return
+	}
+
+	// Store discovered links in Redis
+	redisKey, persistErr := s.storeDiscoveredLinksInRedis(ctx, job, discoveredLinks)
+	if persistErr != nil {
+		runErr = fmt.Errorf("failed to store discovered links: %w", persistErr)
+		return
+	}
+
+	if err := s.knowledgeRepo.MarkJobAwaitingSelection(job.ID, totalLinks, redisKey); err != nil {
+		runErr = fmt.Errorf("failed to mark job awaiting selection: %w", err)
+		return
+	}
+
+	s.sendScrapingEvent(ctx, events, ScrapingEvent{
+		Type:       "completed",
+		JobID:      job.ID,
+		Message:    fmt.Sprintf("Link discovery completed! Found %d links. Ready for review.", totalLinks),
+		LinksFound: totalLinks,
+		Timestamp:  time.Now(),
+	})
+	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d, redis_key: %s", job.ID.String(), totalLinks, redisKey)
+	runErr = nil
 }
 
 // startScrapingJobWithStream discovers links with real-time progress streaming
@@ -1561,6 +1711,90 @@ func (w *WebsiteThemeData) GetMetaDesc() string {
 	return w.MetaDesc
 }
 
+// ScrapeWebsiteThemeWithBrowser extracts theme information using an optional shared browser context
+func (s *WebScrapingService) ScrapeWebsiteThemeWithBrowser(ctx context.Context, targetURL string, sharedBrowser *SharedBrowserContext) (*WebsiteThemeData, *SharedBrowserContext, error) {
+	// Validate URL
+	if err := s.validateURL(targetURL); err != nil {
+		return nil, sharedBrowser, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	var themeMap map[string]interface{}
+	var err error
+
+	// Use shared browser if provided, otherwise create new
+	if sharedBrowser != nil {
+		themeMap, err = s.headlessBrowserExtractor.ExtractThemeDataWithBrowser(ctx, targetURL, sharedBrowser)
+	} else {
+		// Create new browser instance for this request
+		sharedBrowser, err = s.headlessBrowserExtractor.CreateSharedBrowserContext(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create browser context: %w", err)
+		}
+		themeMap, err = s.headlessBrowserExtractor.ExtractThemeDataWithBrowser(ctx, targetURL, sharedBrowser)
+	}
+
+	if err != nil {
+		// Fallback to Colly if Playwright fails
+		logger.GetTxLogger(ctx).Warn().
+			Err(err).
+			Str("url", targetURL).
+			Msg("Playwright theme extraction failed, falling back to Colly")
+		themeData, collyErr := s.scrapeThemeWithColly(ctx, targetURL)
+		return themeData, sharedBrowser, collyErr
+	}
+
+	// Convert map to WebsiteThemeData
+	themeData := &WebsiteThemeData{
+		Colors:         []string{},
+		BackgroundHues: []string{},
+		FontFamilies:   []string{},
+	}
+
+	if pageTitle, ok := themeMap["pageTitle"].(string); ok {
+		themeData.PageTitle = pageTitle
+	}
+
+	if metaDesc, ok := themeMap["metaDescription"].(string); ok {
+		themeData.MetaDesc = metaDesc
+	}
+
+	if brandName, ok := themeMap["brandName"].(string); ok {
+		themeData.BrandName = brandName
+	}
+
+	if colors, ok := themeMap["colors"].([]interface{}); ok {
+		for _, c := range colors {
+			if colorStr, ok := c.(string); ok {
+				themeData.Colors = append(themeData.Colors, colorStr)
+			}
+		}
+	}
+
+	if bgColors, ok := themeMap["backgroundColors"].([]interface{}); ok {
+		for _, c := range bgColors {
+			if colorStr, ok := c.(string); ok {
+				themeData.BackgroundHues = append(themeData.BackgroundHues, colorStr)
+			}
+		}
+	}
+
+	if fonts, ok := themeMap["fontFamilies"].([]interface{}); ok {
+		for _, f := range fonts {
+			if fontStr, ok := f.(string); ok {
+				themeData.FontFamilies = append(themeData.FontFamilies, fontStr)
+			}
+		}
+	}
+
+	// Store CSS variables as JSON string
+	if cssVars, ok := themeMap["cssVariables"].(map[string]interface{}); ok {
+		cssVarsJSON, _ := json.Marshal(cssVars)
+		themeData.CSS = string(cssVarsJSON)
+	}
+
+	return themeData, sharedBrowser, nil
+}
+
 // ScrapeWebsiteTheme extracts theme information from a website for AI analysis
 func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL string) (*WebsiteThemeData, error) {
 	// Validate URL
@@ -1568,6 +1802,71 @@ func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL s
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
+	// Use Playwright for comprehensive theme extraction
+	themeMap, err := s.headlessBrowserExtractor.ExtractThemeData(ctx, targetURL)
+	if err != nil {
+		// Fallback to Colly if Playwright fails
+		logger.GetTxLogger(ctx).Warn().
+			Err(err).
+			Str("url", targetURL).
+			Msg("Playwright theme extraction failed, falling back to Colly")
+		return s.scrapeThemeWithColly(ctx, targetURL)
+	}
+
+	// Convert map to WebsiteThemeData
+	themeData := &WebsiteThemeData{
+		Colors:         []string{},
+		BackgroundHues: []string{},
+		FontFamilies:   []string{},
+	}
+
+	if pageTitle, ok := themeMap["pageTitle"].(string); ok {
+		themeData.PageTitle = pageTitle
+	}
+
+	if metaDesc, ok := themeMap["metaDescription"].(string); ok {
+		themeData.MetaDesc = metaDesc
+	}
+
+	if brandName, ok := themeMap["brandName"].(string); ok {
+		themeData.BrandName = brandName
+	}
+
+	if colors, ok := themeMap["colors"].([]interface{}); ok {
+		for _, c := range colors {
+			if colorStr, ok := c.(string); ok {
+				themeData.Colors = append(themeData.Colors, colorStr)
+			}
+		}
+	}
+
+	if bgColors, ok := themeMap["backgroundColors"].([]interface{}); ok {
+		for _, c := range bgColors {
+			if colorStr, ok := c.(string); ok {
+				themeData.BackgroundHues = append(themeData.BackgroundHues, colorStr)
+			}
+		}
+	}
+
+	if fonts, ok := themeMap["fontFamilies"].([]interface{}); ok {
+		for _, f := range fonts {
+			if fontStr, ok := f.(string); ok {
+				themeData.FontFamilies = append(themeData.FontFamilies, fontStr)
+			}
+		}
+	}
+
+	// Store CSS variables as JSON string
+	if cssVars, ok := themeMap["cssVariables"].(map[string]interface{}); ok {
+		cssVarsJSON, _ := json.Marshal(cssVars)
+		themeData.CSS = string(cssVarsJSON)
+	}
+
+	return themeData, nil
+}
+
+// scrapeThemeWithColly is a fallback method using Colly (original implementation)
+func (s *WebScrapingService) scrapeThemeWithColly(ctx context.Context, targetURL string) (*WebsiteThemeData, error) {
 	themeData := &WebsiteThemeData{
 		Colors:         []string{},
 		BackgroundHues: []string{},
