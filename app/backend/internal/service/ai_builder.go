@@ -37,7 +37,7 @@ func NewAIBuilderService(chatWidget *ChatWidgetService, webScraper *WebScrapingS
 	}
 }
 
-func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, depth int, events chan<- AIBuilderEvent) error {
+func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, depth int, generateFaq bool, events chan<- AIBuilderEvent) error {
 	if depth <= 0 {
 		depth = 3
 	}
@@ -72,9 +72,13 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 		return err
 	}
 
-	faqItems, err := s.generateFAQ(ctx, tenantID, projectID, rootURL, jobID, selections, events)
-	if err != nil {
-		return err
+	faqItems := []*models.KnowledgeFAQItem{}
+	if generateFaq {
+
+		faqItems, err = s.generateFAQ(ctx, tenantID, projectID, rootURL, jobID, selections, events)
+		if err != nil {
+			return err
+		}
 	}
 
 	embedCode := ""
@@ -85,6 +89,7 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 	data := map[string]any{
 		"embed_code":     embedCode,
 		"widget_id":      widget.ID.String(),
+		"project_id":     projectID.String(),
 		"selected_links": selections,
 		"faq_count":      len(faqItems),
 	}
@@ -324,6 +329,34 @@ func (s *AIBuilderService) generateFAQ(ctx context.Context, tenantID, projectID 
 			Title:   title,
 			Content: page.Content,
 		})
+	}
+
+	// Fallback: if no selections matched, use all available scraped pages
+	if len(orderedSections) == 0 {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "faq_fallback",
+			Stage:   "faq",
+			Message: "Using all scraped pages for FAQ generation",
+			Data: map[string]any{
+				"selections_count": len(selections),
+				"pages_count":      len(pages),
+			},
+		})
+
+		for _, page := range pages {
+			if page == nil || page.Content == "" {
+				continue
+			}
+			title := ""
+			if page.Title != nil {
+				title = *page.Title
+			}
+			orderedSections = append(orderedSections, KnowledgeSectionSummary{
+				URL:     page.URL,
+				Title:   title,
+				Content: page.Content,
+			})
+		}
 	}
 
 	if len(orderedSections) == 0 {

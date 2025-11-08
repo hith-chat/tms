@@ -29,9 +29,25 @@ const HomePage = () => {
       return
     }
 
+    // Trim whitespace
+    const trimmedUrl = websiteUrl.trim()
+
+    // Check for invalid input (spaces, missing domain, etc.)
+    if (trimmedUrl.includes(' ')) {
+      setError('URL cannot contain spaces')
+      return
+    }
+
     // Basic URL validation
     try {
-      const url = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`)
+      const url = new URL(trimmedUrl.startsWith('http') ? trimmedUrl : `https://${trimmedUrl}`)
+
+      // Validate that the URL has a proper host
+      if (!url.host || url.host.length < 3 || !url.host.includes('.')) {
+        setError('Please enter a valid domain (e.g., example.com)')
+        return
+      }
+
       setIsLoading(true)
 
       // Navigate to build page with URL as query param

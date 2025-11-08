@@ -142,10 +142,14 @@ const BuildPage = () => {
   }
 
   const handlePreview = () => {
+    console.log('Preview clicked, widgetData:', widgetData)
     if (widgetData?.project_id) {
       navigate(`/preview/${widgetData.project_id}`, {
         state: { url, widgetData },
       })
+    } else {
+      console.error('Missing project_id in widgetData:', widgetData)
+      setError('Unable to preview: missing project information')
     }
   }
 
@@ -181,7 +185,7 @@ const BuildPage = () => {
               ? 'Your AI-powered chat widget is ready to preview'
               : error
               ? 'Something went wrong during the build process'
-              : `Analyzing ${new URL(url).hostname}...`}
+              : url ? `Analyzing ${new URL(url).hostname}...` : 'Preparing to build...'}
           </p>
         </motion.div>
 

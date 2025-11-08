@@ -352,18 +352,19 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 			return fmt.Errorf("failed to get project_id: %w", err)
 		}
 
-		// Get existing URLs and their content hashes for this project
+		// Get existing URLs, their content hashes, and embeddings for this project
 		type ExistingPage struct {
-			URL         string    `db:"url"`
-			ContentHash *string   `db:"content_hash"`
-			ID          uuid.UUID `db:"id"`
+			URL         string            `db:"url"`
+			ContentHash *string           `db:"content_hash"`
+			ID          uuid.UUID         `db:"id"`
+			Embedding   *pgvector.Vector  `db:"embedding"`
 		}
 
 		var existingPages []ExistingPage
 		err = tx.Select(&existingPages, `
-			SELECT DISTINCT ksp.id, ksp.url, ksp.content_hash
-			FROM knowledge_scraped_pages ksp 
-			JOIN knowledge_scraping_jobs ksj ON ksp.job_id = ksj.id 
+			SELECT DISTINCT ksp.id, ksp.url, ksp.content_hash, ksp.embedding
+			FROM knowledge_scraped_pages ksp
+			JOIN knowledge_scraping_jobs ksj ON ksp.job_id = ksj.id
 			WHERE ksj.project_id = $1`, projectID)
 		if err != nil {
 			return fmt.Errorf("failed to get existing pages: %w", err)
@@ -398,11 +399,11 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 				// Mark that this page needs an embedding by keeping embedding nil
 				page.Embedding = nil
 			} else {
-				// Same URL and same content - skip, no embedding needed
+				// Same URL and same content - reuse existing embedding
 				duplicateCount++
-				// Mark that this page does NOT need an embedding
+				// Reuse the existing page ID and embedding
 				page.ID = existing.ID               // Set the existing ID
-				page.Embedding = &pgvector.Vector{} // Dummy value to indicate no embedding needed
+				page.Embedding = existing.Embedding // Reuse existing embedding
 			}
 		}
 
@@ -479,9 +480,10 @@ func (r *KnowledgeRepository) UpdatePageEmbeddings(pages []*models.KnowledgeScra
 func (r *KnowledgeRepository) GetJobPages(jobID, tenantID, projectID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
 	var pages []*models.KnowledgeScrapedPage
 	query := `
-		SELECT * FROM knowledge_scraped_pages 
-		WHERE job_id = $1 and tenant_id = $2 and project_id = $3
-		ORDER BY scraped_at`
+		SELECT ksp.* FROM knowledge_scraped_pages ksp
+		JOIN knowledge_scraping_jobs ksj ON ksp.job_id = ksj.id
+		WHERE ksp.job_id = $1 AND ksj.tenant_id = $2 AND ksj.project_id = $3
+		ORDER BY ksp.scraped_at`
 
 	err := r.db.Select(&pages, query, jobID, tenantID, projectID)
 	return pages, err

@@ -318,7 +318,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 	publicAIWidgetRoutes := router.Group("/api/public")
 	publicAIWidgetRoutes.Use(middleware.PublicWidgetBuilderRateLimit(rateLimiter))
 	{
-		publicAIWidgetRoutes.POST("/ai-widget-builder", publicAIBuilderHandler.StreamBuild)
+		publicAIWidgetRoutes.GET("/ai-widget-builder", publicAIBuilderHandler.StreamBuild)
+
+		publicAIWidgetRoutes.GET("/extract-urls", publicAIBuilderHandler.DebugExtractURLs)
 	}
 
 	// Auth routes (not protected by auth middleware)

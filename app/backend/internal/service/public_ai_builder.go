@@ -16,7 +16,10 @@ import (
 )
 
 // PublicTenantID is the fixed tenant ID for all public AI widget builder projects
-var PublicTenantID = uuid.MustParse("550e8400-e29b-41d4-a216-446655440000")
+var PublicTenantID = uuid.MustParse("79634696-84ca-11f0-b71d-063b1faa412d")
+
+// PublicProjectID is the fixed project ID for all public AI widget builder projects
+var PublicProjectID = uuid.MustParse("ec33f64a-3560-4bbe-80aa-f97c5409c9f0")
 
 // PublicAIBuilderService handles public AI widget builder requests
 type PublicAIBuilderService struct {
@@ -39,7 +42,7 @@ func NewPublicAIBuilderService(
 }
 
 // BuildPublicWidget creates a public AI widget for the given URL
-// It automatically creates a project, scrapes the website, and builds the widget
+// It uses the fixed public tenant and project IDs
 // Returns streaming events via the events channel
 func (s *PublicAIBuilderService) BuildPublicWidget(
 	ctx context.Context,
@@ -53,7 +56,7 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 
 	// Parse and validate URL
 	parsedURL, err := url.Parse(targetURL)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+	if err != nil {
 		s.emit(ctx, events, AIBuilderEvent{
 			Type:    "error",
 			Stage:   "initialization",
@@ -61,6 +64,26 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 			Detail:  err.Error(),
 		})
 		return uuid.Nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "error",
+			Stage:   "initialization",
+			Message: "Invalid URL provided",
+			Detail:  "URL must include both scheme (http/https) and host",
+		})
+		return uuid.Nil, fmt.Errorf("invalid URL: missing scheme or host")
+	}
+
+	if parsedURL.Scheme != "https" {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "error",
+			Stage:   "initialization",
+			Message: "Invalid URL provided",
+			Detail:  "Only HTTPS URLs are supported",
+		})
+		return uuid.Nil, fmt.Errorf("invalid URL: only HTTPS URLs are supported")
 	}
 
 	domain := parsedURL.Host
@@ -72,65 +95,35 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 		Stage:   "initialization",
 		Message: fmt.Sprintf("Starting public AI widget builder for %s", domain),
 		Data: map[string]any{
-			"domain": domain,
-			"url":    targetURL,
+			"domain":     domain,
+			"url":        targetURL,
+			"tenant_id":  PublicTenantID.String(),
+			"project_id": PublicProjectID.String(),
 		},
 	})
 
-	// Check if a public project already exists for this domain
-	existingProject, err := s.projectRepo.GetActivePublicProjectByDomain(ctx, PublicTenantID, domain)
-	if err != nil {
-		s.emit(ctx, events, AIBuilderEvent{
-			Type:    "error",
-			Stage:   "initialization",
-			Message: "Failed to check for existing projects",
-			Detail:  err.Error(),
-		})
-		return uuid.Nil, fmt.Errorf("failed to check existing projects: %w", err)
-	}
-
-	if existingProject != nil {
-		s.emit(ctx, events, AIBuilderEvent{
-			Type:    "error",
-			Stage:   "initialization",
-			Message: "A public widget already exists for this domain",
-			Detail:  fmt.Sprintf("Project %s already exists and has not expired yet", existingProject.ID),
-			Data: map[string]any{
-				"existing_project_id": existingProject.ID.String(),
-				"expires_at":          existingProject.ExpiresAt,
-			},
-		})
-		return uuid.Nil, fmt.Errorf("public widget already exists for domain %s", domain)
-	}
-
-	// Create a new public project
-	project, err := s.createPublicProject(ctx, domain, targetURL, events)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
 	s.emit(ctx, events, AIBuilderEvent{
-		Type:    "project_created",
+		Type:    "project_ready",
 		Stage:   "initialization",
-		Message: fmt.Sprintf("Public project created with ID: %s", project.ID),
+		Message: fmt.Sprintf("Using public project with ID: %s", PublicProjectID),
 		Data: map[string]any{
-			"project_id": project.ID.String(),
-			"build_id":   project.ID.String(), // project_id is the build_id
-			"expires_at": project.ExpiresAt.Format(time.RFC3339),
+			"project_id": PublicProjectID.String(),
+			"tenant_id":  PublicTenantID.String(),
+			"build_id":   uuid.New().String(),
 		},
 	})
 
 	// Run the AI builder service
-	err = s.aiBuilderService.Run(ctx, PublicTenantID, project.ID, targetURL, depth, events)
+	err = s.aiBuilderService.Run(ctx, PublicTenantID, PublicProjectID, targetURL, depth, false, events)
 	if err != nil {
 		logger.GetTxLogger(ctx).Error().
-			Str("project_id", project.ID.String()).
+			Str("project_id", PublicProjectID.String()).
 			Err(err).
 			Msg("AI builder failed for public project")
-		return project.ID, err
+		return PublicProjectID, err
 	}
 
-	return project.ID, nil
+	return PublicProjectID, nil
 }
 
 // createPublicProject creates a new public project for the given domain
@@ -220,4 +213,9 @@ func (s *PublicAIBuilderService) emit(ctx context.Context, events chan<- AIBuild
 	case <-ctx.Done():
 	case events <- event:
 	}
+}
+
+// ExtractURLsDebug extracts all URLs from a website for debugging purposes
+func (s *PublicAIBuilderService) ExtractURLsDebug(ctx context.Context, targetURL string, depth int, events chan<- URLExtractionEvent) error {
+	return s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, events)
 }

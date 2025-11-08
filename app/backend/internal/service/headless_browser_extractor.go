@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/playwright-community/playwright-go"
+
+	"github.com/bareuptime/tms/internal/logger"
 )
 
 // HeadlessBrowserURLExtractor uses a headless browser for comprehensive URL extraction
@@ -52,7 +54,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 	// Start Playwright
 	pw, err := playwright.Run()
 	if err != nil {
-		fmt.Println("Playwright start error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to start Playwright")
 		return nil, fmt.Errorf("failed to start playwright: %w", err)
 	}
 	defer pw.Stop()
@@ -74,7 +76,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		},
 	})
 	if err != nil {
-		fmt.Println("Playwright chromium start error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to launch Chromium browser")
 		return nil, fmt.Errorf("failed to launch browser: %w", err)
 	}
 	defer browser.Close()
@@ -84,14 +86,14 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		UserAgent: &e.userAgent,
 	})
 	if err != nil {
-		fmt.Println("Playwright browser context error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to create browser context")
 		return nil, fmt.Errorf("failed to create browser context: %w", err)
 	}
 	defer context.Close()
 
 	page, err := context.NewPage()
 	if err != nil {
-		fmt.Println("Playwright page creation error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to create page")
 		return nil, fmt.Errorf("failed to create page: %w", err)
 	}
 
@@ -120,11 +122,11 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 	// Get page title for debugging
 	title, err := page.Title()
 	if err != nil {
-		log.Printf("DEBUG: Failed to get page title: %v", err)
+		logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to get page title")
 	} else {
-		log.Printf("DEBUG: Page loaded successfully, title: %s", title)
+		logger.GetTxLogger(ctx).Info().Str("title", title).Msg("Page loaded successfully")
 	}
-	fmt.Println("DEBUG: Page loaded successfully, title: ", title)
+
 	// Execute JavaScript to extract URLs
 	result, err := page.Evaluate(`
 		(function() {
@@ -136,7 +138,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 			const selectors = [
 				{ selector: 'a[href]', attr: 'href', source: 'link' },
 				{ selector: 'link[href]', attr: 'href', source: 'link_tag' },
-				{ selector: 'iframe[src]', attr: 'src', source: 'iframe' },
+				{ selector: 'iframe[src]', attr: 'src', source: 'image' },
 				{ selector: 'img[src]', attr: 'src', source: 'image' },
 				{ selector: 'script[src]', attr: 'src', source: 'script' },
 				{ selector: 'source[src]', attr: 'src', source: 'media_source' },
@@ -257,9 +259,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		}
 	}
 
-	fmt.Println("extractedURLs --> ", extractedURLs)
-
-	log.Printf("DEBUG: Extracted %d URLs before cleaning", len(extractedURLs))
+	logger.GetTxLogger(ctx).Debug().Int("count", len(extractedURLs)).Msg("Extracted URLs before cleaning")
 
 	// Post-process and clean the URLs
 	var cleanedURLs []ExtractedURLInfo
@@ -276,9 +276,12 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		}
 	}
 
-	fmt.Println("cleanedURLs --> ", cleanedURLs)
+	logger.GetTxLogger(ctx).Debug().Int("count", len(cleanedURLs)).Msg("Cleaned URLs after processing")
 
-	log.Printf("DEBUG: Returning %d cleaned URLs", len(cleanedURLs))
+	// Log first few cleaned URLs for debugging
+	fmt.Println("cleaned urls ->", cleanedURLs)
+
+	log.Printf("Returning %d cleaned URLs", len(cleanedURLs))
 	return cleanedURLs, nil
 }
 
@@ -330,6 +333,7 @@ func (e *HeadlessBrowserURLExtractor) cleanAndValidateURL(rawURL string) string 
 		"adsystem.com",
 		"googlesyndication.com",
 		"amazon-adsystem.com",
+		"site.webmanifest",
 	}
 
 	host := strings.ToLower(parsed.Host)

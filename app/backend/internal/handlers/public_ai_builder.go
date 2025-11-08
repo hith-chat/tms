@@ -129,3 +129,76 @@ func (h *PublicAIBuilderHandler) StreamBuild(c *gin.Context) {
 		}
 	})
 }
+
+// DebugExtractURLs extracts and streams all URLs from a given website for debugging
+// @Summary Debug URL extraction
+// @Description Extracts all URLs from a website at the specified depth and streams progress. Useful for debugging web scraping behavior. Limited to 5 requests per hour per IP.
+// @Tags public-debug
+// @Accept json
+// @Produce text/event-stream
+// @Param url query string true "Website URL to extract URLs from"
+// @Param depth query int false "Extraction depth (1-5, default: 3)"
+// @Success 200 {string} string "Server-sent events stream"
+// @Failure 400 {object} map[string]string
+// @Failure 429 {object} map[string]interface{}
+// @Failure 500 {object} map[string]string
+// @Router /api/public/debug/extract-urls [get]
+func (h *PublicAIBuilderHandler) DebugExtractURLs(c *gin.Context) {
+	// Parse URL from query param
+	targetURL := c.Query("url")
+	if targetURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "url parameter is required"})
+		return
+	}
+
+	depth := 3
+	if depthParam := c.Query("depth"); depthParam != "" {
+		if value, err := strconv.Atoi(depthParam); err == nil && value >= 1 && value <= 5 {
+			depth = value
+		}
+	}
+
+	// Create event channel
+	events := make(chan service.URLExtractionEvent, 100)
+	ctx := c.Request.Context()
+
+	// Run extraction in background
+	go func() {
+		if err := h.publicBuilder.ExtractURLsDebug(ctx, targetURL, depth, events); err != nil {
+			// Error will be sent through events channel
+			return
+		}
+	}()
+
+	// Set up SSE headers
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+	c.Writer.Flush()
+
+	// Stream events to client
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+
+			payload, err := json.Marshal(event)
+			if err != nil {
+				return true
+			}
+
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+				return false
+			}
+			if flusher, ok := c.Writer.(http.Flusher); ok {
+				flusher.Flush()
+			}
+			return true
+		}
+	})
+}

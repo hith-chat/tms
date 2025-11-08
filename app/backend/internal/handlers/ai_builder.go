@@ -79,7 +79,7 @@ func (h *AIBuilderHandler) StreamBuild(c *gin.Context) {
 
 	go func() {
 		defer close(events)
-		if err := h.builder.Run(ctx, tenantID, projectID, urlParam, depth, events); err != nil {
+		if err := h.builder.Run(ctx, tenantID, projectID, urlParam, depth, false, events); err != nil {
 			select {
 			case <-ctx.Done():
 			case events <- service.AIBuilderEvent{

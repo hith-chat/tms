@@ -90,6 +90,19 @@ type ScrapingEvent struct {
 	Timestamp    time.Time `json:"timestamp"`
 }
 
+// URLExtractionEvent represents streamed progress updates for URL extraction debugging
+type URLExtractionEvent struct {
+	Type         string            `json:"type"`
+	Message      string            `json:"message,omitempty"`
+	URL          string            `json:"url,omitempty"`
+	CurrentDepth int               `json:"current_depth,omitempty"`
+	MaxDepth     int               `json:"max_depth,omitempty"`
+	LinksFound   int               `json:"links_found,omitempty"`
+	URLs         []string          `json:"urls,omitempty"`
+	FailedURLs   map[string]string `json:"failed_urls,omitempty"`
+	Timestamp    time.Time         `json:"timestamp"`
+}
+
 func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig, redisClient redis.UniversalClient) *WebScrapingService {
 	// Initialize headless browser extractor with 30 second timeout
 	headlessExtractor := NewHeadlessBrowserURLExtractor(30*time.Second, "")
@@ -304,9 +317,23 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 
 	txLogger.Info().Msg("Starting headless browser extraction")
 
+	// Parse target URL to extract root domain for filtering
+	parsedTargetURL, err := url.Parse(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse target URL: %w", err)
+	}
+	rootHost := parsedTargetURL.Host
+	rootBaseDomain := getBaseDomain(rootHost)
+
+	txLogger.Debug().
+		Str("root_host", rootHost).
+		Str("root_base_domain", rootBaseDomain).
+		Msg("Extracted root domain information")
+
 	// Try headless browser extraction
 	var allLinks []discoveredLink
 	visited := make(map[string]bool)
+	failedURLs := make(map[string]string) // Track failed URLs and their error messages
 	toVisit := []struct {
 		url   string
 		depth int
@@ -316,11 +343,13 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		current := toVisit[0]
 		toVisit = toVisit[1:]
 
-		if current.depth > maxDepth || visited[current.url] {
+		// Normalize URL to check if we've already visited this page (ignoring query params)
+		normalizedURL := removeQueryParams(current.url)
+		if current.depth > maxDepth || visited[normalizedURL] {
 			continue
 		}
 
-		visited[current.url] = true
+		visited[normalizedURL] = true
 
 		// Extract URLs from current page using headless browser
 		pageLogger := txLogger.With().
@@ -331,9 +360,11 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		pageLogger.Debug().Msg("Extracting URLs from page")
 		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
 		if err != nil {
-			pageLogger.Error().
+			// Log the error but continue processing other pages
+			pageLogger.Warn().
 				Err(err).
-				Msg("Failed to extract URLs from page")
+				Msg("Failed to extract URLs from page - continuing with other pages")
+			failedURLs[current.url] = err.Error()
 			continue
 		}
 
@@ -353,14 +384,49 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		// Add discovered URLs for next depth level
 		if current.depth < maxDepth {
 			for _, urlInfo := range extractedURLs {
-				if !visited[urlInfo.URL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+				// Check if URL belongs to the same base domain as the root
+				parsedURL, parseErr := url.Parse(urlInfo.URL)
+				if parseErr != nil {
+					continue // Skip invalid URLs
+				}
+
+				// Only follow links on the same base domain (allows subdomains)
+				if !isSameBaseDomain(parsedURL.Host, rootHost) {
+					urlBaseDomain := getBaseDomain(parsedURL.Host)
+					pageLogger.Debug().
+						Str("url", urlInfo.URL).
+						Str("url_host", parsedURL.Host).
+						Str("url_base_domain", urlBaseDomain).
+						Str("root_base_domain", rootBaseDomain).
+						Msg("Skipping URL - different base domain")
+					continue
+				}
+
+				// Normalize URL to remove query params and check if already visited
+				normalizedDiscoveredURL := removeQueryParams(urlInfo.URL)
+				if !visited[normalizedDiscoveredURL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+					// Visit the normalized URL (without query params)
 					toVisit = append(toVisit, struct {
 						url   string
 						depth int
-					}{urlInfo.URL, current.depth + 1})
+					}{normalizedDiscoveredURL, current.depth + 1})
 				}
 			}
 		}
+	}
+
+	// Log summary of the extraction
+	txLogger.Info().
+		Int("total_links_found", len(allLinks)).
+		Int("total_visited", len(visited)).
+		Int("total_failed", len(failedURLs)).
+		Msg("Headless browser extraction completed")
+
+	if len(failedURLs) > 0 {
+		txLogger.Warn().
+			Int("failed_count", len(failedURLs)).
+			Interface("failed_urls", failedURLs).
+			Msg("Some pages failed to load but extraction continued successfully")
 	}
 
 	return allLinks, nil
@@ -964,8 +1030,8 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 		} else {
 			completed++
 			s.sendIndexingEvent(ctx, events, IndexingEvent{
-				Type:        "skipped",
-				Message:     "Duplicate content detected; skipping embedding",
+				Type:        "reused",
+				Message:     "Duplicate content detected; reusing existing embedding",
 				URL:         page.URL,
 				Completed:   completed,
 				Pending:     len(pagesForIndex) - completed,
@@ -1086,6 +1152,44 @@ func (s *WebScrapingService) cleanText(text string) string {
 	return strings.TrimSpace(text)
 }
 
+// getBaseDomain extracts the base domain from a host
+// e.g., "www.penify.dev" -> "penify.dev", "docs.penify.dev" -> "penify.dev"
+func getBaseDomain(host string) string {
+	// Remove port if present
+	if idx := strings.Index(host, ":"); idx != -1 {
+		host = host[:idx]
+	}
+
+	parts := strings.Split(host, ".")
+	if len(parts) <= 2 {
+		return host
+	}
+
+	// For hosts with 3+ parts, take the last 2 parts as the base domain
+	// This handles www.example.com, docs.example.com, etc.
+	return strings.Join(parts[len(parts)-2:], ".")
+}
+
+// isSameBaseDomain checks if two hosts belong to the same base domain
+func isSameBaseDomain(host1, host2 string) bool {
+	return getBaseDomain(host1) == getBaseDomain(host2)
+}
+
+// removeQueryParams removes query parameters and fragments from a URL for deduplication
+// e.g., "https://example.com/page?ref=A#section" -> "https://example.com/page"
+func removeQueryParams(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	// Remove query parameters and fragment
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	return parsed.String()
+}
+
 // shouldFollowLink determines if a link should be followed
 func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 	parsedLink, err := url.Parse(linkURL)
@@ -1098,24 +1202,50 @@ func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 		return false
 	}
 
-	// Only follow links on the same domain
-	if parsedLink.Host != parsedCurrent.Host {
+	// Only follow links on the same base domain (allows subdomains like docs.penify.dev, www.penify.dev)
+	if !isSameBaseDomain(parsedLink.Host, parsedCurrent.Host) {
 		return false
 	}
 
-	// Skip certain file types
+	// Skip certain file types and problematic patterns
 	path := strings.ToLower(parsedLink.Path)
-	skipExtensions := []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".tar", ".gz", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".mp4", ".mp3", ".avi", ".mov"}
+
+	skipKeyWords := []string{
+		"logout", "signout", "subscribe", "unsubscribe", "cart", "checkout", "min.js", "jquery", "bootstrap", "analytics", "facebook", "twitter", "linkedin", "instagram", "mailto:", "tel:", "javascript:", "cloudflareinsights", "visualwebsiteoptimizer", "hotjar", "googletagmanager", "google-analytics", "blogs",
+	}
+
+	for _, skipKeyWord := range skipKeyWords {
+		if strings.Contains(currentURL, skipKeyWord) {
+			fmt.Println("Failed URL: "+currentURL, " due to extension ", skipKeyWord)
+			return false
+		}
+	}
+
+	skipExtensions := []string{
+		// Documents
+		".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+		// Archives
+		".zip", ".tar", ".gz", ".rar", ".7z",
+		// Media files
+		".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
+		".mp4", ".mp3", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".wav",
+		// Manifests and configs
+		".webmanifest", ".manifest", ".json", ".xml", ".rss",
+		// Other
+		".css", ".js", ".woff", ".woff2", ".ttf", ".eot",
+	}
 	for _, ext := range skipExtensions {
-		if strings.HasSuffix(path, ext) {
+		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+"?") || strings.Contains(path, ext+"#") || strings.Contains(path, ext+"&") || strings.Contains(path, ext+";") || strings.Contains(path, ext+",") || strings.Contains(path, ext+"/") {
+			fmt.Println("Failed URL: "+linkURL, " due to extension ", ext)
 			return false
 		}
 	}
 
 	// Skip common non-content paths
-	skipPaths := []string{"/admin", "/api", "/login", "/register", "/download", "/upload"}
+	skipPaths := []string{"/admin", "/api", "/login", "/register", "/download", "/upload", "site.webmanifest"}
 	for _, skipPath := range skipPaths {
 		if strings.Contains(path, skipPath) {
+			fmt.Println("Failed URL: "+linkURL, " due to path ", skipPath)
 			return false
 		}
 	}
@@ -1197,6 +1327,202 @@ func (s *WebScrapingService) ListScrapingJobs(ctx context.Context, tenantID, pro
 // GetJobPages returns all pages scraped by a job
 func (s *WebScrapingService) GetJobPages(ctx context.Context, jobID, tenantID, projectID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
 	return s.knowledgeRepo.GetJobPages(jobID, tenantID, projectID)
+}
+
+// ExtractURLsWithStream extracts URLs from a website and streams progress for debugging
+func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent) error {
+	defer close(events)
+
+	// Validate URL
+	if err := s.validateURL(targetURL); err != nil {
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:      "error",
+			Message:   fmt.Sprintf("Invalid URL: %v", err),
+			Timestamp: time.Now(),
+		})
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Parse target URL to extract root domain
+	parsedTargetURL, err := url.Parse(targetURL)
+	if err != nil {
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:      "error",
+			Message:   fmt.Sprintf("Failed to parse URL: %v", err),
+			Timestamp: time.Now(),
+		})
+		return fmt.Errorf("failed to parse target URL: %w", err)
+	}
+	rootHost := parsedTargetURL.Host
+	rootBaseDomain := getBaseDomain(rootHost)
+
+	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+		Type:      "started",
+		Message:   fmt.Sprintf("Starting URL extraction for %s (depth: %d, base domain: %s)", targetURL, maxDepth, rootBaseDomain),
+		URL:       targetURL,
+		MaxDepth:  maxDepth,
+		Timestamp: time.Now(),
+	})
+
+	// Extract URLs using headless browser
+	var allURLs []string
+	var allLinks []discoveredLink
+	visited := make(map[string]bool)
+	failedURLs := make(map[string]string)
+	toVisit := []struct {
+		url   string
+		depth int
+	}{{targetURL, 0}}
+
+	for len(toVisit) > 0 {
+		current := toVisit[0]
+		toVisit = toVisit[1:]
+
+		// Normalize URL to check if we've already visited this page (ignoring query params)
+		normalizedURL := removeQueryParams(current.url)
+		if current.depth > maxDepth || visited[normalizedURL] {
+			continue
+		}
+
+		visited[normalizedURL] = true
+
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:         "visiting",
+			Message:      fmt.Sprintf("Visiting: %s", current.url),
+			URL:          current.url,
+			CurrentDepth: current.depth,
+			MaxDepth:     maxDepth,
+			LinksFound:   len(allURLs),
+			Timestamp:    time.Now(),
+		})
+
+		logger.GetTxLogger(ctx).Info().
+			Str("url", current.url).
+			Int("depth", current.depth).
+			Msg("extracting URLs from")
+
+		// Extract URLs from current page
+		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
+		if err != nil {
+			failedURLs[current.url] = err.Error()
+			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+				Type:         "warning",
+				Message:      fmt.Sprintf("Failed to extract URLs from %s: %v", current.url, err),
+				URL:          current.url,
+				CurrentDepth: current.depth,
+				Timestamp:    time.Now(),
+			})
+			continue
+		}
+
+		logger.GetTxLogger(ctx).Info().
+			Str("url", current.url).
+			Int("depth", current.depth).
+			Int("extracted_urls", len(extractedURLs)).
+			Msg("extracted URLs from page")
+
+		// Get page title and content
+		title, _ := s.headlessBrowserExtractor.GetPageTitle(ctx, current.url)
+		content, _ := s.headlessBrowserExtractor.GetPageContent(ctx, current.url)
+		tokenCount := s.estimateTokenCount(content)
+
+		// Add current page to results
+		allLinks = append(allLinks, discoveredLink{
+			URL:        current.url,
+			Title:      title,
+			Depth:      current.depth,
+			TokenCount: tokenCount,
+		})
+		allURLs = append(allURLs, current.url)
+
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:         "url_found",
+			Message:      fmt.Sprintf("Found: %s (depth: %d)", title, current.depth),
+			URL:          current.url,
+			CurrentDepth: current.depth,
+			LinksFound:   len(allURLs),
+			Timestamp:    time.Now(),
+		})
+
+		logger.GetTxLogger(ctx).Info().
+			Str("url", current.url).
+			Int("depth", current.depth).
+			Str("title", title).
+			Int("token_count", tokenCount).
+			Int("total_links", len(extractedURLs)).
+			Msg("recorded discovered link")
+
+		// Process discovered URLs for next depth level
+		if current.depth < maxDepth {
+			newURLsCount := 0
+			skippedSubdomains := 0
+			for _, urlInfo := range extractedURLs {
+				parsedURL, parseErr := url.Parse(urlInfo.URL)
+				if parseErr != nil {
+					continue
+				}
+
+				// Only follow links on the same base domain (allows subdomains)
+				if !isSameBaseDomain(parsedURL.Host, rootHost) {
+					skippedSubdomains++
+					continue
+				}
+
+				// Normalize URL to remove query params and check if already visited
+				normalizedDiscoveredURL := removeQueryParams(urlInfo.URL)
+
+				logger.GetTxLogger(ctx).Info().
+					Str("from_url", current.url).
+					Str("to_url", urlInfo.URL).
+					Str("normalized_url", normalizedDiscoveredURL).
+					Msg("considering link for follow-up visit")
+
+				if !visited[normalizedDiscoveredURL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+					logger.GetTxLogger(ctx).Info().
+						Str("from_url", current.url).
+						Str("to_url", normalizedDiscoveredURL).
+						Msg("scheduling link for follow-up visit")
+					// Visit the normalized URL (without query params)
+					toVisit = append(toVisit, struct {
+						url   string
+						depth int
+					}{normalizedDiscoveredURL, current.depth + 1})
+					newURLsCount++
+				}
+			}
+
+			if newURLsCount > 0 {
+				s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+					Type:         "info",
+					Message:      fmt.Sprintf("Discovered %d new URLs to visit at depth %d (filtered out %d from other domains)", newURLsCount, current.depth+1, skippedSubdomains),
+					CurrentDepth: current.depth,
+					Timestamp:    time.Now(),
+				})
+			}
+		}
+	}
+
+	// Send final summary
+	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+		Type:       "completed",
+		Message:    fmt.Sprintf("URL extraction completed. Found %d URLs from base domain %s (includes all subdomains)", len(allURLs), rootBaseDomain),
+		LinksFound: len(allURLs),
+		URLs:       allURLs,
+		FailedURLs: failedURLs,
+		Timestamp:  time.Now(),
+	})
+
+	return nil
+}
+
+// sendURLExtractionEvent safely sends an event to the channel
+func (s *WebScrapingService) sendURLExtractionEvent(ctx context.Context, ch chan<- URLExtractionEvent, event URLExtractionEvent) {
+	select {
+	case <-ctx.Done():
+		return
+	case ch <- event:
+		return
+	}
 }
 
 // WebsiteThemeData represents extracted website theme information
