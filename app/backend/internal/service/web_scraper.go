@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gocolly/colly/v2"
@@ -101,6 +102,8 @@ type URLExtractionEvent struct {
 	URLs         []string          `json:"urls,omitempty"`
 	FailedURLs   map[string]string `json:"failed_urls,omitempty"`
 	Timestamp    time.Time         `json:"timestamp"`
+	Metrics      *CrawlMetrics     `json:"metrics,omitempty"`      // Overall performance metrics
+	DepthMetrics *DepthMetrics     `json:"depth_metrics,omitempty"` // Per-depth metrics
 }
 
 func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig, redisClient redis.UniversalClient) *WebScrapingService {
@@ -373,8 +376,8 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		current := toVisit[0]
 		toVisit = toVisit[1:]
 
-		// Normalize URL to check if we've already visited this page (ignoring query params)
-		normalizedURL := removeQueryParams(current.url)
+		// Normalize URL to check if we've already visited this page
+		normalizedURL := normalizeURLForDeduplication(current.url)
 		if current.depth > maxDepth || visited[normalizedURL] {
 			continue
 		}
@@ -432,8 +435,8 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 					continue
 				}
 
-				// Normalize URL to remove query params and check if already visited
-				normalizedDiscoveredURL := removeQueryParams(urlInfo.URL)
+				// Normalize URL for deduplication check
+				normalizedDiscoveredURL := normalizeURLForDeduplication(urlInfo.URL)
 				if !visited[normalizedDiscoveredURL] && s.shouldFollowLink(urlInfo.URL, current.url) {
 					// Visit the normalized URL (without query params)
 					toVisit = append(toVisit, struct {
@@ -1325,9 +1328,16 @@ func isSameBaseDomain(host1, host2 string) bool {
 	return getBaseDomain(host1) == getBaseDomain(host2)
 }
 
-// removeQueryParams removes query parameters and fragments from a URL for deduplication
-// e.g., "https://example.com/page?ref=A#section" -> "https://example.com/page"
-func removeQueryParams(rawURL string) string {
+// normalizeURLForDeduplication normalizes URLs for deduplication by:
+// - Removing query parameters and fragments
+// - Stripping "www." prefix from hostname
+// - Removing trailing slashes (except root)
+// - Converting to lowercase
+// Examples:
+//   - "https://WWW.Example.COM/Contact-Us/?ref=A#top" -> "https://example.com/contact-us"
+//   - "http://www.example.com/about/" -> "http://example.com/about"
+//   - "https://example.com/page" -> "https://example.com/page"
+func normalizeURLForDeduplication(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return rawURL
@@ -1336,6 +1346,22 @@ func removeQueryParams(rawURL string) string {
 	// Remove query parameters and fragment
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
+
+	// Strip "www." prefix from hostname (case-insensitive)
+	host := strings.ToLower(parsed.Host)
+	if strings.HasPrefix(host, "www.") {
+		parsed.Host = strings.TrimPrefix(host, "www.")
+	} else {
+		parsed.Host = host
+	}
+
+	// Normalize trailing slash (except for root path)
+	if parsed.Path != "/" && strings.HasSuffix(parsed.Path, "/") {
+		parsed.Path = strings.TrimSuffix(parsed.Path, "/")
+	}
+
+	// Lowercase the path for consistency
+	parsed.Path = strings.ToLower(parsed.Path)
 
 	return parsed.String()
 }
@@ -1558,8 +1584,59 @@ func (s *WebScrapingService) extractPageWithPlaywright(ctx context.Context, targ
 	return extractedURLs, title, content, nil
 }
 
+// urlWorkItem represents a URL to be processed with its depth
+type urlWorkItem struct {
+	url   string
+	depth int
+}
+
+// extractionResult represents the result of extracting a single page
+type extractionResult struct {
+	url          string
+	depth        int
+	title        string
+	content      string
+	tokenCount   int
+	extractedURLs []ExtractedURLInfo
+	err          error
+}
+
+// DepthMetrics represents performance metrics for a single depth level
+type DepthMetrics struct {
+	Depth              int           `json:"depth"`
+	URLsProcessed      int           `json:"urls_processed"`
+	URLsFailed         int           `json:"urls_failed"`
+	URLsDiscovered     int           `json:"urls_discovered"`
+	WorkerCount        int           `json:"worker_count"`
+	Method             string        `json:"method"` // "playwright" or "colly"
+	StartTime          time.Time     `json:"start_time"`
+	EndTime            time.Time     `json:"end_time"`
+	Duration           time.Duration `json:"duration"`
+	AvgProcessingTime  time.Duration `json:"avg_processing_time"`
+	TotalTokens        int           `json:"total_tokens"`
+}
+
+// CrawlMetrics represents overall performance metrics for the entire crawl
+type CrawlMetrics struct {
+	TotalURLsProcessed   int            `json:"total_urls_processed"`
+	TotalURLsFailed      int            `json:"total_urls_failed"`
+	TotalURLsDiscovered  int            `json:"total_urls_discovered"`
+	TotalTokens          int            `json:"total_tokens"`
+	StartTime            time.Time      `json:"start_time"`
+	EndTime              time.Time      `json:"end_time"`
+	TotalDuration        time.Duration  `json:"total_duration"`
+	DepthMetrics         []DepthMetrics `json:"depth_metrics"`
+	PlaywrightURLs       int            `json:"playwright_urls"`
+	CollyURLs            int            `json:"colly_urls"`
+	PlaywrightTime       time.Duration  `json:"playwright_time"`
+	CollyTime            time.Duration  `json:"colly_time"`
+	AvgURLsPerSecond     float64        `json:"avg_urls_per_second"`
+}
+
 // ExtractURLsWithStream extracts URLs from a website and streams progress for debugging
-// Uses a hybrid approach: Playwright for depth 0-1, Colly for depth >= 2
+// Uses a hybrid approach with parallel processing:
+// - Playwright (2-5 workers) for depth 0-1
+// - Colly (10-20 workers) for depth >= 2
 func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent, sharedBrowser *SharedBrowserContext) error {
 	defer close(events)
 
@@ -1588,186 +1665,315 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 
 	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
 		Type:      "started",
-		Message:   fmt.Sprintf("Starting URL extraction for %s (depth: %d, base domain: %s)", targetURL, maxDepth, rootBaseDomain),
+		Message:   fmt.Sprintf("Starting parallel URL extraction for %s (depth: %d, base domain: %s)", targetURL, maxDepth, rootBaseDomain),
 		URL:       targetURL,
 		MaxDepth:  maxDepth,
 		Timestamp: time.Now(),
 	})
 
-	// Extract URLs using headless browser
+	// Shared state (protected by mutexes)
+	var mu sync.Mutex
 	var allURLs []string
 	var allLinks []discoveredLink
 	visited := make(map[string]bool)
 	failedURLs := make(map[string]string)
-	toVisit := []struct {
-		url   string
-		depth int
-	}{{targetURL, 0}}
 
-	for len(toVisit) > 0 {
-		current := toVisit[0]
-		toVisit = toVisit[1:]
+	// Initialize performance metrics
+	crawlStartTime := time.Now()
+	var crawlMetrics CrawlMetrics
+	crawlMetrics.StartTime = crawlStartTime
+	crawlMetrics.DepthMetrics = []DepthMetrics{}
 
-		// Normalize URL to check if we've already visited this page (ignoring query params)
-		normalizedURL := removeQueryParams(current.url)
-		if current.depth > maxDepth || visited[normalizedURL] {
-			continue
+	// Initialize with root URL
+	currentLevel := []urlWorkItem{{url: targetURL, depth: 0}}
+
+	// Process URLs level by level (BFS) with parallel workers per level
+	for len(currentLevel) > 0 && currentLevel[0].depth <= maxDepth {
+		currentDepth := currentLevel[0].depth
+
+		// Determine worker count from config based on depth
+		// Playwright (depth 0-1): Use configured playwright worker count
+		// Colly (depth >= 2): Use configured colly worker count
+		workerCount := s.config.PlaywrightWorkerCount
+		if currentDepth >= 2 {
+			workerCount = s.config.CollyWorkerCount
 		}
 
-		visited[normalizedURL] = true
-
-		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-			Type:         "visiting",
-			Message:      fmt.Sprintf("Visiting: %s", current.url),
-			URL:          current.url,
-			CurrentDepth: current.depth,
-			MaxDepth:     maxDepth,
-			LinksFound:   len(allURLs),
-			Timestamp:    time.Now(),
-		})
-
-		logger.GetTxLogger(ctx).Info().
-			Str("url", current.url).
-			Int("depth", current.depth).
-			Msg("extracting URLs from")
-
-		// Choose extraction method based on depth
-		// Depth 0-1: Use Playwright (handles JavaScript, more comprehensive)
-		// Depth >= 2: Use Colly (lightweight, fast for static content)
-		var extractedURLs []ExtractedURLInfo
-		var title, content string
-		var err error
-
-		if current.depth <= 1 {
-			// Use Playwright for depth 0-1
-			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-				Type:         "info",
-				Message:      fmt.Sprintf("Using Playwright for depth %d (JavaScript-enabled)", current.depth),
-				URL:          current.url,
-				CurrentDepth: current.depth,
-				Timestamp:    time.Now(),
-			})
-
-			extractedURLs, title, content, err = s.extractPageWithPlaywright(ctx, current.url, sharedBrowser)
-		} else {
-			// Use Colly for depth >= 2 (faster, lightweight)
-			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-				Type:         "info",
-				Message:      fmt.Sprintf("Using Colly for depth %d (fast HTTP)", current.depth),
-				URL:          current.url,
-				CurrentDepth: current.depth,
-				Timestamp:    time.Now(),
-			})
-
-			extractedURLs, title, content, err = s.extractPageWithColly(ctx, current.url)
-		}
-
-		if err != nil {
-			failedURLs[current.url] = err.Error()
-			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-				Type:         "warning",
-				Message:      fmt.Sprintf("Failed to extract URLs from %s: %v", current.url, err),
-				URL:          current.url,
-				CurrentDepth: current.depth,
-				Timestamp:    time.Now(),
-			})
-			continue
-		}
-
-		logger.GetTxLogger(ctx).Info().
-			Str("url", current.url).
-			Int("depth", current.depth).
-			Int("extracted_urls", len(extractedURLs)).
-			Str("method", map[bool]string{true: "playwright", false: "colly"}[current.depth <= 1]).
-			Msg("extracted URLs from page")
-
-		tokenCount := s.estimateTokenCount(content)
-
-		// Add current page to results
-		allLinks = append(allLinks, discoveredLink{
-			URL:        current.url,
-			Title:      title,
-			Depth:      current.depth,
-			TokenCount: tokenCount,
-		})
-		allURLs = append(allURLs, current.url)
-
-		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-			Type:         "url_found",
-			Message:      fmt.Sprintf("Found: %s (depth: %d)", title, current.depth),
-			URL:          current.url,
-			CurrentDepth: current.depth,
-			LinksFound:   len(allURLs),
-			Timestamp:    time.Now(),
-		})
-
-		logger.GetTxLogger(ctx).Info().
-			Str("url", current.url).
-			Int("depth", current.depth).
-			Str("title", title).
-			Int("token_count", tokenCount).
-			Int("total_links", len(extractedURLs)).
-			Msg("recorded discovered link")
-
-		// Process discovered URLs for next depth level
-		if current.depth < maxDepth {
-			newURLsCount := 0
-			skippedSubdomains := 0
-			for _, urlInfo := range extractedURLs {
-				parsedURL, parseErr := url.Parse(urlInfo.URL)
-				if parseErr != nil {
-					continue
-				}
-
-				// Only follow links on the same base domain (allows subdomains)
-				if !isSameBaseDomain(parsedURL.Host, rootHost) {
-					skippedSubdomains++
-					continue
-				}
-
-				// Normalize URL to remove query params and check if already visited
-				normalizedDiscoveredURL := removeQueryParams(urlInfo.URL)
-
-				logger.GetTxLogger(ctx).Info().
-					Str("from_url", current.url).
-					Str("to_url", urlInfo.URL).
-					Str("normalized_url", normalizedDiscoveredURL).
-					Msg("considering link for follow-up visit")
-
-				if !visited[normalizedDiscoveredURL] && s.shouldFollowLink(urlInfo.URL, current.url) {
-					logger.GetTxLogger(ctx).Info().
-						Str("from_url", current.url).
-						Str("to_url", normalizedDiscoveredURL).
-						Msg("scheduling link for follow-up visit")
-					// Visit the normalized URL (without query params)
-					toVisit = append(toVisit, struct {
-						url   string
-						depth int
-					}{normalizedDiscoveredURL, current.depth + 1})
-					newURLsCount++
-				}
+		// Fallback to defaults if config not set
+		if workerCount <= 0 {
+			workerCount = 3
+			if currentDepth >= 2 {
+				workerCount = 15
 			}
+		}
 
-			if newURLsCount > 0 {
+		// Initialize depth metrics
+		depthStartTime := time.Now()
+		method := "playwright"
+		if currentDepth >= 2 {
+			method = "colly"
+		}
+
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:         "info",
+			Message:      fmt.Sprintf("Processing depth %d with %d parallel workers (%d URLs queued)", currentDepth, workerCount, len(currentLevel)),
+			CurrentDepth: currentDepth,
+			MaxDepth:     maxDepth,
+			Timestamp:    time.Now(),
+		})
+
+		// Create work channel and results channel
+		workChan := make(chan urlWorkItem, len(currentLevel))
+		resultsChan := make(chan extractionResult, len(currentLevel))
+
+		// Add work items to channel
+		for _, item := range currentLevel {
+			normalizedURL := normalizeURLForDeduplication(item.url)
+
+			mu.Lock()
+			alreadyVisited := visited[normalizedURL]
+			if !alreadyVisited {
+				visited[normalizedURL] = true
+			}
+			mu.Unlock()
+
+			if !alreadyVisited {
+				workChan <- item
+			}
+		}
+		close(workChan)
+
+		// Start worker pool
+		var wg sync.WaitGroup
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func(workerID int) {
+				defer wg.Done()
+
+				for item := range workChan {
+					s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+						Type:         "visiting",
+						Message:      fmt.Sprintf("Worker %d visiting: %s", workerID, item.url),
+						URL:          item.url,
+						CurrentDepth: item.depth,
+						MaxDepth:     maxDepth,
+						Timestamp:    time.Now(),
+					})
+
+					// Extract based on depth
+					var extractedURLs []ExtractedURLInfo
+					var title, content string
+					var err error
+
+					if item.depth <= 1 {
+						extractedURLs, title, content, err = s.extractPageWithPlaywright(ctx, item.url, sharedBrowser)
+					} else {
+						extractedURLs, title, content, err = s.extractPageWithColly(ctx, item.url)
+					}
+
+					tokenCount := s.estimateTokenCount(content)
+
+					resultsChan <- extractionResult{
+						url:           item.url,
+						depth:         item.depth,
+						title:         title,
+						content:       content,
+						tokenCount:    tokenCount,
+						extractedURLs: extractedURLs,
+						err:           err,
+					}
+
+					logger.GetTxLogger(ctx).Info().
+						Str("url", item.url).
+						Int("depth", item.depth).
+						Int("worker", workerID).
+						Int("extracted_urls", len(extractedURLs)).
+						Str("method", map[bool]string{true: "playwright", false: "colly"}[item.depth <= 1]).
+						Msg("worker completed extraction")
+				}
+			}(i)
+		}
+
+		// Close results channel when all workers are done
+		go func() {
+			wg.Wait()
+			close(resultsChan)
+		}()
+
+		// Collect results and prepare next level
+		var nextLevel []urlWorkItem
+		depthURLsProcessed := 0
+		depthURLsFailed := 0
+		depthURLsDiscovered := 0
+		depthTotalTokens := 0
+
+		for result := range resultsChan {
+			depthURLsProcessed++
+			if result.err != nil {
+				depthURLsFailed++
+				mu.Lock()
+				failedURLs[result.url] = result.err.Error()
+				mu.Unlock()
+
 				s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-					Type:         "info",
-					Message:      fmt.Sprintf("Discovered %d new URLs to visit at depth %d (filtered out %d from other domains)", newURLsCount, current.depth+1, skippedSubdomains),
-					CurrentDepth: current.depth,
+					Type:         "warning",
+					Message:      fmt.Sprintf("Failed to extract from %s: %v", result.url, result.err),
+					URL:          result.url,
+					CurrentDepth: result.depth,
 					Timestamp:    time.Now(),
 				})
+				continue
+			}
+
+			depthTotalTokens += result.tokenCount
+
+			// Add to results (thread-safe)
+			mu.Lock()
+			allLinks = append(allLinks, discoveredLink{
+				URL:        result.url,
+				Title:      result.title,
+				Depth:      result.depth,
+				TokenCount: result.tokenCount,
+			})
+			allURLs = append(allURLs, result.url)
+			currentLinksCount := len(allURLs)
+			mu.Unlock()
+
+			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+				Type:         "url_found",
+				Message:      fmt.Sprintf("Found: %s (depth: %d)", result.title, result.depth),
+				URL:          result.url,
+				CurrentDepth: result.depth,
+				LinksFound:   currentLinksCount,
+				Timestamp:    time.Now(),
+			})
+
+			// Process discovered URLs for next level
+			if result.depth < maxDepth {
+				newURLsCount := 0
+				skippedSubdomains := 0
+
+				for _, urlInfo := range result.extractedURLs {
+					parsedURL, parseErr := url.Parse(urlInfo.URL)
+					if parseErr != nil {
+						continue
+					}
+
+					if !isSameBaseDomain(parsedURL.Host, rootHost) {
+						skippedSubdomains++
+						continue
+					}
+
+					normalizedDiscoveredURL := normalizeURLForDeduplication(urlInfo.URL)
+
+					mu.Lock()
+					alreadyVisited := visited[normalizedDiscoveredURL]
+					mu.Unlock()
+
+					if !alreadyVisited && s.shouldFollowLink(urlInfo.URL, result.url) {
+						nextLevel = append(nextLevel, urlWorkItem{
+							url:   normalizedDiscoveredURL,
+							depth: result.depth + 1,
+						})
+						newURLsCount++
+						depthURLsDiscovered++
+					}
+				}
+
+				if newURLsCount > 0 {
+					s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+						Type:         "info",
+						Message:      fmt.Sprintf("Discovered %d new URLs from %s (filtered %d external)", newURLsCount, result.url, skippedSubdomains),
+						CurrentDepth: result.depth,
+						Timestamp:    time.Now(),
+					})
+				}
 			}
 		}
+
+		// Move to next level
+		currentLevel = nextLevel
+
+		// Calculate depth metrics
+		depthEndTime := time.Now()
+		depthDuration := depthEndTime.Sub(depthStartTime)
+		avgProcessingTime := time.Duration(0)
+		if depthURLsProcessed > 0 {
+			avgProcessingTime = depthDuration / time.Duration(depthURLsProcessed)
+		}
+
+		depthMetric := DepthMetrics{
+			Depth:             currentDepth,
+			URLsProcessed:     depthURLsProcessed,
+			URLsFailed:        depthURLsFailed,
+			URLsDiscovered:    depthURLsDiscovered,
+			WorkerCount:       workerCount,
+			Method:            method,
+			StartTime:         depthStartTime,
+			EndTime:           depthEndTime,
+			Duration:          depthDuration,
+			AvgProcessingTime: avgProcessingTime,
+			TotalTokens:       depthTotalTokens,
+		}
+
+		// Update crawl metrics
+		crawlMetrics.DepthMetrics = append(crawlMetrics.DepthMetrics, depthMetric)
+		crawlMetrics.TotalTokens += depthTotalTokens
+		if method == "playwright" {
+			crawlMetrics.PlaywrightURLs += depthURLsProcessed
+			crawlMetrics.PlaywrightTime += depthDuration
+		} else {
+			crawlMetrics.CollyURLs += depthURLsProcessed
+			crawlMetrics.CollyTime += depthDuration
+		}
+
+		mu.Lock()
+		totalFound := len(allURLs)
+		mu.Unlock()
+
+		// Send depth completion event with metrics (if enabled)
+		event := URLExtractionEvent{
+			Type:         "info",
+			Message:      fmt.Sprintf("Completed depth %d in %v. Processed: %d, Failed: %d, Discovered: %d. Total URLs: %d", currentDepth, depthDuration.Round(time.Millisecond), depthURLsProcessed, depthURLsFailed, depthURLsDiscovered, totalFound),
+			CurrentDepth: currentDepth,
+			LinksFound:   totalFound,
+			Timestamp:    time.Now(),
+		}
+
+		if s.config.EnablePerformanceMetrics {
+			event.DepthMetrics = &depthMetric
+		}
+
+		s.sendURLExtractionEvent(ctx, events, event)
 	}
 
-	// Send final summary
-	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+	// Calculate final crawl metrics
+	crawlMetrics.EndTime = time.Now()
+	crawlMetrics.TotalDuration = crawlMetrics.EndTime.Sub(crawlMetrics.StartTime)
+	crawlMetrics.TotalURLsProcessed = len(allURLs)
+	crawlMetrics.TotalURLsFailed = len(failedURLs)
+	crawlMetrics.TotalURLsDiscovered = len(allURLs)
+
+	// Calculate average URLs per second
+	if crawlMetrics.TotalDuration.Seconds() > 0 {
+		crawlMetrics.AvgURLsPerSecond = float64(crawlMetrics.TotalURLsProcessed) / crawlMetrics.TotalDuration.Seconds()
+	}
+
+	// Send final summary with metrics
+	completionEvent := URLExtractionEvent{
 		Type:       "completed",
-		Message:    fmt.Sprintf("URL extraction completed. Found %d URLs from base domain %s (includes all subdomains)", len(allURLs), rootBaseDomain),
+		Message:    fmt.Sprintf("URL extraction completed in %v. Found %d URLs from base domain %s (Playwright: %d URLs in %v, Colly: %d URLs in %v, Avg: %.2f URLs/sec)", crawlMetrics.TotalDuration.Round(time.Millisecond), len(allURLs), rootBaseDomain, crawlMetrics.PlaywrightURLs, crawlMetrics.PlaywrightTime.Round(time.Millisecond), crawlMetrics.CollyURLs, crawlMetrics.CollyTime.Round(time.Millisecond), crawlMetrics.AvgURLsPerSecond),
 		LinksFound: len(allURLs),
 		URLs:       allURLs,
 		FailedURLs: failedURLs,
 		Timestamp:  time.Now(),
-	})
+	}
+
+	if s.config.EnablePerformanceMetrics {
+		completionEvent.Metrics = &crawlMetrics
+	}
+
+	s.sendURLExtractionEvent(ctx, events, completionEvent)
 
 	return nil
 }
