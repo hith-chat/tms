@@ -17,6 +17,7 @@ import (
 
 	"github.com/gocolly/colly/v2"
 	"github.com/google/uuid"
+	"github.com/pgvector/pgvector-go"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/bareuptime/tms/internal/config"
@@ -2343,4 +2344,40 @@ func (s *WebScrapingService) deduplicateStrings(slice []string) []string {
 	}
 
 	return result
+}
+
+// ScrapePageContent scrapes and extracts text content from a single URL
+func (s *WebScrapingService) ScrapePageContent(ctx context.Context, targetURL string) (string, error) {
+	// Use headless browser extractor for reliability
+	content, err := s.headlessBrowserExtractor.GetPageContent(ctx, targetURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to scrape page content: %w", err)
+	}
+
+	return content, nil
+}
+
+// StorePageInVectorDB stores a scraped page with its embedding in the vector database
+func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, projectID uuid.UUID, url, content string, embedding pgvector.Vector, jobID uuid.UUID) error {
+
+	// Calculate token count
+	tokenCount := len(strings.Fields(content))
+
+	// Create a knowledge scraped page record
+	page := &models.KnowledgeScrapedPage{
+		ID:         uuid.New(),
+		JobID:      jobID,
+		URL:        url,
+		Content:    content,
+		TokenCount: tokenCount,
+		ScrapedAt:  time.Now(),
+		Embedding:  &embedding,
+	}
+
+	// Store in database
+	if err := s.knowledgeRepo.CreateScrapedPage(page); err != nil {
+		return fmt.Errorf("failed to store page in vector DB: %w", err)
+	}
+
+	return nil
 }
