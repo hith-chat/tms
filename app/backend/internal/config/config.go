@@ -159,6 +159,7 @@ type AIConfig struct {
 	Provider             string        `mapstructure:"provider"` // "openai", "anthropic", "azure"
 	APIKey               string        `mapstructure:"api_key"`
 	ThemeExtractionModel string        `mapstructure:"theme_extraction_model"`
+	UrlRankingModel      string        `mapstructure:"url_ranking_model"`
 	Model                string        `mapstructure:"model"`
 	BaseURL              string        `mapstructure:"base_url"`
 	MaxTokens            int           `mapstructure:"max_tokens"`
@@ -251,6 +252,7 @@ func Load() (*Config, error) {
 	viper.BindEnv("ai.enabled", "AI_ENABLED")
 	viper.BindEnv("ai.provider", "AI_PROVIDER")
 	viper.BindEnv("ai.theme_extraction_model", "AI_THEME_EXTRACTION_MODEL")
+	viper.BindEnv("ai.url_ranking_model", "AI_URL_RANKING_MODEL")
 	viper.BindEnv("ai.api_key", "AI_API_KEY")
 	viper.BindEnv("ai.model", "AI_MODEL")
 	viper.BindEnv("ai.base_url", "AI_BASE_URL")

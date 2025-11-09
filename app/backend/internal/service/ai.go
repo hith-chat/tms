@@ -1106,7 +1106,7 @@ func (s *AIService) CallAIForRanking(ctx context.Context, prompt string) (string
 
 	// Use GPT-4 for better reasoning about relevance
 	req := ChatCompletionRequest{
-		Model: "gpt-4",
+		Model: s.config.UrlRankingModel,
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
