@@ -1479,8 +1479,88 @@ func (s *WebScrapingService) GetJobPages(ctx context.Context, jobID, tenantID, p
 	return s.knowledgeRepo.GetJobPages(jobID, tenantID, projectID)
 }
 
+// extractPageWithColly extracts URLs, title, and content from a page using Colly (lightweight, fast)
+func (s *WebScrapingService) extractPageWithColly(ctx context.Context, targetURL string) ([]ExtractedURLInfo, string, string, error) {
+	var pageTitle string
+	var pageContent string
+	var htmlContent []byte
+	var extractErr error
+
+	c := colly.NewCollector(
+		colly.UserAgent(s.config.ScrapeUserAgent),
+	)
+	c.SetRequestTimeout(s.config.ScrapeTimeout)
+
+	// Extract title and content
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		// Extract title
+		pageTitle = e.ChildText("title")
+		if pageTitle == "" {
+			pageTitle = e.ChildText("h1")
+		}
+		pageTitle = strings.TrimSpace(pageTitle)
+
+		// Extract text content for knowledge base
+		pageContent = s.extractTextContent(e)
+
+		// Store raw HTML for URL extraction
+		htmlContent = []byte(e.Response.Body)
+	})
+
+	c.OnError(func(r *colly.Response, err error) {
+		extractErr = err
+	})
+
+	// Visit the URL
+	if err := c.Visit(targetURL); err != nil {
+		return nil, "", "", fmt.Errorf("failed to visit URL with Colly: %w", err)
+	}
+
+	c.Wait()
+
+	if extractErr != nil {
+		return nil, "", "", fmt.Errorf("colly extraction error: %w", extractErr)
+	}
+
+	// Extract URLs using ComprehensiveURLExtractor
+	extractor, err := NewComprehensiveURLExtractor(targetURL)
+	if err != nil {
+		return nil, pageTitle, pageContent, fmt.Errorf("failed to create URL extractor: %w", err)
+	}
+
+	// Get URLs from HTML
+	urlStrings := extractor.ExtractURLsFromHTML(htmlContent, targetURL)
+
+	// Convert to ExtractedURLInfo format
+	extractedURLs := make([]ExtractedURLInfo, 0, len(urlStrings))
+	for _, urlStr := range urlStrings {
+		extractedURLs = append(extractedURLs, ExtractedURLInfo{
+			URL:    urlStr,
+			Source: "colly",
+		})
+	}
+
+	return extractedURLs, pageTitle, pageContent, nil
+}
+
+// extractPageWithPlaywright extracts URLs, title, and content using Playwright with optional shared browser
+func (s *WebScrapingService) extractPageWithPlaywright(ctx context.Context, targetURL string, sharedBrowser *SharedBrowserContext) ([]ExtractedURLInfo, string, string, error) {
+	// Extract URLs
+	extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, targetURL)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("playwright URL extraction failed: %w", err)
+	}
+
+	// Extract title and content
+	title, _ := s.headlessBrowserExtractor.GetPageTitle(ctx, targetURL)
+	content, _ := s.headlessBrowserExtractor.GetPageContent(ctx, targetURL)
+
+	return extractedURLs, title, content, nil
+}
+
 // ExtractURLsWithStream extracts URLs from a website and streams progress for debugging
-func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent) error {
+// Uses a hybrid approach: Playwright for depth 0-1, Colly for depth >= 2
+func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent, sharedBrowser *SharedBrowserContext) error {
 	defer close(events)
 
 	// Validate URL
@@ -1551,8 +1631,37 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 			Int("depth", current.depth).
 			Msg("extracting URLs from")
 
-		// Extract URLs from current page
-		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
+		// Choose extraction method based on depth
+		// Depth 0-1: Use Playwright (handles JavaScript, more comprehensive)
+		// Depth >= 2: Use Colly (lightweight, fast for static content)
+		var extractedURLs []ExtractedURLInfo
+		var title, content string
+		var err error
+
+		if current.depth <= 1 {
+			// Use Playwright for depth 0-1
+			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+				Type:         "info",
+				Message:      fmt.Sprintf("Using Playwright for depth %d (JavaScript-enabled)", current.depth),
+				URL:          current.url,
+				CurrentDepth: current.depth,
+				Timestamp:    time.Now(),
+			})
+
+			extractedURLs, title, content, err = s.extractPageWithPlaywright(ctx, current.url, sharedBrowser)
+		} else {
+			// Use Colly for depth >= 2 (faster, lightweight)
+			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+				Type:         "info",
+				Message:      fmt.Sprintf("Using Colly for depth %d (fast HTTP)", current.depth),
+				URL:          current.url,
+				CurrentDepth: current.depth,
+				Timestamp:    time.Now(),
+			})
+
+			extractedURLs, title, content, err = s.extractPageWithColly(ctx, current.url)
+		}
+
 		if err != nil {
 			failedURLs[current.url] = err.Error()
 			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
@@ -1569,11 +1678,9 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 			Str("url", current.url).
 			Int("depth", current.depth).
 			Int("extracted_urls", len(extractedURLs)).
+			Str("method", map[bool]string{true: "playwright", false: "colly"}[current.depth <= 1]).
 			Msg("extracted URLs from page")
 
-		// Get page title and content
-		title, _ := s.headlessBrowserExtractor.GetPageTitle(ctx, current.url)
-		content, _ := s.headlessBrowserExtractor.GetPageContent(ctx, current.url)
 		tokenCount := s.estimateTokenCount(content)
 
 		// Add current page to results

@@ -217,5 +217,5 @@ func (s *PublicAIBuilderService) emit(ctx context.Context, events chan<- AIBuild
 
 // ExtractURLsDebug extracts all URLs from a website for debugging purposes
 func (s *PublicAIBuilderService) ExtractURLsDebug(ctx context.Context, targetURL string, depth int, events chan<- URLExtractionEvent) error {
-	return s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, events)
+	return s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, events, nil)
 }
