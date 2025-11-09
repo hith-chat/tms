@@ -37,7 +37,7 @@ func NewAIBuilderService(chatWidget *ChatWidgetService, webScraper *WebScrapingS
 	}
 }
 
-func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, depth int, events chan<- AIBuilderEvent) error {
+func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, depth int, generateFaq bool, events chan<- AIBuilderEvent) error {
 	if depth <= 0 {
 		depth = 3
 	}
@@ -62,19 +62,31 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 		Message: fmt.Sprintf("Starting AI workspace setup for %s", rootURL),
 	})
 
-	widget, err := s.buildWidget(ctx, tenantID, projectID, rootURL, events)
+	// Build widget and get shared browser context
+	widget, sharedBrowser, err := s.buildWidget(ctx, tenantID, projectID, rootURL, events)
 	if err != nil {
 		return err
 	}
 
-	jobID, selections, err := s.buildKnowledge(ctx, tenantID, projectID, rootURL, baseDomain, depth, events)
+	// Ensure browser is cleaned up when done
+	defer func() {
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+	}()
+
+	// Reuse browser for knowledge building
+	jobID, selections, err := s.buildKnowledge(ctx, tenantID, projectID, rootURL, baseDomain, depth, sharedBrowser, events)
 	if err != nil {
 		return err
 	}
 
-	faqItems, err := s.generateFAQ(ctx, tenantID, projectID, rootURL, jobID, selections, events)
-	if err != nil {
-		return err
+	faqItems := []*models.KnowledgeFAQItem{}
+	if generateFaq {
+		faqItems, err = s.generateFAQ(ctx, tenantID, projectID, rootURL, jobID, selections, events)
+		if err != nil {
+			return err
+		}
 	}
 
 	embedCode := ""
@@ -85,6 +97,7 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 	data := map[string]any{
 		"embed_code":     embedCode,
 		"widget_id":      widget.ID.String(),
+		"project_id":     projectID.String(),
 		"selected_links": selections,
 		"faq_count":      len(faqItems),
 	}
@@ -99,14 +112,15 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 	return nil
 }
 
-func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, events chan<- AIBuilderEvent) (*models.ChatWidget, error) {
+func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, events chan<- AIBuilderEvent) (*models.ChatWidget, *SharedBrowserContext, error) {
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "widget_stage_started",
 		Stage:   "widget",
 		Message: "Analyzing website brand and building chat widget",
 	})
 
-	themeData, err := s.webScrapingService.ScrapeWebsiteTheme(ctx, rootURL)
+	// Create shared browser context for reuse
+	themeData, sharedBrowser, err := s.webScrapingService.ScrapeWebsiteThemeWithBrowser(ctx, rootURL, nil)
 	if err != nil {
 		s.emit(ctx, events, AIBuilderEvent{
 			Type:    "error",
@@ -114,7 +128,10 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 			Message: "Failed to analyze website theme",
 			Detail:  err.Error(),
 		})
-		return nil, fmt.Errorf("scrape theme: %w", err)
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+		return nil, nil, fmt.Errorf("scrape theme: %w", err)
 	}
 
 	s.emit(ctx, events, AIBuilderEvent{
@@ -136,7 +153,10 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 			Message: "Failed to generate widget theme",
 			Detail:  err.Error(),
 		})
-		return nil, fmt.Errorf("generate widget theme: %w", err)
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+		return nil, nil, fmt.Errorf("generate widget theme: %w", err)
 	}
 
 	s.applyWidgetDefaults(cfg)
@@ -149,7 +169,10 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 			Message: "Failed to persist chat widget",
 			Detail:  err.Error(),
 		})
-		return nil, fmt.Errorf("create/update widget: %w", err)
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+		return nil, nil, fmt.Errorf("create/update widget: %w", err)
 	}
 
 	s.emit(ctx, events, AIBuilderEvent{
@@ -161,10 +184,10 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 		},
 	})
 
-	return widget, nil
+	return widget, sharedBrowser, nil
 }
 
-func (s *AIBuilderService) buildKnowledge(ctx context.Context, tenantID, projectID uuid.UUID, rootURL, baseDomain string, depth int, events chan<- AIBuilderEvent) (uuid.UUID, []KnowledgeLinkSelection, error) {
+func (s *AIBuilderService) buildKnowledge(ctx context.Context, tenantID, projectID uuid.UUID, rootURL, baseDomain string, depth int, sharedBrowser *SharedBrowserContext, events chan<- AIBuilderEvent) (uuid.UUID, []KnowledgeLinkSelection, error) {
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "knowledge_stage_started",
 		Stage:   "scraping",
@@ -172,8 +195,11 @@ func (s *AIBuilderService) buildKnowledge(ctx context.Context, tenantID, project
 	})
 
 	scrapingEvents := make(chan ScrapingEvent)
-	req := &models.CreateScrapingJobRequest{URL: rootURL, MaxDepth: depth}
-	job, err := s.webScrapingService.CreateScrapingJobWithStream(ctx, tenantID, projectID, req, scrapingEvents)
+	req := &models.CreateScrapingJobRequest{
+		URL:      rootURL,
+		MaxDepth: depth,
+	}
+	job, err := s.webScrapingService.CreateScrapingJobWithStreamAndBrowser(ctx, tenantID, projectID, req, sharedBrowser, depth, scrapingEvents)
 	if err != nil {
 		s.emit(ctx, events, AIBuilderEvent{
 			Type:    "error",
@@ -324,6 +350,34 @@ func (s *AIBuilderService) generateFAQ(ctx context.Context, tenantID, projectID 
 			Title:   title,
 			Content: page.Content,
 		})
+	}
+
+	// Fallback: if no selections matched, use all available scraped pages
+	if len(orderedSections) == 0 {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "faq_fallback",
+			Stage:   "faq",
+			Message: "Using all scraped pages for FAQ generation",
+			Data: map[string]any{
+				"selections_count": len(selections),
+				"pages_count":      len(pages),
+			},
+		})
+
+		for _, page := range pages {
+			if page == nil || page.Content == "" {
+				continue
+			}
+			title := ""
+			if page.Title != nil {
+				title = *page.Title
+			}
+			orderedSections = append(orderedSections, KnowledgeSectionSummary{
+				URL:     page.URL,
+				Title:   title,
+				Content: page.Content,
+			})
+		}
 	}
 
 	if len(orderedSections) == 0 {

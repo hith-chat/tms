@@ -9,7 +9,36 @@ import (
 	"time"
 
 	"github.com/playwright-community/playwright-go"
+
+	"github.com/bareuptime/tms/internal/logger"
 )
+
+// SharedBrowserContext holds a reusable Playwright browser instance
+type SharedBrowserContext struct {
+	PW      *playwright.Playwright
+	Browser playwright.Browser
+	Context playwright.BrowserContext
+}
+
+// Close cleans up the browser context
+func (s *SharedBrowserContext) Close() error {
+	if s.Context != nil {
+		if err := s.Context.Close(); err != nil {
+			return err
+		}
+	}
+	if s.Browser != nil {
+		if err := s.Browser.Close(); err != nil {
+			return err
+		}
+	}
+	if s.PW != nil {
+		if err := s.PW.Stop(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // HeadlessBrowserURLExtractor uses a headless browser for comprehensive URL extraction
 type HeadlessBrowserURLExtractor struct {
@@ -32,6 +61,49 @@ func NewHeadlessBrowserURLExtractor(timeout time.Duration, userAgent string) *He
 	}
 }
 
+// CreateSharedBrowserContext creates a reusable Playwright browser instance
+func (e *HeadlessBrowserURLExtractor) CreateSharedBrowserContext(ctx context.Context) (*SharedBrowserContext, error) {
+	pw, err := playwright.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start playwright: %w", err)
+	}
+
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(true),
+		Args: []string{
+			"--disable-gpu",
+			"--disable-extensions",
+			"--disable-plugins",
+			"--disable-background-networking",
+			"--disable-sync",
+			"--disable-translate",
+			"--disable-default-apps",
+			"--no-first-run",
+			"--no-default-browser-check",
+			"--disable-blink-features=AutomationControlled",
+		},
+	})
+	if err != nil {
+		pw.Stop()
+		return nil, fmt.Errorf("failed to launch browser: %w", err)
+	}
+
+	browserContext, err := browser.NewContext(playwright.BrowserNewContextOptions{
+		UserAgent: &e.userAgent,
+	})
+	if err != nil {
+		browser.Close()
+		pw.Stop()
+		return nil, fmt.Errorf("failed to create browser context: %w", err)
+	}
+
+	return &SharedBrowserContext{
+		PW:      pw,
+		Browser: browser,
+		Context: browserContext,
+	}, nil
+}
+
 // ExtractedURLInfo contains information about an extracted URL
 type ExtractedURLInfo struct {
 	URL         string `json:"url"`
@@ -52,7 +124,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 	// Start Playwright
 	pw, err := playwright.Run()
 	if err != nil {
-		fmt.Println("Playwright start error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to start Playwright")
 		return nil, fmt.Errorf("failed to start playwright: %w", err)
 	}
 	defer pw.Stop()
@@ -74,7 +146,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		},
 	})
 	if err != nil {
-		fmt.Println("Playwright chromium start error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to launch Chromium browser")
 		return nil, fmt.Errorf("failed to launch browser: %w", err)
 	}
 	defer browser.Close()
@@ -84,14 +156,14 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		UserAgent: &e.userAgent,
 	})
 	if err != nil {
-		fmt.Println("Playwright browser context error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to create browser context")
 		return nil, fmt.Errorf("failed to create browser context: %w", err)
 	}
 	defer context.Close()
 
 	page, err := context.NewPage()
 	if err != nil {
-		fmt.Println("Playwright page creation error: ", err)
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to create page")
 		return nil, fmt.Errorf("failed to create page: %w", err)
 	}
 
@@ -120,11 +192,11 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 	// Get page title for debugging
 	title, err := page.Title()
 	if err != nil {
-		log.Printf("DEBUG: Failed to get page title: %v", err)
+		logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to get page title")
 	} else {
-		log.Printf("DEBUG: Page loaded successfully, title: %s", title)
+		logger.GetTxLogger(ctx).Info().Str("title", title).Msg("Page loaded successfully")
 	}
-	fmt.Println("DEBUG: Page loaded successfully, title: ", title)
+
 	// Execute JavaScript to extract URLs
 	result, err := page.Evaluate(`
 		(function() {
@@ -136,7 +208,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 			const selectors = [
 				{ selector: 'a[href]', attr: 'href', source: 'link' },
 				{ selector: 'link[href]', attr: 'href', source: 'link_tag' },
-				{ selector: 'iframe[src]', attr: 'src', source: 'iframe' },
+				{ selector: 'iframe[src]', attr: 'src', source: 'image' },
 				{ selector: 'img[src]', attr: 'src', source: 'image' },
 				{ selector: 'script[src]', attr: 'src', source: 'script' },
 				{ selector: 'source[src]', attr: 'src', source: 'media_source' },
@@ -257,9 +329,7 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		}
 	}
 
-	fmt.Println("extractedURLs --> ", extractedURLs)
-
-	log.Printf("DEBUG: Extracted %d URLs before cleaning", len(extractedURLs))
+	logger.GetTxLogger(ctx).Debug().Int("count", len(extractedURLs)).Msg("Extracted URLs before cleaning")
 
 	// Post-process and clean the URLs
 	var cleanedURLs []ExtractedURLInfo
@@ -276,9 +346,12 @@ func (e *HeadlessBrowserURLExtractor) ExtractURLsFromPage(ctx context.Context, t
 		}
 	}
 
-	fmt.Println("cleanedURLs --> ", cleanedURLs)
+	logger.GetTxLogger(ctx).Debug().Int("count", len(cleanedURLs)).Msg("Cleaned URLs after processing")
 
-	log.Printf("DEBUG: Returning %d cleaned URLs", len(cleanedURLs))
+	// Log first few cleaned URLs for debugging
+	fmt.Println("cleaned urls ->", cleanedURLs)
+
+	log.Printf("Returning %d cleaned URLs", len(cleanedURLs))
 	return cleanedURLs, nil
 }
 
@@ -330,6 +403,7 @@ func (e *HeadlessBrowserURLExtractor) cleanAndValidateURL(rawURL string) string 
 		"adsystem.com",
 		"googlesyndication.com",
 		"amazon-adsystem.com",
+		"site.webmanifest",
 	}
 
 	host := strings.ToLower(parsed.Host)
@@ -454,4 +528,283 @@ func (e *HeadlessBrowserURLExtractor) GetPageContent(ctx context.Context, target
 	}
 
 	return strings.TrimSpace(contentStr), nil
+}
+
+// ExtractThemeDataWithBrowser extracts theme information using an existing browser context
+func (e *HeadlessBrowserURLExtractor) ExtractThemeDataWithBrowser(ctx context.Context, targetURL string, sharedCtx *SharedBrowserContext) (map[string]interface{}, error) {
+	if sharedCtx == nil {
+		// Fall back to creating a new instance
+		return e.ExtractThemeData(ctx, targetURL)
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	defer cancel()
+
+	page, err := sharedCtx.Context.NewPage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
+	defer page.Close()
+
+	// Navigate to the page
+	_, err = page.Goto(targetURL, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(float64(e.timeout.Milliseconds())),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to navigate to page: %w", err)
+	}
+
+	// Wait for dynamic content
+	page.WaitForTimeout(2000)
+
+	return e.extractThemeFromPage(page)
+}
+
+// ExtractThemeData extracts comprehensive theme information from a website using Playwright
+func (e *HeadlessBrowserURLExtractor) ExtractThemeData(ctx context.Context, targetURL string) (map[string]interface{}, error) {
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	defer cancel()
+
+	// Start Playwright
+	pw, err := playwright.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start playwright: %w", err)
+	}
+	defer pw.Stop()
+
+	// Launch browser
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(true),
+		Args: []string{
+			"--disable-gpu",
+			"--disable-extensions",
+			"--disable-plugins",
+			"--disable-background-networking",
+			"--disable-sync",
+			"--disable-translate",
+			"--disable-default-apps",
+			"--no-first-run",
+			"--no-default-browser-check",
+			"--disable-blink-features=AutomationControlled",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to launch browser: %w", err)
+	}
+	defer browser.Close()
+
+	// Create context and page
+	context, err := browser.NewContext(playwright.BrowserNewContextOptions{
+		UserAgent: &e.userAgent,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create browser context: %w", err)
+	}
+	defer context.Close()
+
+	page, err := context.NewPage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
+
+	// Navigate to the page
+	_, err = page.Goto(targetURL, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(float64(e.timeout.Milliseconds())),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to navigate to page: %w", err)
+	}
+
+	// Wait for dynamic content
+	page.WaitForTimeout(2000) // 2 seconds for JS to render
+
+	return e.extractThemeFromPage(page)
+}
+
+// extractThemeFromPage extracts theme data from an already loaded page
+func (e *HeadlessBrowserURLExtractor) extractThemeFromPage(page playwright.Page) (map[string]interface{}, error) {
+	// Execute comprehensive theme extraction JavaScript
+	result, err := page.Evaluate(`
+		(function() {
+			const themeData = {
+				colors: [],
+				backgroundColors: [],
+				fontFamilies: [],
+				pageTitle: document.title || '',
+				metaDescription: '',
+				brandName: '',
+				cssVariables: {},
+				dominantColors: [],
+				screenshot: null
+			};
+
+			// Extract meta description
+			const metaDesc = document.querySelector('meta[name="description"]');
+			if (metaDesc) {
+				themeData.metaDescription = metaDesc.getAttribute('content') || '';
+			}
+
+			// Extract brand name from multiple sources
+			const h1 = document.querySelector('h1');
+			const ogSiteName = document.querySelector('meta[property="og:site_name"]');
+			const logo = document.querySelector('.brand, .logo, .site-title, [class*="brand"], [class*="logo"]');
+
+			themeData.brandName = (h1 && h1.textContent.trim()) ||
+			                      (ogSiteName && ogSiteName.getAttribute('content')) ||
+			                      (logo && logo.textContent.trim()) || '';
+
+			// Extract CSS variables from :root
+			const rootStyles = getComputedStyle(document.documentElement);
+			const cssVars = {};
+			for (let i = 0; i < rootStyles.length; i++) {
+				const propName = rootStyles[i];
+				if (propName.startsWith('--')) {
+					cssVars[propName] = rootStyles.getPropertyValue(propName).trim();
+				}
+			}
+			themeData.cssVariables = cssVars;
+
+			// Function to get computed styles for important elements
+			const importantSelectors = [
+				'body',
+				'header',
+				'nav',
+				'main',
+				'footer',
+				'.hero',
+				'.button',
+				'button',
+				'a',
+				'h1, h2, h3',
+				'[class*="primary"]',
+				'[class*="accent"]',
+				'[class*="brand"]'
+			];
+
+			const colorSet = new Set();
+			const bgColorSet = new Set();
+			const fontSet = new Set();
+
+			importantSelectors.forEach(selector => {
+				const elements = document.querySelectorAll(selector);
+				elements.forEach(el => {
+					if (elements.length > 50 && Array.from(elements).indexOf(el) > 10) {
+						return; // Limit to first 10 elements for large collections
+					}
+
+					const styles = getComputedStyle(el);
+
+					// Extract colors
+					const color = styles.color;
+					if (color && color !== 'rgba(0, 0, 0, 0)') {
+						colorSet.add(color);
+					}
+
+					// Extract background colors
+					const bgColor = styles.backgroundColor;
+					if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') {
+						bgColorSet.add(bgColor);
+					}
+
+					// Extract font families
+					const fontFamily = styles.fontFamily;
+					if (fontFamily) {
+						fontSet.add(fontFamily);
+					}
+				});
+			});
+
+			themeData.colors = Array.from(colorSet);
+			themeData.backgroundColors = Array.from(bgColorSet);
+			themeData.fontFamilies = Array.from(fontSet);
+
+			return themeData;
+		})()
+	`)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract theme data: %w", err)
+	}
+
+	// Convert result to map
+	themeMap, ok := result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to parse theme data")
+	}
+
+	return themeMap, nil
+}
+
+// TakeFullPageScreenshot captures a full-page screenshot
+func (e *HeadlessBrowserURLExtractor) TakeFullPageScreenshot(ctx context.Context, targetURL string) ([]byte, error) {
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	defer cancel()
+
+	// Start Playwright
+	pw, err := playwright.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start playwright: %w", err)
+	}
+	defer pw.Stop()
+
+	// Launch browser
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(true),
+		Args: []string{
+			"--disable-gpu",
+			"--disable-extensions",
+			"--disable-plugins",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to launch browser: %w", err)
+	}
+	defer browser.Close()
+
+	// Create context and page
+	context, err := browser.NewContext(playwright.BrowserNewContextOptions{
+		UserAgent: &e.userAgent,
+		// Set a standard viewport for consistency
+		Viewport: &playwright.Size{
+			Width:  1920,
+			Height: 1080,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create browser context: %w", err)
+	}
+	defer context.Close()
+
+	page, err := context.NewPage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
+
+	// Navigate to the page
+	_, err = page.Goto(targetURL, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(float64(e.timeout.Milliseconds())),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to navigate to page: %w", err)
+	}
+
+	// Wait for page to fully render
+	page.WaitForTimeout(2000)
+
+	// Take full page screenshot
+	screenshot, err := page.Screenshot(playwright.PageScreenshotOptions{
+		FullPage: playwright.Bool(true),
+		Type:     playwright.ScreenshotTypePng,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to take screenshot: %w", err)
+	}
+
+	return screenshot, nil
 }

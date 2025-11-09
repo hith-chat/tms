@@ -169,20 +169,23 @@ type AIConfig struct {
 
 // KnowledgeConfig represents knowledge management configuration
 type KnowledgeConfig struct {
-	Enabled              bool          `mapstructure:"enabled"`
-	AiAgentServiceUrl    string        `mapstructure:"ai_agent_service_url"`
-	MaxFileSize          int64         `mapstructure:"max_file_size"`
-	MaxFilesPerProject   int           `mapstructure:"max_files_per_project"`
-	EmbeddingService     string        `mapstructure:"embedding_service"`
-	OpenAIEmbeddingModel string        `mapstructure:"openai_embedding_model"`
-	OpenAIAPIKey         string        `mapstructure:"AI_API_KEY"`
-	ChunkSize            int           `mapstructure:"chunk_size"`
-	ChunkOverlap         int           `mapstructure:"chunk_overlap"`
-	ScrapeMaxDepth       int           `mapstructure:"scrape_max_depth"`
-	ScrapeRateLimit      time.Duration `mapstructure:"scrape_rate_limit"`
-	ScrapeUserAgent      string        `mapstructure:"scrape_user_agent"`
-	ScrapeTimeout        time.Duration `mapstructure:"scrape_timeout"`
-	EmbeddingTimeout     time.Duration `mapstructure:"embedding_timeout"`
+	Enabled                 bool          `mapstructure:"enabled"`
+	AiAgentServiceUrl       string        `mapstructure:"ai_agent_service_url"`
+	MaxFileSize             int64         `mapstructure:"max_file_size"`
+	MaxFilesPerProject      int           `mapstructure:"max_files_per_project"`
+	EmbeddingService        string        `mapstructure:"embedding_service"`
+	OpenAIEmbeddingModel    string        `mapstructure:"openai_embedding_model"`
+	OpenAIAPIKey            string        `mapstructure:"AI_API_KEY"`
+	ChunkSize               int           `mapstructure:"chunk_size"`
+	ChunkOverlap            int           `mapstructure:"chunk_overlap"`
+	ScrapeMaxDepth          int           `mapstructure:"scrape_max_depth"`
+	ScrapeRateLimit         time.Duration `mapstructure:"scrape_rate_limit"`
+	ScrapeUserAgent         string        `mapstructure:"scrape_user_agent"`
+	ScrapeTimeout           time.Duration `mapstructure:"scrape_timeout"`
+	EmbeddingTimeout        time.Duration `mapstructure:"embedding_timeout"`
+	PlaywrightWorkerCount   int           `mapstructure:"playwright_worker_count"`   // Workers for depth 0-1 (Playwright)
+	CollyWorkerCount        int           `mapstructure:"colly_worker_count"`        // Workers for depth >= 2 (Colly)
+	EnablePerformanceMetrics bool         `mapstructure:"enable_performance_metrics"` // Enable detailed performance tracking
 }
 
 // PaymentConfig represents payment gateway configuration
@@ -268,6 +271,9 @@ func Load() (*Config, error) {
 	viper.BindEnv("knowledge.scrape_user_agent", "KNOWLEDGE_SCRAPE_USER_AGENT")
 	viper.BindEnv("knowledge.scrape_timeout", "KNOWLEDGE_SCRAPE_TIMEOUT")
 	viper.BindEnv("knowledge.embedding_timeout", "KNOWLEDGE_EMBEDDING_TIMEOUT")
+	viper.BindEnv("knowledge.playwright_worker_count", "KNOWLEDGE_PLAYWRIGHT_WORKER_COUNT")
+	viper.BindEnv("knowledge.colly_worker_count", "KNOWLEDGE_COLLY_WORKER_COUNT")
+	viper.BindEnv("knowledge.enable_performance_metrics", "KNOWLEDGE_ENABLE_PERFORMANCE_METRICS")
 
 	// Email subsystem bindings
 	viper.BindEnv("email.provider", "EMAIL_PROVIDER")
@@ -399,6 +405,9 @@ func setDefaults() {
 	viper.SetDefault("knowledge.scrape_user_agent", "Hith Knowledge Bot 1.0")
 	viper.SetDefault("knowledge.scrape_timeout", "30s")
 	viper.SetDefault("knowledge.embedding_timeout", "120s")
+	viper.SetDefault("knowledge.playwright_worker_count", 3)   // Conservative for browser overhead
+	viper.SetDefault("knowledge.colly_worker_count", 15)       // Higher for lightweight HTTP
+	viper.SetDefault("knowledge.enable_performance_metrics", true)
 
 	// CORS defaults
 	viper.SetDefault("cors.allowed_origins", []string{"*"})

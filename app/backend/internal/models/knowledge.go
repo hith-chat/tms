@@ -74,6 +74,7 @@ type ScrapedLinkPreview struct {
 type KnowledgeScrapedPage struct {
 	ID          uuid.UUID        `db:"id" json:"id"`
 	JobID       uuid.UUID        `db:"job_id" json:"job_id"`
+	PageID      *uuid.UUID       `db:"page_id" json:"page_id,omitempty"`
 	URL         string           `db:"url" json:"url"`
 	Title       *string          `db:"title" json:"title,omitempty"`
 	Content     string           `db:"content" json:"content"`

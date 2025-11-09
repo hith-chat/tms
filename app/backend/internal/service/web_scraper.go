@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gocolly/colly/v2"
@@ -90,6 +91,21 @@ type ScrapingEvent struct {
 	Timestamp    time.Time `json:"timestamp"`
 }
 
+// URLExtractionEvent represents streamed progress updates for URL extraction debugging
+type URLExtractionEvent struct {
+	Type         string            `json:"type"`
+	Message      string            `json:"message,omitempty"`
+	URL          string            `json:"url,omitempty"`
+	CurrentDepth int               `json:"current_depth,omitempty"`
+	MaxDepth     int               `json:"max_depth,omitempty"`
+	LinksFound   int               `json:"links_found,omitempty"`
+	URLs         []string          `json:"urls,omitempty"`
+	FailedURLs   map[string]string `json:"failed_urls,omitempty"`
+	Timestamp    time.Time         `json:"timestamp"`
+	Metrics      *CrawlMetrics     `json:"metrics,omitempty"`      // Overall performance metrics
+	DepthMetrics *DepthMetrics     `json:"depth_metrics,omitempty"` // Per-depth metrics
+}
+
 func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig, redisClient redis.UniversalClient) *WebScrapingService {
 	// Initialize headless browser extractor with 30 second timeout
 	headlessExtractor := NewHeadlessBrowserURLExtractor(30*time.Second, "")
@@ -129,6 +145,36 @@ func (s *WebScrapingService) CreateScrapingJob(ctx context.Context, tenantID, pr
 
 	// Start scraping asynchronously
 	go s.startScrapingJob(ctx, job)
+
+	return job, nil
+}
+
+// CreateScrapingJobWithStreamAndBrowser creates a new web scraping job with shared browser context and depth-based strategy
+func (s *WebScrapingService) CreateScrapingJobWithStreamAndBrowser(ctx context.Context, tenantID, projectID uuid.UUID, req *models.CreateScrapingJobRequest, sharedBrowser *SharedBrowserContext, maxDepth int, events chan<- ScrapingEvent) (*models.KnowledgeScrapingJob, error) {
+	// Validate URL
+	if err := s.validateURL(req.URL); err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Create scraping job
+	job := &models.KnowledgeScrapingJob{
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		ProjectID: projectID,
+		URL:       req.URL,
+		MaxDepth:  req.MaxDepth,
+		Status:    "pending",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	// Save to database
+	if err := s.knowledgeRepo.CreateScrapingJob(job); err != nil {
+		return nil, fmt.Errorf("failed to create scraping job: %w", err)
+	}
+
+	// Start scraping with depth-based strategy (Playwright for 0-1, Colly for 2+)
+	go s.startScrapingJobWithStreamAndBrowser(ctx, job, sharedBrowser, maxDepth, events)
 
 	return job, nil
 }
@@ -244,24 +290,24 @@ func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL 
 	logger.InfofCtx(ctx, "Starting URL extraction - target: %s, max_depth: %d", targetURL, maxDepth)
 
 	// Step 1: Try Playwright headless browser extraction first
-	logger.DebugCtx(ctx, "Step 1: Attempting Playwright headless browser extraction")
-	headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
+	// logger.DebugCtx(ctx, "Step 1: Attempting Playwright headless browser extraction")
+	// headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
 
-	logger.InfofCtx(ctx, "Playwright headless browser found %d links", len(headlessLinks))
+	// logger.InfofCtx(ctx, "Playwright headless browser found %d links", len(headlessLinks))
 
-	if err == nil && len(headlessLinks) > 0 {
-		logger.InfofCtx(ctx, "Playwright extraction successful - found %d links", len(headlessLinks))
-		return headlessLinks, nil
-	}
+	// if err == nil && len(headlessLinks) > 0 {
+	// 	logger.InfofCtx(ctx, "Playwright extraction successful - found %d links", len(headlessLinks))
+	// 	return headlessLinks, nil
+	// }
 
-	// Log Playwright failure reason
-	if err != nil {
-		if strings.Contains(err.Error(), "please install the driver") {
-			logger.WarnCtx(ctx, "Playwright not installed, trying next method")
-		} else {
-			logger.WarnfCtx(ctx, "Playwright extraction failed: %v - trying next method", err)
-		}
-	}
+	// // Log Playwright failure reason
+	// if err != nil {
+	// 	if strings.Contains(err.Error(), "please install the driver") {
+	// 		logger.WarnCtx(ctx, "Playwright not installed, trying next method")
+	// 	} else {
+	// 		logger.WarnfCtx(ctx, "Playwright extraction failed: %v - trying next method", err)
+	// 	}
+	// }
 
 	// Step 2: Try YourGPT API extraction as second fallback
 	logger.InfoCtx(ctx, "Step 2: Attempting YourGPT API extraction")
@@ -304,9 +350,23 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 
 	txLogger.Info().Msg("Starting headless browser extraction")
 
+	// Parse target URL to extract root domain for filtering
+	parsedTargetURL, err := url.Parse(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse target URL: %w", err)
+	}
+	rootHost := parsedTargetURL.Host
+	rootBaseDomain := getBaseDomain(rootHost)
+
+	txLogger.Debug().
+		Str("root_host", rootHost).
+		Str("root_base_domain", rootBaseDomain).
+		Msg("Extracted root domain information")
+
 	// Try headless browser extraction
 	var allLinks []discoveredLink
 	visited := make(map[string]bool)
+	failedURLs := make(map[string]string) // Track failed URLs and their error messages
 	toVisit := []struct {
 		url   string
 		depth int
@@ -316,11 +376,13 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		current := toVisit[0]
 		toVisit = toVisit[1:]
 
-		if current.depth > maxDepth || visited[current.url] {
+		// Normalize URL to check if we've already visited this page
+		normalizedURL := normalizeURLForDeduplication(current.url)
+		if current.depth > maxDepth || visited[normalizedURL] {
 			continue
 		}
 
-		visited[current.url] = true
+		visited[normalizedURL] = true
 
 		// Extract URLs from current page using headless browser
 		pageLogger := txLogger.With().
@@ -331,9 +393,11 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		pageLogger.Debug().Msg("Extracting URLs from page")
 		extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, current.url)
 		if err != nil {
-			pageLogger.Error().
+			// Log the error but continue processing other pages
+			pageLogger.Warn().
 				Err(err).
-				Msg("Failed to extract URLs from page")
+				Msg("Failed to extract URLs from page - continuing with other pages")
+			failedURLs[current.url] = err.Error()
 			continue
 		}
 
@@ -353,14 +417,49 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 		// Add discovered URLs for next depth level
 		if current.depth < maxDepth {
 			for _, urlInfo := range extractedURLs {
-				if !visited[urlInfo.URL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+				// Check if URL belongs to the same base domain as the root
+				parsedURL, parseErr := url.Parse(urlInfo.URL)
+				if parseErr != nil {
+					continue // Skip invalid URLs
+				}
+
+				// Only follow links on the same base domain (allows subdomains)
+				if !isSameBaseDomain(parsedURL.Host, rootHost) {
+					urlBaseDomain := getBaseDomain(parsedURL.Host)
+					pageLogger.Debug().
+						Str("url", urlInfo.URL).
+						Str("url_host", parsedURL.Host).
+						Str("url_base_domain", urlBaseDomain).
+						Str("root_base_domain", rootBaseDomain).
+						Msg("Skipping URL - different base domain")
+					continue
+				}
+
+				// Normalize URL for deduplication check
+				normalizedDiscoveredURL := normalizeURLForDeduplication(urlInfo.URL)
+				if !visited[normalizedDiscoveredURL] && s.shouldFollowLink(urlInfo.URL, current.url) {
+					// Visit the normalized URL (without query params)
 					toVisit = append(toVisit, struct {
 						url   string
 						depth int
-					}{urlInfo.URL, current.depth + 1})
+					}{normalizedDiscoveredURL, current.depth + 1})
 				}
 			}
 		}
+	}
+
+	// Log summary of the extraction
+	txLogger.Info().
+		Int("total_links_found", len(allLinks)).
+		Int("total_visited", len(visited)).
+		Int("total_failed", len(failedURLs)).
+		Msg("Headless browser extraction completed")
+
+	if len(failedURLs) > 0 {
+		txLogger.Warn().
+			Int("failed_count", len(failedURLs)).
+			Interface("failed_urls", failedURLs).
+			Msg("Some pages failed to load but extraction continued successfully")
 	}
 
 	return allLinks, nil
@@ -457,6 +556,126 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 
 	c.Wait()
 	return discoveredLinks, nil
+}
+
+// startScrapingJobWithStreamAndBrowser discovers links using depth-based strategy with shared browser
+func (s *WebScrapingService) startScrapingJobWithStreamAndBrowser(ctx context.Context, job *models.KnowledgeScrapingJob, sharedBrowser *SharedBrowserContext, maxDepth int, events chan<- ScrapingEvent) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	defer close(events)
+
+	var runErr error
+	logger.InfofCtx(ctx, "Starting scraping job with browser reuse - jobID: %s, URL: %s, maxDepth: %d", job.ID.String(), job.URL, maxDepth)
+
+	defer func() {
+		if runErr != nil {
+			errStr := runErr.Error()
+			logger.ErrorfCtx(ctx, runErr, "Scraping job failed: %v", runErr)
+
+			s.sendScrapingEvent(ctx, events, ScrapingEvent{
+				Type:      "error",
+				JobID:     job.ID,
+				Message:   errStr,
+				Timestamp: time.Now(),
+			})
+
+			if updateErr := s.knowledgeRepo.UpdateScrapingJobStatus(job.ID, "failed", &errStr); updateErr != nil {
+				logger.ErrorfCtx(ctx, updateErr, "Failed to update job status to failed: %v", updateErr)
+			}
+		}
+	}()
+
+	if runErr = s.knowledgeRepo.StartScrapingJob(job.ID); runErr != nil {
+		return
+	}
+
+	s.sendScrapingEvent(ctx, events, ScrapingEvent{
+		Type:      "started",
+		JobID:     job.ID,
+		Message:   fmt.Sprintf("Starting link discovery for %s (depth-based strategy)", job.URL),
+		URL:       job.URL,
+		MaxDepth:  job.MaxDepth,
+		Timestamp: time.Now(),
+	})
+
+	var discoveredLinks []discoveredLink
+
+	// Use Playwright for depth 0-1, Colly for depth 2+
+	if maxDepth <= 1 {
+		s.sendScrapingEvent(ctx, events, ScrapingEvent{
+			Type:      "info",
+			JobID:     job.ID,
+			Message:   "Using Playwright browser for shallow crawl (depth 0-1)",
+			Timestamp: time.Now(),
+		})
+
+		// Use Playwright with shared browser for depth 0-1
+		playwrightLinks, playwrightErr := s.extractURLsWithHeadlessBrowser(ctx, job.URL, job.MaxDepth)
+		if playwrightErr != nil {
+			runErr = fmt.Errorf("playwright extraction failed: %w", playwrightErr)
+			return
+		}
+
+		discoveredLinks = playwrightLinks
+	} else {
+		s.sendScrapingEvent(ctx, events, ScrapingEvent{
+			Type:      "info",
+			JobID:     job.ID,
+			Message:   "Using lightweight Colly for deep crawl (depth 2+)",
+			Timestamp: time.Now(),
+		})
+
+		// Use Colly for deeper crawls (more efficient)
+		collyLinks, collyErr := s.extractURLsManually(ctx, job.URL, job.MaxDepth)
+		if collyErr != nil {
+			runErr = fmt.Errorf("colly extraction failed: %w", collyErr)
+			return
+		}
+
+		discoveredLinks = collyLinks
+	}
+
+	// Stream discovered links
+	for _, link := range discoveredLinks {
+		s.sendScrapingEvent(ctx, events, ScrapingEvent{
+			Type:         "link_found",
+			JobID:        job.ID,
+			Message:      fmt.Sprintf("Found link: %s", link.Title),
+			URL:          link.URL,
+			CurrentDepth: link.Depth,
+			MaxDepth:     job.MaxDepth,
+			LinksFound:   len(discoveredLinks),
+			Timestamp:    time.Now(),
+		})
+	}
+
+	totalLinks := len(discoveredLinks)
+	if totalLinks == 0 {
+		runErr = fmt.Errorf("no links were discovered")
+		return
+	}
+
+	// Store discovered links in Redis
+	redisKey, persistErr := s.storeDiscoveredLinksInRedis(ctx, job, discoveredLinks)
+	if persistErr != nil {
+		runErr = fmt.Errorf("failed to store discovered links: %w", persistErr)
+		return
+	}
+
+	if err := s.knowledgeRepo.MarkJobAwaitingSelection(job.ID, totalLinks, redisKey); err != nil {
+		runErr = fmt.Errorf("failed to mark job awaiting selection: %w", err)
+		return
+	}
+
+	s.sendScrapingEvent(ctx, events, ScrapingEvent{
+		Type:       "completed",
+		JobID:      job.ID,
+		Message:    fmt.Sprintf("Link discovery completed! Found %d links. Ready for review.", totalLinks),
+		LinksFound: totalLinks,
+		Timestamp:  time.Now(),
+	})
+	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d, redis_key: %s", job.ID.String(), totalLinks, redisKey)
+	runErr = nil
 }
 
 // startScrapingJobWithStream discovers links with real-time progress streaming
@@ -964,8 +1183,8 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 		} else {
 			completed++
 			s.sendIndexingEvent(ctx, events, IndexingEvent{
-				Type:        "skipped",
-				Message:     "Duplicate content detected; skipping embedding",
+				Type:        "reused",
+				Message:     "Duplicate content detected; reusing existing embedding",
 				URL:         page.URL,
 				Completed:   completed,
 				Pending:     len(pagesForIndex) - completed,
@@ -1086,6 +1305,67 @@ func (s *WebScrapingService) cleanText(text string) string {
 	return strings.TrimSpace(text)
 }
 
+// getBaseDomain extracts the base domain from a host
+// e.g., "www.penify.dev" -> "penify.dev", "docs.penify.dev" -> "penify.dev"
+func getBaseDomain(host string) string {
+	// Remove port if present
+	if idx := strings.Index(host, ":"); idx != -1 {
+		host = host[:idx]
+	}
+
+	parts := strings.Split(host, ".")
+	if len(parts) <= 2 {
+		return host
+	}
+
+	// For hosts with 3+ parts, take the last 2 parts as the base domain
+	// This handles www.example.com, docs.example.com, etc.
+	return strings.Join(parts[len(parts)-2:], ".")
+}
+
+// isSameBaseDomain checks if two hosts belong to the same base domain
+func isSameBaseDomain(host1, host2 string) bool {
+	return getBaseDomain(host1) == getBaseDomain(host2)
+}
+
+// normalizeURLForDeduplication normalizes URLs for deduplication by:
+// - Removing query parameters and fragments
+// - Stripping "www." prefix from hostname
+// - Removing trailing slashes (except root)
+// - Converting to lowercase
+// Examples:
+//   - "https://WWW.Example.COM/Contact-Us/?ref=A#top" -> "https://example.com/contact-us"
+//   - "http://www.example.com/about/" -> "http://example.com/about"
+//   - "https://example.com/page" -> "https://example.com/page"
+func normalizeURLForDeduplication(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	// Remove query parameters and fragment
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	// Strip "www." prefix from hostname (case-insensitive)
+	host := strings.ToLower(parsed.Host)
+	if strings.HasPrefix(host, "www.") {
+		parsed.Host = strings.TrimPrefix(host, "www.")
+	} else {
+		parsed.Host = host
+	}
+
+	// Normalize trailing slash (except for root path)
+	if parsed.Path != "/" && strings.HasSuffix(parsed.Path, "/") {
+		parsed.Path = strings.TrimSuffix(parsed.Path, "/")
+	}
+
+	// Lowercase the path for consistency
+	parsed.Path = strings.ToLower(parsed.Path)
+
+	return parsed.String()
+}
+
 // shouldFollowLink determines if a link should be followed
 func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 	parsedLink, err := url.Parse(linkURL)
@@ -1098,24 +1378,50 @@ func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 		return false
 	}
 
-	// Only follow links on the same domain
-	if parsedLink.Host != parsedCurrent.Host {
+	// Only follow links on the same base domain (allows subdomains like docs.penify.dev, www.penify.dev)
+	if !isSameBaseDomain(parsedLink.Host, parsedCurrent.Host) {
 		return false
 	}
 
-	// Skip certain file types
+	// Skip certain file types and problematic patterns
 	path := strings.ToLower(parsedLink.Path)
-	skipExtensions := []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".tar", ".gz", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".mp4", ".mp3", ".avi", ".mov"}
+
+	skipKeyWords := []string{
+		"logout", "signout", "subscribe", "unsubscribe", "cart", "checkout", "min.js", "jquery", "bootstrap", "analytics", "facebook", "twitter", "linkedin", "instagram", "mailto:", "tel:", "javascript:", "cloudflareinsights", "visualwebsiteoptimizer", "hotjar", "googletagmanager", "google-analytics", "blogs",
+	}
+
+	for _, skipKeyWord := range skipKeyWords {
+		if strings.Contains(currentURL, skipKeyWord) {
+			fmt.Println("Failed URL: "+currentURL, " due to extension ", skipKeyWord)
+			return false
+		}
+	}
+
+	skipExtensions := []string{
+		// Documents
+		".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+		// Archives
+		".zip", ".tar", ".gz", ".rar", ".7z",
+		// Media files
+		".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
+		".mp4", ".mp3", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".wav",
+		// Manifests and configs
+		".webmanifest", ".manifest", ".json", ".xml", ".rss",
+		// Other
+		".css", ".js", ".woff", ".woff2", ".ttf", ".eot",
+	}
 	for _, ext := range skipExtensions {
-		if strings.HasSuffix(path, ext) {
+		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+"?") || strings.Contains(path, ext+"#") || strings.Contains(path, ext+"&") || strings.Contains(path, ext+";") || strings.Contains(path, ext+",") || strings.Contains(path, ext+"/") {
+			fmt.Println("Failed URL: "+linkURL, " due to extension ", ext)
 			return false
 		}
 	}
 
 	// Skip common non-content paths
-	skipPaths := []string{"/admin", "/api", "/login", "/register", "/download", "/upload"}
+	skipPaths := []string{"/admin", "/api", "/login", "/register", "/download", "/upload", "site.webmanifest"}
 	for _, skipPath := range skipPaths {
 		if strings.Contains(path, skipPath) {
+			fmt.Println("Failed URL: "+linkURL, " due to path ", skipPath)
 			return false
 		}
 	}
@@ -1199,6 +1505,489 @@ func (s *WebScrapingService) GetJobPages(ctx context.Context, jobID, tenantID, p
 	return s.knowledgeRepo.GetJobPages(jobID, tenantID, projectID)
 }
 
+// extractPageWithColly extracts URLs, title, and content from a page using Colly (lightweight, fast)
+func (s *WebScrapingService) extractPageWithColly(ctx context.Context, targetURL string) ([]ExtractedURLInfo, string, string, error) {
+	var pageTitle string
+	var pageContent string
+	var htmlContent []byte
+	var extractErr error
+
+	c := colly.NewCollector(
+		colly.UserAgent(s.config.ScrapeUserAgent),
+	)
+	c.SetRequestTimeout(s.config.ScrapeTimeout)
+
+	// Extract title and content
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		// Extract title
+		pageTitle = e.ChildText("title")
+		if pageTitle == "" {
+			pageTitle = e.ChildText("h1")
+		}
+		pageTitle = strings.TrimSpace(pageTitle)
+
+		// Extract text content for knowledge base
+		pageContent = s.extractTextContent(e)
+
+		// Store raw HTML for URL extraction
+		htmlContent = []byte(e.Response.Body)
+	})
+
+	c.OnError(func(r *colly.Response, err error) {
+		extractErr = err
+	})
+
+	// Visit the URL
+	if err := c.Visit(targetURL); err != nil {
+		return nil, "", "", fmt.Errorf("failed to visit URL with Colly: %w", err)
+	}
+
+	c.Wait()
+
+	if extractErr != nil {
+		return nil, "", "", fmt.Errorf("colly extraction error: %w", extractErr)
+	}
+
+	// Extract URLs using ComprehensiveURLExtractor
+	extractor, err := NewComprehensiveURLExtractor(targetURL)
+	if err != nil {
+		return nil, pageTitle, pageContent, fmt.Errorf("failed to create URL extractor: %w", err)
+	}
+
+	// Get URLs from HTML
+	urlStrings := extractor.ExtractURLsFromHTML(htmlContent, targetURL)
+
+	// Convert to ExtractedURLInfo format
+	extractedURLs := make([]ExtractedURLInfo, 0, len(urlStrings))
+	for _, urlStr := range urlStrings {
+		extractedURLs = append(extractedURLs, ExtractedURLInfo{
+			URL:    urlStr,
+			Source: "colly",
+		})
+	}
+
+	return extractedURLs, pageTitle, pageContent, nil
+}
+
+// extractPageWithPlaywright extracts URLs, title, and content using Playwright with optional shared browser
+func (s *WebScrapingService) extractPageWithPlaywright(ctx context.Context, targetURL string, sharedBrowser *SharedBrowserContext) ([]ExtractedURLInfo, string, string, error) {
+	// Extract URLs
+	extractedURLs, err := s.headlessBrowserExtractor.ExtractURLsFromPage(ctx, targetURL)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("playwright URL extraction failed: %w", err)
+	}
+
+	// Extract title and content
+	title, _ := s.headlessBrowserExtractor.GetPageTitle(ctx, targetURL)
+	content, _ := s.headlessBrowserExtractor.GetPageContent(ctx, targetURL)
+
+	return extractedURLs, title, content, nil
+}
+
+// urlWorkItem represents a URL to be processed with its depth
+type urlWorkItem struct {
+	url   string
+	depth int
+}
+
+// extractionResult represents the result of extracting a single page
+type extractionResult struct {
+	url          string
+	depth        int
+	title        string
+	content      string
+	tokenCount   int
+	extractedURLs []ExtractedURLInfo
+	err          error
+}
+
+// DepthMetrics represents performance metrics for a single depth level
+type DepthMetrics struct {
+	Depth              int           `json:"depth"`
+	URLsProcessed      int           `json:"urls_processed"`
+	URLsFailed         int           `json:"urls_failed"`
+	URLsDiscovered     int           `json:"urls_discovered"`
+	WorkerCount        int           `json:"worker_count"`
+	Method             string        `json:"method"` // "playwright" or "colly"
+	StartTime          time.Time     `json:"start_time"`
+	EndTime            time.Time     `json:"end_time"`
+	Duration           time.Duration `json:"duration"`
+	AvgProcessingTime  time.Duration `json:"avg_processing_time"`
+	TotalTokens        int           `json:"total_tokens"`
+}
+
+// CrawlMetrics represents overall performance metrics for the entire crawl
+type CrawlMetrics struct {
+	TotalURLsProcessed   int            `json:"total_urls_processed"`
+	TotalURLsFailed      int            `json:"total_urls_failed"`
+	TotalURLsDiscovered  int            `json:"total_urls_discovered"`
+	TotalTokens          int            `json:"total_tokens"`
+	StartTime            time.Time      `json:"start_time"`
+	EndTime              time.Time      `json:"end_time"`
+	TotalDuration        time.Duration  `json:"total_duration"`
+	DepthMetrics         []DepthMetrics `json:"depth_metrics"`
+	PlaywrightURLs       int            `json:"playwright_urls"`
+	CollyURLs            int            `json:"colly_urls"`
+	PlaywrightTime       time.Duration  `json:"playwright_time"`
+	CollyTime            time.Duration  `json:"colly_time"`
+	AvgURLsPerSecond     float64        `json:"avg_urls_per_second"`
+}
+
+// ExtractURLsWithStream extracts URLs from a website and streams progress for debugging
+// Uses a hybrid approach with parallel processing:
+// - Playwright (2-5 workers) for depth 0-1
+// - Colly (10-20 workers) for depth >= 2
+func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent, sharedBrowser *SharedBrowserContext) error {
+	defer close(events)
+
+	// Validate URL
+	if err := s.validateURL(targetURL); err != nil {
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:      "error",
+			Message:   fmt.Sprintf("Invalid URL: %v", err),
+			Timestamp: time.Now(),
+		})
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Parse target URL to extract root domain
+	parsedTargetURL, err := url.Parse(targetURL)
+	if err != nil {
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:      "error",
+			Message:   fmt.Sprintf("Failed to parse URL: %v", err),
+			Timestamp: time.Now(),
+		})
+		return fmt.Errorf("failed to parse target URL: %w", err)
+	}
+	rootHost := parsedTargetURL.Host
+	rootBaseDomain := getBaseDomain(rootHost)
+
+	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+		Type:      "started",
+		Message:   fmt.Sprintf("Starting parallel URL extraction for %s (depth: %d, base domain: %s)", targetURL, maxDepth, rootBaseDomain),
+		URL:       targetURL,
+		MaxDepth:  maxDepth,
+		Timestamp: time.Now(),
+	})
+
+	// Shared state (protected by mutexes)
+	var mu sync.Mutex
+	var allURLs []string
+	var allLinks []discoveredLink
+	visited := make(map[string]bool)
+	failedURLs := make(map[string]string)
+
+	// Initialize performance metrics
+	crawlStartTime := time.Now()
+	var crawlMetrics CrawlMetrics
+	crawlMetrics.StartTime = crawlStartTime
+	crawlMetrics.DepthMetrics = []DepthMetrics{}
+
+	// Initialize with root URL
+	currentLevel := []urlWorkItem{{url: targetURL, depth: 0}}
+
+	// Process URLs level by level (BFS) with parallel workers per level
+	for len(currentLevel) > 0 && currentLevel[0].depth <= maxDepth {
+		currentDepth := currentLevel[0].depth
+
+		// Determine worker count from config based on depth
+		// Playwright (depth 0-1): Use configured playwright worker count
+		// Colly (depth >= 2): Use configured colly worker count
+		workerCount := s.config.PlaywrightWorkerCount
+		if currentDepth >= 2 {
+			workerCount = s.config.CollyWorkerCount
+		}
+
+		// Fallback to defaults if config not set
+		if workerCount <= 0 {
+			workerCount = 3
+			if currentDepth >= 2 {
+				workerCount = 15
+			}
+		}
+
+		// Initialize depth metrics
+		depthStartTime := time.Now()
+		method := "playwright"
+		if currentDepth >= 2 {
+			method = "colly"
+		}
+
+		s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+			Type:         "info",
+			Message:      fmt.Sprintf("Processing depth %d with %d parallel workers (%d URLs queued)", currentDepth, workerCount, len(currentLevel)),
+			CurrentDepth: currentDepth,
+			MaxDepth:     maxDepth,
+			Timestamp:    time.Now(),
+		})
+
+		// Create work channel and results channel
+		workChan := make(chan urlWorkItem, len(currentLevel))
+		resultsChan := make(chan extractionResult, len(currentLevel))
+
+		// Add work items to channel
+		for _, item := range currentLevel {
+			normalizedURL := normalizeURLForDeduplication(item.url)
+
+			mu.Lock()
+			alreadyVisited := visited[normalizedURL]
+			if !alreadyVisited {
+				visited[normalizedURL] = true
+			}
+			mu.Unlock()
+
+			if !alreadyVisited {
+				workChan <- item
+			}
+		}
+		close(workChan)
+
+		// Start worker pool
+		var wg sync.WaitGroup
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func(workerID int) {
+				defer wg.Done()
+
+				for item := range workChan {
+					s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+						Type:         "visiting",
+						Message:      fmt.Sprintf("Worker %d visiting: %s", workerID, item.url),
+						URL:          item.url,
+						CurrentDepth: item.depth,
+						MaxDepth:     maxDepth,
+						Timestamp:    time.Now(),
+					})
+
+					// Extract based on depth
+					var extractedURLs []ExtractedURLInfo
+					var title, content string
+					var err error
+
+					if item.depth <= 1 {
+						extractedURLs, title, content, err = s.extractPageWithPlaywright(ctx, item.url, sharedBrowser)
+					} else {
+						extractedURLs, title, content, err = s.extractPageWithColly(ctx, item.url)
+					}
+
+					tokenCount := s.estimateTokenCount(content)
+
+					resultsChan <- extractionResult{
+						url:           item.url,
+						depth:         item.depth,
+						title:         title,
+						content:       content,
+						tokenCount:    tokenCount,
+						extractedURLs: extractedURLs,
+						err:           err,
+					}
+
+					logger.GetTxLogger(ctx).Info().
+						Str("url", item.url).
+						Int("depth", item.depth).
+						Int("worker", workerID).
+						Int("extracted_urls", len(extractedURLs)).
+						Str("method", map[bool]string{true: "playwright", false: "colly"}[item.depth <= 1]).
+						Msg("worker completed extraction")
+				}
+			}(i)
+		}
+
+		// Close results channel when all workers are done
+		go func() {
+			wg.Wait()
+			close(resultsChan)
+		}()
+
+		// Collect results and prepare next level
+		var nextLevel []urlWorkItem
+		depthURLsProcessed := 0
+		depthURLsFailed := 0
+		depthURLsDiscovered := 0
+		depthTotalTokens := 0
+
+		for result := range resultsChan {
+			depthURLsProcessed++
+			if result.err != nil {
+				depthURLsFailed++
+				mu.Lock()
+				failedURLs[result.url] = result.err.Error()
+				mu.Unlock()
+
+				s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+					Type:         "warning",
+					Message:      fmt.Sprintf("Failed to extract from %s: %v", result.url, result.err),
+					URL:          result.url,
+					CurrentDepth: result.depth,
+					Timestamp:    time.Now(),
+				})
+				continue
+			}
+
+			depthTotalTokens += result.tokenCount
+
+			// Add to results (thread-safe)
+			mu.Lock()
+			allLinks = append(allLinks, discoveredLink{
+				URL:        result.url,
+				Title:      result.title,
+				Depth:      result.depth,
+				TokenCount: result.tokenCount,
+			})
+			allURLs = append(allURLs, result.url)
+			currentLinksCount := len(allURLs)
+			mu.Unlock()
+
+			s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+				Type:         "url_found",
+				Message:      fmt.Sprintf("Found: %s (depth: %d)", result.title, result.depth),
+				URL:          result.url,
+				CurrentDepth: result.depth,
+				LinksFound:   currentLinksCount,
+				Timestamp:    time.Now(),
+			})
+
+			// Process discovered URLs for next level
+			if result.depth < maxDepth {
+				newURLsCount := 0
+				skippedSubdomains := 0
+
+				for _, urlInfo := range result.extractedURLs {
+					parsedURL, parseErr := url.Parse(urlInfo.URL)
+					if parseErr != nil {
+						continue
+					}
+
+					if !isSameBaseDomain(parsedURL.Host, rootHost) {
+						skippedSubdomains++
+						continue
+					}
+
+					normalizedDiscoveredURL := normalizeURLForDeduplication(urlInfo.URL)
+
+					mu.Lock()
+					alreadyVisited := visited[normalizedDiscoveredURL]
+					mu.Unlock()
+
+					if !alreadyVisited && s.shouldFollowLink(urlInfo.URL, result.url) {
+						nextLevel = append(nextLevel, urlWorkItem{
+							url:   normalizedDiscoveredURL,
+							depth: result.depth + 1,
+						})
+						newURLsCount++
+						depthURLsDiscovered++
+					}
+				}
+
+				if newURLsCount > 0 {
+					s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+						Type:         "info",
+						Message:      fmt.Sprintf("Discovered %d new URLs from %s (filtered %d external)", newURLsCount, result.url, skippedSubdomains),
+						CurrentDepth: result.depth,
+						Timestamp:    time.Now(),
+					})
+				}
+			}
+		}
+
+		// Move to next level
+		currentLevel = nextLevel
+
+		// Calculate depth metrics
+		depthEndTime := time.Now()
+		depthDuration := depthEndTime.Sub(depthStartTime)
+		avgProcessingTime := time.Duration(0)
+		if depthURLsProcessed > 0 {
+			avgProcessingTime = depthDuration / time.Duration(depthURLsProcessed)
+		}
+
+		depthMetric := DepthMetrics{
+			Depth:             currentDepth,
+			URLsProcessed:     depthURLsProcessed,
+			URLsFailed:        depthURLsFailed,
+			URLsDiscovered:    depthURLsDiscovered,
+			WorkerCount:       workerCount,
+			Method:            method,
+			StartTime:         depthStartTime,
+			EndTime:           depthEndTime,
+			Duration:          depthDuration,
+			AvgProcessingTime: avgProcessingTime,
+			TotalTokens:       depthTotalTokens,
+		}
+
+		// Update crawl metrics
+		crawlMetrics.DepthMetrics = append(crawlMetrics.DepthMetrics, depthMetric)
+		crawlMetrics.TotalTokens += depthTotalTokens
+		if method == "playwright" {
+			crawlMetrics.PlaywrightURLs += depthURLsProcessed
+			crawlMetrics.PlaywrightTime += depthDuration
+		} else {
+			crawlMetrics.CollyURLs += depthURLsProcessed
+			crawlMetrics.CollyTime += depthDuration
+		}
+
+		mu.Lock()
+		totalFound := len(allURLs)
+		mu.Unlock()
+
+		// Send depth completion event with metrics (if enabled)
+		event := URLExtractionEvent{
+			Type:         "info",
+			Message:      fmt.Sprintf("Completed depth %d in %v. Processed: %d, Failed: %d, Discovered: %d. Total URLs: %d", currentDepth, depthDuration.Round(time.Millisecond), depthURLsProcessed, depthURLsFailed, depthURLsDiscovered, totalFound),
+			CurrentDepth: currentDepth,
+			LinksFound:   totalFound,
+			Timestamp:    time.Now(),
+		}
+
+		if s.config.EnablePerformanceMetrics {
+			event.DepthMetrics = &depthMetric
+		}
+
+		s.sendURLExtractionEvent(ctx, events, event)
+	}
+
+	// Calculate final crawl metrics
+	crawlMetrics.EndTime = time.Now()
+	crawlMetrics.TotalDuration = crawlMetrics.EndTime.Sub(crawlMetrics.StartTime)
+	crawlMetrics.TotalURLsProcessed = len(allURLs)
+	crawlMetrics.TotalURLsFailed = len(failedURLs)
+	crawlMetrics.TotalURLsDiscovered = len(allURLs)
+
+	// Calculate average URLs per second
+	if crawlMetrics.TotalDuration.Seconds() > 0 {
+		crawlMetrics.AvgURLsPerSecond = float64(crawlMetrics.TotalURLsProcessed) / crawlMetrics.TotalDuration.Seconds()
+	}
+
+	// Send final summary with metrics
+	completionEvent := URLExtractionEvent{
+		Type:       "completed",
+		Message:    fmt.Sprintf("URL extraction completed in %v. Found %d URLs from base domain %s (Playwright: %d URLs in %v, Colly: %d URLs in %v, Avg: %.2f URLs/sec)", crawlMetrics.TotalDuration.Round(time.Millisecond), len(allURLs), rootBaseDomain, crawlMetrics.PlaywrightURLs, crawlMetrics.PlaywrightTime.Round(time.Millisecond), crawlMetrics.CollyURLs, crawlMetrics.CollyTime.Round(time.Millisecond), crawlMetrics.AvgURLsPerSecond),
+		LinksFound: len(allURLs),
+		URLs:       allURLs,
+		FailedURLs: failedURLs,
+		Timestamp:  time.Now(),
+	}
+
+	if s.config.EnablePerformanceMetrics {
+		completionEvent.Metrics = &crawlMetrics
+	}
+
+	s.sendURLExtractionEvent(ctx, events, completionEvent)
+
+	return nil
+}
+
+// sendURLExtractionEvent safely sends an event to the channel
+func (s *WebScrapingService) sendURLExtractionEvent(ctx context.Context, ch chan<- URLExtractionEvent, event URLExtractionEvent) {
+	select {
+	case <-ctx.Done():
+		return
+	case ch <- event:
+		return
+	}
+}
+
 // WebsiteThemeData represents extracted website theme information
 type WebsiteThemeData struct {
 	Colors         []string `json:"colors"`
@@ -1235,6 +2024,90 @@ func (w *WebsiteThemeData) GetMetaDesc() string {
 	return w.MetaDesc
 }
 
+// ScrapeWebsiteThemeWithBrowser extracts theme information using an optional shared browser context
+func (s *WebScrapingService) ScrapeWebsiteThemeWithBrowser(ctx context.Context, targetURL string, sharedBrowser *SharedBrowserContext) (*WebsiteThemeData, *SharedBrowserContext, error) {
+	// Validate URL
+	if err := s.validateURL(targetURL); err != nil {
+		return nil, sharedBrowser, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	var themeMap map[string]interface{}
+	var err error
+
+	// Use shared browser if provided, otherwise create new
+	if sharedBrowser != nil {
+		themeMap, err = s.headlessBrowserExtractor.ExtractThemeDataWithBrowser(ctx, targetURL, sharedBrowser)
+	} else {
+		// Create new browser instance for this request
+		sharedBrowser, err = s.headlessBrowserExtractor.CreateSharedBrowserContext(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create browser context: %w", err)
+		}
+		themeMap, err = s.headlessBrowserExtractor.ExtractThemeDataWithBrowser(ctx, targetURL, sharedBrowser)
+	}
+
+	if err != nil {
+		// Fallback to Colly if Playwright fails
+		logger.GetTxLogger(ctx).Warn().
+			Err(err).
+			Str("url", targetURL).
+			Msg("Playwright theme extraction failed, falling back to Colly")
+		themeData, collyErr := s.scrapeThemeWithColly(ctx, targetURL)
+		return themeData, sharedBrowser, collyErr
+	}
+
+	// Convert map to WebsiteThemeData
+	themeData := &WebsiteThemeData{
+		Colors:         []string{},
+		BackgroundHues: []string{},
+		FontFamilies:   []string{},
+	}
+
+	if pageTitle, ok := themeMap["pageTitle"].(string); ok {
+		themeData.PageTitle = pageTitle
+	}
+
+	if metaDesc, ok := themeMap["metaDescription"].(string); ok {
+		themeData.MetaDesc = metaDesc
+	}
+
+	if brandName, ok := themeMap["brandName"].(string); ok {
+		themeData.BrandName = brandName
+	}
+
+	if colors, ok := themeMap["colors"].([]interface{}); ok {
+		for _, c := range colors {
+			if colorStr, ok := c.(string); ok {
+				themeData.Colors = append(themeData.Colors, colorStr)
+			}
+		}
+	}
+
+	if bgColors, ok := themeMap["backgroundColors"].([]interface{}); ok {
+		for _, c := range bgColors {
+			if colorStr, ok := c.(string); ok {
+				themeData.BackgroundHues = append(themeData.BackgroundHues, colorStr)
+			}
+		}
+	}
+
+	if fonts, ok := themeMap["fontFamilies"].([]interface{}); ok {
+		for _, f := range fonts {
+			if fontStr, ok := f.(string); ok {
+				themeData.FontFamilies = append(themeData.FontFamilies, fontStr)
+			}
+		}
+	}
+
+	// Store CSS variables as JSON string
+	if cssVars, ok := themeMap["cssVariables"].(map[string]interface{}); ok {
+		cssVarsJSON, _ := json.Marshal(cssVars)
+		themeData.CSS = string(cssVarsJSON)
+	}
+
+	return themeData, sharedBrowser, nil
+}
+
 // ScrapeWebsiteTheme extracts theme information from a website for AI analysis
 func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL string) (*WebsiteThemeData, error) {
 	// Validate URL
@@ -1242,6 +2115,71 @@ func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL s
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
+	// Use Playwright for comprehensive theme extraction
+	themeMap, err := s.headlessBrowserExtractor.ExtractThemeData(ctx, targetURL)
+	if err != nil {
+		// Fallback to Colly if Playwright fails
+		logger.GetTxLogger(ctx).Warn().
+			Err(err).
+			Str("url", targetURL).
+			Msg("Playwright theme extraction failed, falling back to Colly")
+		return s.scrapeThemeWithColly(ctx, targetURL)
+	}
+
+	// Convert map to WebsiteThemeData
+	themeData := &WebsiteThemeData{
+		Colors:         []string{},
+		BackgroundHues: []string{},
+		FontFamilies:   []string{},
+	}
+
+	if pageTitle, ok := themeMap["pageTitle"].(string); ok {
+		themeData.PageTitle = pageTitle
+	}
+
+	if metaDesc, ok := themeMap["metaDescription"].(string); ok {
+		themeData.MetaDesc = metaDesc
+	}
+
+	if brandName, ok := themeMap["brandName"].(string); ok {
+		themeData.BrandName = brandName
+	}
+
+	if colors, ok := themeMap["colors"].([]interface{}); ok {
+		for _, c := range colors {
+			if colorStr, ok := c.(string); ok {
+				themeData.Colors = append(themeData.Colors, colorStr)
+			}
+		}
+	}
+
+	if bgColors, ok := themeMap["backgroundColors"].([]interface{}); ok {
+		for _, c := range bgColors {
+			if colorStr, ok := c.(string); ok {
+				themeData.BackgroundHues = append(themeData.BackgroundHues, colorStr)
+			}
+		}
+	}
+
+	if fonts, ok := themeMap["fontFamilies"].([]interface{}); ok {
+		for _, f := range fonts {
+			if fontStr, ok := f.(string); ok {
+				themeData.FontFamilies = append(themeData.FontFamilies, fontStr)
+			}
+		}
+	}
+
+	// Store CSS variables as JSON string
+	if cssVars, ok := themeMap["cssVariables"].(map[string]interface{}); ok {
+		cssVarsJSON, _ := json.Marshal(cssVars)
+		themeData.CSS = string(cssVarsJSON)
+	}
+
+	return themeData, nil
+}
+
+// scrapeThemeWithColly is a fallback method using Colly (original implementation)
+func (s *WebScrapingService) scrapeThemeWithColly(ctx context.Context, targetURL string) (*WebsiteThemeData, error) {
 	themeData := &WebsiteThemeData{
 		Colors:         []string{},
 		BackgroundHues: []string{},
