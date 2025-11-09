@@ -746,3 +746,152 @@ func (r *KnowledgeRepository) ListFAQItems(ctx context.Context, tenantID, projec
 
 	return items, nil
 }
+
+// GetExistingPagesByTenantAndURLs retrieves existing pages for given URLs within a tenant
+// Returns URL, content_hash, id, and embedding for deduplication checks
+func (r *KnowledgeRepository) GetExistingPagesByTenantAndURLs(ctx context.Context, tenantID uuid.UUID, urls []string) (map[string]*models.KnowledgeScrapedPage, error) {
+	if len(urls) == 0 {
+		return make(map[string]*models.KnowledgeScrapedPage), nil
+	}
+
+	query := `
+		SELECT id, url, content_hash, embedding, title, content, token_count
+		FROM knowledge_scraped_pages
+		WHERE tenant_id = $1 AND url = ANY($2)`
+
+	var pages []*models.KnowledgeScrapedPage
+	err := r.db.SelectContext(ctx, &pages, query, tenantID, pq.Array(urls))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query existing pages: %w", err)
+	}
+
+	// Create map keyed by URL for fast lookup
+	pageMap := make(map[string]*models.KnowledgeScrapedPage)
+	for _, page := range pages {
+		pageMap[page.URL] = page
+	}
+
+	return pageMap, nil
+}
+
+// CreateScrapedPageWithTenantID creates a new scraped page with tenant_id
+// job_id can be nil for widget-created pages (tracked via widget_knowledge_pages instead)
+func (r *KnowledgeRepository) CreateScrapedPageWithTenantID(ctx context.Context, page *models.KnowledgeScrapedPage, tenantID uuid.UUID) error {
+	query := `
+		INSERT INTO knowledge_scraped_pages (
+			id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+		)`
+
+	_, err := r.db.ExecContext(ctx, query,
+		page.ID, page.JobID, tenantID, page.URL, page.Title,
+		page.Content, page.ContentHash, page.TokenCount,
+		page.Embedding, page.Metadata, page.ScrapedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create scraped page: %w", err)
+	}
+
+	return nil
+}
+
+// CreateScrapedPagesWithTenantID bulk creates scraped pages with tenant_id
+func (r *KnowledgeRepository) CreateScrapedPagesWithTenantID(ctx context.Context, pages []*models.KnowledgeScrapedPage, tenantID uuid.UUID) error {
+	if len(pages) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		INSERT INTO knowledge_scraped_pages (
+			id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+		)`
+
+	for _, page := range pages {
+		_, err := tx.ExecContext(ctx, query,
+			page.ID, page.JobID, tenantID, page.URL, page.Title, page.Content,
+			page.ContentHash, page.TokenCount, page.Embedding, page.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to insert scraped page: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// CreateWidgetKnowledgePageMappings creates associations between a widget and knowledge pages
+func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Context, widgetID uuid.UUID, pageIDs []uuid.UUID) error {
+	if len(pageIDs) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		INSERT INTO widget_knowledge_pages (widget_id, page_id)
+		VALUES ($1, $2)
+		ON CONFLICT (widget_id, page_id) DO NOTHING`
+
+	for _, pageID := range pageIDs {
+		_, err := tx.ExecContext(ctx, query, widgetID, pageID)
+		if err != nil {
+			return fmt.Errorf("failed to create widget-page mapping: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// GetWidgetKnowledgePages retrieves all knowledge pages associated with a widget
+func (r *KnowledgeRepository) GetWidgetKnowledgePages(ctx context.Context, widgetID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
+	query := `
+		SELECT ksp.*
+		FROM knowledge_scraped_pages ksp
+		JOIN widget_knowledge_pages wkp ON ksp.id = wkp.page_id
+		WHERE wkp.widget_id = $1
+		ORDER BY wkp.created_at DESC`
+
+	var pages []*models.KnowledgeScrapedPage
+	err := r.db.SelectContext(ctx, &pages, query, widgetID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []*models.KnowledgeScrapedPage{}, nil
+		}
+		return nil, err
+	}
+
+	return pages, nil
+}
+
+// UpdatePageContentAndEmbedding updates an existing page's content, content_hash, and embedding
+// Used when a URL's content has changed - preserves the page ID and original job_id
+func (r *KnowledgeRepository) UpdatePageContentAndEmbedding(ctx context.Context, pageID uuid.UUID, title, content, contentHash string, embedding pgvector.Vector, tokenCount int) error {
+	query := `
+		UPDATE knowledge_scraped_pages
+		SET title = $2,
+		    content = $3,
+		    content_hash = $4,
+		    embedding = $5,
+		    token_count = $6,
+		    scraped_at = NOW()
+		WHERE id = $1`
+
+	_, err := r.db.ExecContext(ctx, query, pageID, title, content, contentHash, embedding, tokenCount)
+	if err != nil {
+		return fmt.Errorf("failed to update page: %w", err)
+	}
+
+	return nil
+}

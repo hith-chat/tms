@@ -1116,7 +1116,7 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 
 		page := &models.KnowledgeScrapedPage{
 			ID:         uuid.New(),
-			JobID:      jobID,
+			JobID:      uuid.NullUUID{UUID: jobID, Valid: true},
 			URL:        url,
 			Content:    content,
 			TokenCount: tokenCount,
@@ -2467,7 +2467,7 @@ func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, 
 	// Create a knowledge scraped page record
 	page := &models.KnowledgeScrapedPage{
 		ID:         uuid.New(),
-		JobID:      jobID,
+		JobID:      uuid.NullUUID{UUID: jobID, Valid: true},
 		URL:        url,
 		Content:    content,
 		TokenCount: tokenCount,
@@ -2478,6 +2478,66 @@ func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, 
 	// Store in database
 	if err := s.knowledgeRepo.CreateScrapedPage(page); err != nil {
 		return fmt.Errorf("failed to store page in vector DB: %w", err)
+	}
+
+	return nil
+}
+
+// StorePageInVectorDBWithTenantID stores a scraped page with tenant_id for cross-project deduplication
+// Returns the created page ID
+// Note: Sets job_id to nil for widget-created pages (tracked via widget_knowledge_pages instead)
+func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context, tenantID, projectID uuid.UUID, url, content string, embedding pgvector.Vector, jobID uuid.UUID) (uuid.UUID, error) {
+	// Calculate content hash
+	hash := sha256.Sum256([]byte(content))
+	contentHash := fmt.Sprintf("%x", hash)
+
+	// Calculate token count
+	tokenCount := len(strings.Fields(content))
+
+	// Extract title (first line or URL)
+	title := url
+	lines := strings.Split(content, "\n")
+	if len(lines) > 0 && len(lines[0]) > 0 {
+		title = strings.TrimSpace(lines[0])
+		if len(title) > 100 {
+			title = title[:100]
+		}
+	}
+
+	// Create a knowledge scraped page record
+	// job_id is set to nil for widget pages - they're tracked via widget_knowledge_pages
+	page := &models.KnowledgeScrapedPage{
+		ID:          uuid.New(),
+		JobID:       uuid.NullUUID{Valid: false}, // nil for widget pages
+		URL:         url,
+		Title:       &title,
+		Content:     content,
+		ContentHash: &contentHash,
+		TokenCount:  tokenCount,
+		ScrapedAt:   time.Now(),
+		Embedding:   &embedding,
+	}
+
+	// Store in database with tenant_id
+	if err := s.knowledgeRepo.CreateScrapedPageWithTenantID(ctx, page, tenantID); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to store page in vector DB: %w", err)
+	}
+
+	return page.ID, nil
+}
+
+// UpdatePageInVectorDB updates an existing page's content and embedding when content has changed
+func (s *WebScrapingService) UpdatePageInVectorDB(ctx context.Context, pageID uuid.UUID, title, content string, embedding pgvector.Vector) error {
+	// Calculate content hash
+	hash := sha256.Sum256([]byte(content))
+	contentHash := fmt.Sprintf("%x", hash)
+
+	// Calculate token count
+	tokenCount := len(strings.Fields(content))
+
+	// Update the existing page
+	if err := s.knowledgeRepo.UpdatePageContentAndEmbedding(ctx, pageID, title, content, contentHash, embedding, tokenCount); err != nil {
+		return fmt.Errorf("failed to update page in vector DB: %w", err)
 	}
 
 	return nil

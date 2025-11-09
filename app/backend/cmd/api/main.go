@@ -251,6 +251,9 @@ func main() {
 	go func() {
 		log.Printf("Server starting on the port %s", cfg.Server.Port)
 		log.Printf("AI provider %s", cfg.AI.Provider)
+		log.Printf("URL Ranking Model provider %s", cfg.AI.UrlRankingModel)
+		log.Printf("BB AI API Key %s", cfg.AI.APIKey)
+		log.Printf("Theme Extraction Model %s", cfg.AI.ThemeExtractionModel)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}

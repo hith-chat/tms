@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pgvector/pgvector-go"
 
 	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
@@ -237,7 +238,16 @@ Response:`
 	return rankedURLs, nil
 }
 
-// embedAndStoreTop8 reads content from files, generates embeddings, and stores in pgvector
+// PageContentInfo holds URL content and calculated hash
+type PageContentInfo struct {
+	URL         string
+	Content     string
+	Title       string
+	ContentHash string
+}
+
+// embedAndStoreTop8 reads content from files, generates embeddings with deduplication, and stores in pgvector
+// Implements content-hash based deduplication to avoid regenerating embeddings for unchanged content
 func (s *PublicAIBuilderService) embedAndStoreTop8(
 	ctx context.Context,
 	tenantID, projectID, widgetID, jobID uuid.UUID,
@@ -245,13 +255,8 @@ func (s *PublicAIBuilderService) embedAndStoreTop8(
 	workDir string,
 	events chan<- AIBuilderEvent,
 ) error {
-	// Read content from files for top 8 URLs
-	type urlContent struct {
-		URL     string
-		Content string
-	}
-
-	var contents []urlContent
+	// STEP 1: Read content from files for top 8 URLs and calculate content hashes
+	var pageContents []PageContentInfo
 	for _, urlStr := range top8URLs {
 		// Generate filename from URL hash
 		hash := sha256.Sum256([]byte(urlStr))
@@ -269,10 +274,15 @@ func (s *PublicAIBuilderService) embedAndStoreTop8(
 			continue
 		}
 
-		// Parse content (skip metadata lines)
+		// Parse metadata and content (first 3 lines are metadata: URL, Title, Scraped)
 		lines := strings.Split(string(data), "\n")
+		title := urlStr
 		contentStart := 0
 		for i, line := range lines {
+			if strings.HasPrefix(line, "Title:") {
+				title = strings.TrimPrefix(line, "Title:")
+				title = strings.TrimSpace(title)
+			}
 			if strings.TrimSpace(line) == "" && i > 0 {
 				contentStart = i + 1
 				break
@@ -280,73 +290,212 @@ func (s *PublicAIBuilderService) embedAndStoreTop8(
 		}
 
 		content := strings.Join(lines[contentStart:], "\n")
-		contents = append(contents, urlContent{
-			URL:     urlStr,
-			Content: content,
+
+		// Calculate content hash for deduplication
+		contentHash := sha256.Sum256([]byte(content))
+		contentHashStr := hex.EncodeToString(contentHash[:])
+
+		pageContents = append(pageContents, PageContentInfo{
+			URL:         urlStr,
+			Content:     content,
+			Title:       title,
+			ContentHash: contentHashStr,
 		})
 	}
 
-	if len(contents) == 0 {
+	if len(pageContents) == 0 {
 		return fmt.Errorf("no content available for top 8 URLs")
 	}
 
+	// STEP 2: Query existing pages by tenant_id to check for duplicates
 	s.emit(ctx, events, AIBuilderEvent{
-		Type:    "embedding_in_progress",
+		Type:    "deduplication_check",
 		Stage:   "embedding_storage",
-		Message: fmt.Sprintf("Generating embeddings for %d URLs...", len(contents)),
+		Message: "Checking for existing content to avoid duplicate embeddings...",
 	})
 
-	// Generate embeddings in batch
-	texts := make([]string, len(contents))
-	for i, c := range contents {
-		texts[i] = c.Content
+	urls := make([]string, len(pageContents))
+	for i, pc := range pageContents {
+		urls[i] = pc.URL
 	}
 
-	embeddings, err := s.webScrapingService.embeddingService.GenerateEmbeddings(ctx, texts)
+	existingPages, err := s.webScrapingService.knowledgeRepo.GetExistingPagesByTenantAndURLs(ctx, tenantID, urls)
 	if err != nil {
-		return fmt.Errorf("failed to generate embeddings: %w", err)
+		return fmt.Errorf("failed to query existing pages: %w", err)
 	}
 
+	// STEP 3: Categorize pages into new, changed, and unchanged
+	type pageWithStatus struct {
+		PageContentInfo
+		Status     string // "new", "changed", "unchanged"
+		ExistingID *uuid.UUID
+	}
+
+	var pagesWithStatus []pageWithStatus
+	var needsEmbedding []PageContentInfo // Only new and changed pages
+	var reusedCount int
+
+	for _, pc := range pageContents {
+		existing, exists := existingPages[pc.URL]
+
+		if !exists {
+			// New URL - needs embedding
+			pagesWithStatus = append(pagesWithStatus, pageWithStatus{
+				PageContentInfo: pc,
+				Status:          "new",
+				ExistingID:      nil,
+			})
+			needsEmbedding = append(needsEmbedding, pc)
+		} else if existing.ContentHash == nil || *existing.ContentHash != pc.ContentHash {
+			// Content changed - needs new embedding
+			pagesWithStatus = append(pagesWithStatus, pageWithStatus{
+				PageContentInfo: pc,
+				Status:          "changed",
+				ExistingID:      &existing.ID,
+			})
+			needsEmbedding = append(needsEmbedding, pc)
+		} else {
+			// Content unchanged - reuse existing embedding
+			pagesWithStatus = append(pagesWithStatus, pageWithStatus{
+				PageContentInfo: pc,
+				Status:          "unchanged",
+				ExistingID:      &existing.ID,
+			})
+			reusedCount++
+		}
+	}
+
+	logger.GetTxLogger(ctx).Info().
+		Int("new", len(needsEmbedding)-reusedCount).
+		Int("changed", 0). // Will be calculated properly in loop
+		Int("unchanged", reusedCount).
+		Int("total", len(pageContents)).
+		Msg("Content-hash deduplication analysis completed")
+
 	s.emit(ctx, events, AIBuilderEvent{
-		Type:    "embedding_completed",
+		Type:    "deduplication_complete",
 		Stage:   "embedding_storage",
-		Message: fmt.Sprintf("Generated %d embeddings", len(embeddings)),
+		Message: fmt.Sprintf("Deduplication: %d new/changed, %d reused (%.1f%% savings)",
+			len(needsEmbedding), reusedCount,
+			float64(reusedCount)/float64(len(pageContents))*100),
 	})
 
-	// Store in pgvector
+	// STEP 4: Generate embeddings only for new and changed pages
+	var newEmbeddings []pgvector.Vector
+	if len(needsEmbedding) > 0 {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "embedding_in_progress",
+			Stage:   "embedding_storage",
+			Message: fmt.Sprintf("Generating embeddings for %d URLs (saved %d API calls)...",
+				len(needsEmbedding), reusedCount),
+		})
+
+		texts := make([]string, len(needsEmbedding))
+		for i, pc := range needsEmbedding {
+			texts[i] = pc.Content
+		}
+
+		newEmbeddings, err = s.webScrapingService.embeddingService.GenerateEmbeddings(ctx, texts)
+		if err != nil {
+			return fmt.Errorf("failed to generate embeddings: %w", err)
+		}
+
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "embedding_completed",
+			Stage:   "embedding_storage",
+			Message: fmt.Sprintf("Generated %d embeddings (%.1f%% cost reduction)",
+				len(newEmbeddings), float64(reusedCount)/float64(len(pageContents))*100),
+		})
+	}
+
+	// STEP 5: Create/update pages in database and collect page IDs
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "storage_in_progress",
 		Stage:   "embedding_storage",
-		Message: "Storing embeddings in knowledge base...",
+		Message: "Storing pages in knowledge base...",
 	})
 
-	for i, content := range contents {
-		if i >= len(embeddings) {
-			break
+	var pageIDs []uuid.UUID
+	embeddingIndex := 0
+
+	for i, ps := range pagesWithStatus {
+		var pageID uuid.UUID
+
+		if ps.Status == "unchanged" {
+			// Reuse existing page - no database changes needed
+			pageID = *ps.ExistingID
+		} else if ps.Status == "new" {
+			// New page - create with embedding
+			if embeddingIndex >= len(newEmbeddings) {
+				logger.GetTxLogger(ctx).Error().Msg("Embedding index out of range")
+				continue
+			}
+			embedding := newEmbeddings[embeddingIndex]
+			embeddingIndex++
+
+			// Store the new page and get the returned page ID
+			createdPageID, err := s.webScrapingService.StorePageInVectorDBWithTenantID(
+				ctx, tenantID, projectID, ps.URL, ps.Content, embedding, jobID,
+			)
+			if err != nil {
+				logger.GetTxLogger(ctx).Error().
+					Str("url", ps.URL).
+					Err(err).
+					Msg("Failed to store new page in vector DB")
+				continue
+			}
+			pageID = createdPageID
+		} else if ps.Status == "changed" {
+			// Changed page - update existing record with new embedding
+			if embeddingIndex >= len(newEmbeddings) {
+				logger.GetTxLogger(ctx).Error().Msg("Embedding index out of range")
+				continue
+			}
+			embedding := newEmbeddings[embeddingIndex]
+			embeddingIndex++
+
+			// Update the existing page (preserves original job_id and page ID)
+			err := s.webScrapingService.UpdatePageInVectorDB(
+				ctx, *ps.ExistingID, ps.Title, ps.Content, embedding,
+			)
+			if err != nil {
+				logger.GetTxLogger(ctx).Error().
+					Str("url", ps.URL).
+					Err(err).
+					Msg("Failed to update changed page in vector DB")
+				continue
+			}
+			pageID = *ps.ExistingID
 		}
 
-		err := s.webScrapingService.StorePageInVectorDB(
-			ctx, tenantID, projectID, content.URL, content.Content, embeddings[i], jobID,
-		)
-
-		if err != nil {
-			logger.GetTxLogger(ctx).Error().
-				Str("url", content.URL).
-				Err(err).
-				Msg("Failed to store page in vector DB")
-			continue
-		}
+		pageIDs = append(pageIDs, pageID)
 
 		s.emit(ctx, events, AIBuilderEvent{
 			Type:    "storage_progress",
 			Stage:   "embedding_storage",
-			Message: fmt.Sprintf("Stored %d/%d pages", i+1, len(contents)),
+			Message: fmt.Sprintf("Processed %d/%d pages (%s: %s)",
+				i+1, len(pagesWithStatus), ps.Status, ps.URL),
 		})
 	}
 
+	// STEP 6: Create widget_knowledge_pages mappings
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "mapping_in_progress",
+		Stage:   "embedding_storage",
+		Message: "Creating widget-to-page associations...",
+	})
+
+	err = s.webScrapingService.knowledgeRepo.CreateWidgetKnowledgePageMappings(ctx, widgetID, pageIDs)
+	if err != nil {
+		return fmt.Errorf("failed to create widget-page mappings: %w", err)
+	}
+
 	logger.GetTxLogger(ctx).Info().
-		Int("stored_count", len(contents)).
-		Msg("Successfully stored all embeddings in pgvector")
+		Int("total_pages", len(pageContents)).
+		Int("new_embeddings", len(newEmbeddings)).
+		Int("reused_embeddings", reusedCount).
+		Float64("savings_percent", float64(reusedCount)/float64(len(pageContents))*100).
+		Msg("Successfully completed embedding storage with deduplication")
 
 	return nil
 }

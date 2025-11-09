@@ -73,7 +73,7 @@ type ScrapedLinkPreview struct {
 // KnowledgeScrapedPage represents a scraped web page
 type KnowledgeScrapedPage struct {
 	ID          uuid.UUID        `db:"id" json:"id"`
-	JobID       uuid.UUID        `db:"job_id" json:"job_id"`
+	JobID       uuid.NullUUID    `db:"job_id" json:"job_id,omitempty"` // Nullable - tracks FIRST job that discovered this page
 	PageID      *uuid.UUID       `db:"page_id" json:"page_id,omitempty"`
 	URL         string           `db:"url" json:"url"`
 	Title       *string          `db:"title" json:"title,omitempty"`
