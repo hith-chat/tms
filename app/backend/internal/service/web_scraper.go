@@ -103,7 +103,7 @@ type URLExtractionEvent struct {
 	URLs         []string          `json:"urls,omitempty"`
 	FailedURLs   map[string]string `json:"failed_urls,omitempty"`
 	Timestamp    time.Time         `json:"timestamp"`
-	Metrics      *CrawlMetrics     `json:"metrics,omitempty"`      // Overall performance metrics
+	Metrics      *CrawlMetrics     `json:"metrics,omitempty"`       // Overall performance metrics
 	DepthMetrics *DepthMetrics     `json:"depth_metrics,omitempty"` // Per-depth metrics
 }
 
@@ -1452,7 +1452,7 @@ func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 
 	for _, skipKeyWord := range skipKeyWords {
 		if strings.Contains(currentURL, skipKeyWord) {
-			fmt.Println("Failed URL: "+currentURL, " due to extension ", skipKeyWord)
+			fmt.Println("Skipping URL: "+currentURL, " due to keyword ", skipKeyWord)
 			return false
 		}
 	}
@@ -1472,7 +1472,7 @@ func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 	}
 	for _, ext := range skipExtensions {
 		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+"?") || strings.Contains(path, ext+"#") || strings.Contains(path, ext+"&") || strings.Contains(path, ext+";") || strings.Contains(path, ext+",") || strings.Contains(path, ext+"/") {
-			fmt.Println("Failed URL: "+linkURL, " due to extension ", ext)
+			fmt.Println("Skipping URL: "+linkURL, " due to extension ", ext)
 			return false
 		}
 	}
@@ -1481,7 +1481,7 @@ func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 	skipPaths := []string{"/admin", "/api", "/login", "/register", "/download", "/upload", "site.webmanifest"}
 	for _, skipPath := range skipPaths {
 		if strings.Contains(path, skipPath) {
-			fmt.Println("Failed URL: "+linkURL, " due to path ", skipPath)
+			fmt.Println("Skipping URL: "+linkURL, " due to path ", skipPath)
 			return false
 		}
 	}
@@ -1652,52 +1652,52 @@ type urlWorkItem struct {
 
 // extractionResult represents the result of extracting a single page
 type extractionResult struct {
-	url          string
-	depth        int
-	title        string
-	content      string
-	tokenCount   int
+	url           string
+	depth         int
+	title         string
+	content       string
+	tokenCount    int
 	extractedURLs []ExtractedURLInfo
-	err          error
+	err           error
 }
 
 // DepthMetrics represents performance metrics for a single depth level
 type DepthMetrics struct {
-	Depth              int           `json:"depth"`
-	URLsProcessed      int           `json:"urls_processed"`
-	URLsFailed         int           `json:"urls_failed"`
-	URLsDiscovered     int           `json:"urls_discovered"`
-	WorkerCount        int           `json:"worker_count"`
-	Method             string        `json:"method"` // "playwright" or "colly"
-	StartTime          time.Time     `json:"start_time"`
-	EndTime            time.Time     `json:"end_time"`
-	Duration           time.Duration `json:"duration"`
-	AvgProcessingTime  time.Duration `json:"avg_processing_time"`
-	TotalTokens        int           `json:"total_tokens"`
+	Depth             int           `json:"depth"`
+	URLsProcessed     int           `json:"urls_processed"`
+	URLsFailed        int           `json:"urls_failed"`
+	URLsDiscovered    int           `json:"urls_discovered"`
+	WorkerCount       int           `json:"worker_count"`
+	Method            string        `json:"method"` // "playwright" or "colly"
+	StartTime         time.Time     `json:"start_time"`
+	EndTime           time.Time     `json:"end_time"`
+	Duration          time.Duration `json:"duration"`
+	AvgProcessingTime time.Duration `json:"avg_processing_time"`
+	TotalTokens       int           `json:"total_tokens"`
 }
 
 // CrawlMetrics represents overall performance metrics for the entire crawl
 type CrawlMetrics struct {
-	TotalURLsProcessed   int            `json:"total_urls_processed"`
-	TotalURLsFailed      int            `json:"total_urls_failed"`
-	TotalURLsDiscovered  int            `json:"total_urls_discovered"`
-	TotalTokens          int            `json:"total_tokens"`
-	StartTime            time.Time      `json:"start_time"`
-	EndTime              time.Time      `json:"end_time"`
-	TotalDuration        time.Duration  `json:"total_duration"`
-	DepthMetrics         []DepthMetrics `json:"depth_metrics"`
-	PlaywrightURLs       int            `json:"playwright_urls"`
-	CollyURLs            int            `json:"colly_urls"`
-	PlaywrightTime       time.Duration  `json:"playwright_time"`
-	CollyTime            time.Duration  `json:"colly_time"`
-	AvgURLsPerSecond     float64        `json:"avg_urls_per_second"`
+	TotalURLsProcessed  int            `json:"total_urls_processed"`
+	TotalURLsFailed     int            `json:"total_urls_failed"`
+	TotalURLsDiscovered int            `json:"total_urls_discovered"`
+	TotalTokens         int            `json:"total_tokens"`
+	StartTime           time.Time      `json:"start_time"`
+	EndTime             time.Time      `json:"end_time"`
+	TotalDuration       time.Duration  `json:"total_duration"`
+	DepthMetrics        []DepthMetrics `json:"depth_metrics"`
+	PlaywrightURLs      int            `json:"playwright_urls"`
+	CollyURLs           int            `json:"colly_urls"`
+	PlaywrightTime      time.Duration  `json:"playwright_time"`
+	CollyTime           time.Duration  `json:"colly_time"`
+	AvgURLsPerSecond    float64        `json:"avg_urls_per_second"`
 }
 
 // ExtractURLsWithStream extracts URLs from a website and streams progress for debugging
 // Uses a hybrid approach with parallel processing:
 // - Playwright (2-5 workers) for depth 0-1
 // - Colly (10-20 workers) for depth >= 2
-func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent, sharedBrowser *SharedBrowserContext) error {
+func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetURL string, maxDepth int, events chan<- URLExtractionEvent, sharedBrowser *SharedBrowserContext, buildID string) error {
 	defer close(events)
 
 	// Validate URL
@@ -1723,9 +1723,20 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 	rootHost := parsedTargetURL.Host
 	rootBaseDomain := getBaseDomain(rootHost)
 
+	// Initialize Redis counter for URL limiting (if buildID provided)
+	const maxURLLimit = 30
+	var redisCounterKey string
+	if buildID != "" {
+		redisCounterKey = fmt.Sprintf("widget:build:%s:url_count", buildID)
+		// Initialize counter to 0 with 1-hour expiry
+		if err := s.redisClient.Set(ctx, redisCounterKey, 0, time.Hour).Err(); err != nil {
+			logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to initialize Redis URL counter")
+		}
+	}
+
 	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
 		Type:      "started",
-		Message:   fmt.Sprintf("Starting parallel URL extraction for %s (depth: %d, base domain: %s)", targetURL, maxDepth, rootBaseDomain),
+		Message:   fmt.Sprintf("Starting parallel URL extraction for %s (depth: %d, base domain: %s, limit: %d URLs)", targetURL, maxDepth, rootBaseDomain, maxURLLimit),
 		URL:       targetURL,
 		MaxDepth:  maxDepth,
 		Timestamp: time.Now(),
@@ -1941,12 +1952,33 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 					mu.Unlock()
 
 					if !alreadyVisited && s.shouldFollowLink(urlInfo.URL, result.url) {
-						nextLevel = append(nextLevel, urlWorkItem{
-							url:   normalizedDiscoveredURL,
-							depth: result.depth + 1,
-						})
-						newURLsCount++
-						depthURLsDiscovered++
+						// Check Redis counter limit (if buildID is set)
+						shouldAdd := true
+						if redisCounterKey != "" {
+							// Increment counter atomically
+							count, err := s.redisClient.Incr(ctx, redisCounterKey).Result()
+							if err != nil {
+								logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to increment Redis URL counter")
+							} else if count > int64(maxURLLimit) {
+								// Limit reached, stop adding URLs
+								shouldAdd = false
+								s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
+									Type:         "info",
+									Message:      fmt.Sprintf("Reached URL limit of %d, stopping extraction", maxURLLimit),
+									CurrentDepth: result.depth,
+									Timestamp:    time.Now(),
+								})
+							}
+						}
+
+						if shouldAdd {
+							nextLevel = append(nextLevel, urlWorkItem{
+								url:   normalizedDiscoveredURL,
+								depth: result.depth + 1,
+							})
+							newURLsCount++
+							depthURLsDiscovered++
+						}
 					}
 				}
 

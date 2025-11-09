@@ -648,7 +648,7 @@ func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatComplet
 		return "", nil, err
 	}
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
 	httpReq, err := http.NewRequestWithContext(ctxWithTimeout, "POST", url, bytes.NewBuffer(jsonData))
@@ -790,16 +790,14 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 	// Make the API call
 	response, _, err := s.generateResponseForAIRequest(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call OpenAI: %w", err)
+		return nil, fmt.Errorf("failed to call AI: %w", err)
 	}
-
-	// Clean the response (strip markdown code blocks if present)
-	cleanedResponse := stripMarkdownCodeBlocks(response)
+	response = stripMarkdownCodeBlocks(response)
 
 	// Parse the JSON response
 	var themeConfig models.CreateChatWidgetRequest
-	if err := json.Unmarshal([]byte(cleanedResponse), &themeConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse AI response: %w. Response: %s", err, cleanedResponse)
+	if err := json.Unmarshal([]byte(response), &themeConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
 	return &themeConfig, nil
@@ -1098,4 +1096,36 @@ Here are the sections:
 	}
 
 	return parsed.Items, nil
+}
+
+// CallAIForRanking calls AI to rank URLs and select the most relevant ones
+func (s *AIService) CallAIForRanking(ctx context.Context, prompt string) (string, error) {
+	if !s.IsEnabled() {
+		return "", fmt.Errorf("AI service is not enabled")
+	}
+
+	// Use GPT-4 for better reasoning about relevance
+	req := ChatCompletionRequest{
+		Model: "gpt-4",
+		Messages: []ChatCompletionMessage{
+			{
+				Role:    "system",
+				Content: "You are an expert at analyzing web content and selecting the most relevant pages for building a knowledge base. You always respond with valid JSON arrays only.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Temperature: 0.3, // Lower temperature for consistent, focused results
+		MaxTokens:   1000,
+	}
+
+	// Make the API call
+	response, _, err := s.generateResponseForAIRequest(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("failed to call AI: %w", err)
+	}
+
+	return response, nil
 }

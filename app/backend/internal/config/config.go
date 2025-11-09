@@ -176,7 +176,7 @@ type KnowledgeConfig struct {
 	MaxFilesPerProject       int           `mapstructure:"max_files_per_project"`
 	EmbeddingService         string        `mapstructure:"embedding_service"`
 	OpenAIEmbeddingModel     string        `mapstructure:"openai_embedding_model"`
-	OpenAIAPIKey             string        `mapstructure:"AI_API_KEY"`
+	OpenAIAPIKey             string        `mapstructure:"openai_api_key"`
 	ChunkSize                int           `mapstructure:"chunk_size"`
 	ChunkOverlap             int           `mapstructure:"chunk_overlap"`
 	ScrapeMaxDepth           int           `mapstructure:"scrape_max_depth"`
@@ -266,7 +266,7 @@ func Load() (*Config, error) {
 	viper.BindEnv("knowledge.max_files_per_project", "KNOWLEDGE_MAX_FILES_PER_PROJECT")
 	viper.BindEnv("knowledge.embedding_service", "KNOWLEDGE_EMBEDDING_SERVICE")
 	viper.BindEnv("knowledge.openai_embedding_model", "KNOWLEDGE_OPENAI_EMBEDDING_MODEL")
-	viper.BindEnv("knowledge.AI_API_KEY", "AI_API_KEY")
+	viper.BindEnv("knowledge.openai_api_key", "OPENAI_API_KEY")
 	viper.BindEnv("knowledge.chunk_size", "KNOWLEDGE_CHUNK_SIZE")
 	viper.BindEnv("knowledge.chunk_overlap", "KNOWLEDGE_CHUNK_OVERLAP")
 	viper.BindEnv("knowledge.scrape_max_depth", "KNOWLEDGE_SCRAPE_MAX_DEPTH")
@@ -388,7 +388,7 @@ func setDefaults() {
 
 	// AI defaults
 	viper.SetDefault("ai.enabled", true)
-	viper.SetDefault("ai.provider", "openai")
+	viper.SetDefault("ai.provider", "bb")
 	viper.BindEnv("ai.theme_extraction_model", "gpt-4o-mini")
 	viper.SetDefault("ai.model", "gpt-4o-mini")
 	viper.SetDefault("ai.max_tokens", 1000)

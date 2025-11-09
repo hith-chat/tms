@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -77,14 +78,16 @@ func NewPublicAIBuilderService(
 	}
 }
 
-// processURLsInParallel processes a list of URLs through the parallel pipeline:
-// URLs → Scrape (parallel) → Embed (parallel) → Store (parallel)
+// processURLsInParallel processes a list of URLs through the new pipeline:
+// Stage 1: URLs → Scrape to text files (parallel)
+// Stage 2: AI ranking to select top 8 URLs
+// Stage 3: Read top 8 → Embed (batch) → Store in pgvector (parallel)
 func (s *PublicAIBuilderService) processURLsInParallel(
 	ctx context.Context,
 	tenantID, projectID uuid.UUID,
+	widgetID, buildID uuid.UUID,
 	urls []string,
-	targetURL string,
-	depth int,
+	widget *models.ChatWidget,
 	events chan<- AIBuilderEvent,
 ) error {
 	if len(urls) == 0 {
@@ -93,80 +96,102 @@ func (s *PublicAIBuilderService) processURLsInParallel(
 
 	// Create a scraping job for tracking
 	job, err := s.webScrapingService.CreateScrapingJob(ctx, tenantID, projectID, &models.CreateScrapingJobRequest{
-		URL:      targetURL,
-		MaxDepth: depth,
+		URL:      urls[0], // Use first URL as the target
+		MaxDepth: 2,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create scraping job: %w", err)
 	}
 
-	// Create job list
-	jobs := make([]parallelPageJob, 0, len(urls))
-	for _, url := range urls {
-		jobs = append(jobs, parallelPageJob{
-			URL:   url,
-			Title: url, // Will be updated after scraping
-			Depth: 0,
-		})
+	// Create working directory for this build
+	workDir := fmt.Sprintf("/tmp/widgets/%s", buildID.String())
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return fmt.Errorf("failed to create working directory: %w", err)
 	}
 
-	stats := &parallelProcessingStats{
-		TotalURLs: len(jobs),
-	}
+	logger.GetTxLogger(ctx).Info().
+		Str("build_id", buildID.String()).
+		Str("work_dir", workDir).
+		Int("total_urls", len(urls)).
+		Msg("Starting 3-stage parallel pipeline")
 
+	// STAGE 1: Scrape all URLs and save to text files
 	s.emit(ctx, events, AIBuilderEvent{
-		Type:    "parallel_processing_started",
-		Stage:   "knowledge_building",
-		Message: fmt.Sprintf("Starting parallel processing of %d URLs", len(jobs)),
+		Type:    "stage_1_started",
+		Stage:   "scraping",
+		Message: fmt.Sprintf("Stage 1: Scraping %d URLs to text files", len(urls)),
 		Data: map[string]any{
-			"total_urls": len(jobs),
-			"workers":    map[string]int{
-				"scraping":  10,
-				"embedding": 5,
-				"storage":   3,
-			},
+			"total_urls": len(urls),
+			"workers":    10,
 		},
 	})
 
-	// Create pipeline channels
-	scrapedChan := make(chan parallelScrapedPage, 100)
-	embeddedChan := make(chan parallelEmbeddedPage, 100)
-
-	// Stage 1: Parallel Scraping Workers (10 workers)
-	scrapingDone := make(chan struct{})
-	go s.runScrapingWorkers(ctx, jobs, scrapedChan, stats, events, scrapingDone, 10)
-
-	// Stage 2: Parallel Embedding Workers (5 workers)
-	embeddingDone := make(chan struct{})
-	go s.runEmbeddingWorkers(ctx, scrapedChan, embeddedChan, stats, events, embeddingDone, 5)
-
-	// Stage 3: Parallel Storage Workers (3 workers)
-	storageDone := make(chan struct{})
-	go s.runStorageWorkers(ctx, tenantID, projectID, job.ID, embeddedChan, stats, events, storageDone, 3)
-
-	// Wait for all stages to complete
-	<-scrapingDone
-	<-embeddingDone
-	<-storageDone
+	scrapedFiles, err := s.scrapeURLsToFiles(ctx, urls, workDir, events)
+	if err != nil {
+		return fmt.Errorf("stage 1 failed: %w", err)
+	}
 
 	s.emit(ctx, events, AIBuilderEvent{
-		Type:    "parallel_processing_completed",
-		Stage:   "knowledge_building",
-		Message: fmt.Sprintf("Parallel processing completed. Stored %d/%d pages", stats.StoredPages, stats.TotalURLs),
+		Type:    "stage_1_completed",
+		Stage:   "scraping",
+		Message: fmt.Sprintf("Stage 1: Successfully scraped %d/%d URLs", len(scrapedFiles), len(urls)),
 		Data: map[string]any{
-			"total_urls":        stats.TotalURLs,
-			"scraped_pages":     stats.ScrapedPages,
-			"failed_scrapes":    stats.FailedScrapes,
-			"embedded_pages":    stats.EmbeddedPages,
-			"failed_embeddings": stats.FailedEmbeddings,
-			"stored_pages":      stats.StoredPages,
-			"failed_stores":     stats.FailedStores,
+			"scraped":     len(scrapedFiles),
+			"total":       len(urls),
+			"failed":      len(urls) - len(scrapedFiles),
 		},
 	})
 
-	if stats.StoredPages == 0 {
-		return fmt.Errorf("failed to process any pages successfully")
+	if len(scrapedFiles) == 0 {
+		return fmt.Errorf("no URLs were successfully scraped")
 	}
+
+	// STAGE 2: Use AI to rank and select top 8 URLs
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "stage_2_started",
+		Stage:   "ai_ranking",
+		Message: fmt.Sprintf("Stage 2: Using AI to select top 8 from %d URLs", len(scrapedFiles)),
+	})
+
+	top8URLs, err := s.rankURLsWithAI(ctx, scrapedFiles, workDir, widget, events)
+	if err != nil {
+		return fmt.Errorf("stage 2 failed: %w", err)
+	}
+
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "stage_2_completed",
+		Stage:   "ai_ranking",
+		Message: fmt.Sprintf("Stage 2: Selected top 8 most relevant URLs"),
+		Data: map[string]any{
+			"selected_urls": top8URLs,
+		},
+	})
+
+	// STAGE 3: Embed and store only top 8 URLs
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "stage_3_started",
+		Stage:   "embedding_storage",
+		Message: fmt.Sprintf("Stage 3: Generating embeddings and storing top 8 URLs"),
+	})
+
+	err = s.embedAndStoreTop8(ctx, tenantID, projectID, widgetID, job.ID, top8URLs, workDir, events)
+	if err != nil {
+		return fmt.Errorf("stage 3 failed: %w", err)
+	}
+
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "stage_3_completed",
+		Stage:   "embedding_storage",
+		Message: "Stage 3: Successfully stored all 8 URLs in knowledge base",
+		Data: map[string]any{
+			"stored_count": len(top8URLs),
+		},
+	})
+
+	logger.GetTxLogger(ctx).Info().
+		Str("build_id", buildID.String()).
+		Int("total_processed", len(top8URLs)).
+		Msg("3-stage parallel pipeline completed successfully")
 
 	return nil
 }
@@ -360,6 +385,9 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 		depth = 3 // Default depth
 	}
 
+	// Generate unique build ID for this build session
+	buildID := uuid.New()
+
 	// Parse and validate URL
 	parsedURL, err := url.Parse(targetURL)
 	if err != nil {
@@ -399,12 +427,13 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "builder_started",
 		Stage:   "initialization",
-		Message: fmt.Sprintf("Starting public AI widget builder for %s", domain),
+		Message: fmt.Sprintf("Starting public AI widget builder for %s (build ID: %s)", domain, buildID.String()),
 		Data: map[string]any{
 			"domain":     domain,
 			"url":        targetURL,
 			"tenant_id":  PublicTenantID.String(),
 			"project_id": PublicProjectID.String(),
+			"build_id":   buildID.String(),
 		},
 	})
 
@@ -415,7 +444,7 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 		Data: map[string]any{
 			"project_id": PublicProjectID.String(),
 			"tenant_id":  PublicTenantID.String(),
-			"build_id":   uuid.New().String(),
+			"build_id":   buildID.String(),
 		},
 	})
 
@@ -463,7 +492,7 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 
 	// Run URL extraction in background and collect results
 	go func() {
-		if err := s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, urlEvents, sharedBrowser); err != nil {
+		if err := s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, urlEvents, sharedBrowser, buildID.String()); err != nil {
 			logger.GetTxLogger(ctx).Error().Err(err).Msg("URL extraction failed")
 		}
 	}()
@@ -507,8 +536,8 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 		},
 	})
 
-	// Steps 3, 4, 5: Process URLs in parallel (scrape → embed → store)
-	err = s.processURLsInParallel(ctx, PublicTenantID, PublicProjectID, extractedURLs, targetURL, depth, events)
+	// Steps 3-7: Process URLs in parallel (scrape to files → AI rank top 8 → embed → store)
+	err = s.processURLsInParallel(ctx, PublicTenantID, PublicProjectID, widget.ID, buildID, extractedURLs, widget, events)
 	if err != nil {
 		logger.GetTxLogger(ctx).Error().
 			Str("project_id", PublicProjectID.String()).
@@ -622,5 +651,5 @@ func (s *PublicAIBuilderService) emit(ctx context.Context, events chan<- AIBuild
 
 // ExtractURLsDebug extracts all URLs from a website for debugging purposes
 func (s *PublicAIBuilderService) ExtractURLsDebug(ctx context.Context, targetURL string, depth int, events chan<- URLExtractionEvent) error {
-	return s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, events, nil)
+	return s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, events, nil, "") // No build ID for debug
 }

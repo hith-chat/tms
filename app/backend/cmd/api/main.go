@@ -250,6 +250,7 @@ func main() {
 	// Start server in goroutine
 	go func() {
 		log.Printf("Server starting on the port %s", cfg.Server.Port)
+		log.Printf("AI provider %s", cfg.AI.Provider)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
