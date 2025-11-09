@@ -45,13 +45,7 @@ func NewPublicAIBuilderHandler(publicBuilder *service.PublicAIBuilderService) *P
 func (h *PublicAIBuilderHandler) StreamBuild(c *gin.Context) {
 	// Parse URL from query param or request body
 	urlParam := c.Query("url")
-	depth := 3
-
-	if depthParam := c.Query("depth"); depthParam != "" {
-		if value, err := strconv.Atoi(depthParam); err == nil && value >= 1 && value <= 5 {
-			depth = value
-		}
-	}
+	depth := 2
 
 	// If URL not in query, try to parse from request body
 	if urlParam == "" {

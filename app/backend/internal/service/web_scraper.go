@@ -436,6 +436,11 @@ func (s *WebScrapingService) extractURLsWithHeadlessBrowser(ctx context.Context,
 					continue
 				}
 
+				// Check file extension before processing
+				if !s.shouldCrawlURLByExtension(urlInfo.URL) {
+					continue
+				}
+
 				// Normalize URL for deduplication check
 				normalizedDiscoveredURL := normalizeURLForDeduplication(urlInfo.URL)
 				if !visited[normalizedDiscoveredURL] && s.shouldFollowLink(urlInfo.URL, current.url) {
@@ -530,6 +535,11 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 			for _, extractedURL := range extractedURLs {
 				if len(discoveredLinks) >= maxLinks {
 					break
+				}
+
+				// Check file extension before visiting
+				if !s.shouldCrawlURLByExtension(extractedURL) {
+					continue
 				}
 
 				if s.shouldFollowLink(extractedURL, currentURL) && !visitedURLs[extractedURL] {
@@ -1367,6 +1377,55 @@ func normalizeURLForDeduplication(rawURL string) string {
 	return parsed.String()
 }
 
+// shouldCrawlURLByExtension checks if a URL should be crawled based on its file extension
+// Returns true if:
+// - URL has no file extension (appears to be a page/directory)
+// - URL has an extension in the allowed list (configured via allowed_file_extensions)
+// Returns false if:
+// - URL has an extension not in the allowed list (.js, .css, .jpg, etc.)
+func (s *WebScrapingService) shouldCrawlURLByExtension(urlStr string) bool {
+	parsed, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	path := parsed.Path
+
+	// Empty path or root path - allow
+	if path == "" || path == "/" {
+		return true
+	}
+
+	// Extract the last segment of the path
+	segments := strings.Split(path, "/")
+	lastSegment := segments[len(segments)-1]
+
+	// If no dot in the last segment, it's likely a directory or clean URL - allow
+	if !strings.Contains(lastSegment, ".") {
+		return true
+	}
+
+	// Extract file extension (everything after the last dot)
+	parts := strings.Split(lastSegment, ".")
+	if len(parts) < 2 {
+		return true // No extension
+	}
+
+	extension := "." + strings.ToLower(parts[len(parts)-1])
+
+	// Check if extension is in the allowed list
+	for _, allowed := range s.config.AllowedFileExtensions {
+		if extension == strings.ToLower(allowed) {
+			return true
+		}
+	}
+
+	// Extension not in allowed list - reject
+	logger.Debugf("Skipping URL %s with disallowed file extension: %s", urlStr, extension)
+
+	return false
+}
+
 // shouldFollowLink determines if a link should be followed
 func (s *WebScrapingService) shouldFollowLink(linkURL, currentURL string) bool {
 	parsedLink, err := url.Parse(linkURL)
@@ -1729,6 +1788,11 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 
 		// Add work items to channel
 		for _, item := range currentLevel {
+			// Check file extension before processing
+			if !s.shouldCrawlURLByExtension(item.url) {
+				continue
+			}
+
 			normalizedURL := normalizeURLForDeduplication(item.url)
 
 			mu.Lock()
@@ -1862,6 +1926,11 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 
 					if !isSameBaseDomain(parsedURL.Host, rootHost) {
 						skippedSubdomains++
+						continue
+					}
+
+					// Check file extension before processing
+					if !s.shouldCrawlURLByExtension(urlInfo.URL) {
 						continue
 					}
 

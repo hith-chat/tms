@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/bareuptime/tms/internal/config"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	ws "github.com/bareuptime/tms/internal/websocket"
 )
@@ -71,6 +72,7 @@ const (
 	ProviderOpenAI    AIProvider = "openai"
 	ProviderAnthropic AIProvider = "anthropic"
 	ProviderAzure     AIProvider = "azure"
+	ProviderBB        AIProvider = "bb"
 )
 
 // ChatCompletionRequest represents a request to AI providers
@@ -506,6 +508,25 @@ func (s *AIService) generateResponseWithContext(ctx context.Context, session *mo
 		return s.callAnthropic(ctx, req)
 	case ProviderAzure:
 		return s.callAzureOpenAI(ctx, req)
+	case ProviderBB:
+		return s.callBB(ctx, req)
+	default:
+		return "", nil, fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
+	}
+}
+
+func (s *AIService) generateResponseForAIRequest(ctx context.Context, req ChatCompletionRequest) (string, *TokenUsageMetrics, error) {
+	// Get relevant knowledge context if knowledge service is available
+	// Make API call based on provider
+	switch AIProvider(s.config.Provider) {
+	case ProviderOpenAI:
+		return s.callOpenAI(ctx, req)
+	case ProviderAnthropic:
+		return s.callAnthropic(ctx, req)
+	case ProviderAzure:
+		return s.callAzureOpenAI(ctx, req)
+	case ProviderBB:
+		return s.callBB(ctx, req)
 	default:
 		return "", nil, fmt.Errorf("unsupported AI provider: %s", s.config.Provider)
 	}
@@ -521,6 +542,20 @@ func (s *AIService) callOpenAI(ctx context.Context, req ChatCompletionRequest) (
 	return s.makeAPICall(ctx, url, req, map[string]string{
 		"Authorization": "Bearer " + s.config.APIKey,
 		"Content-Type":  "application/json",
+	})
+}
+
+func (s *AIService) callBB(ctx context.Context, req ChatCompletionRequest) (string, *TokenUsageMetrics, error) {
+
+	logger.Info("Calling BB AI Provider")
+
+	url := ""
+	if s.config.BaseURL != "" {
+		url = s.config.BaseURL + "/v1/chat/completions"
+	}
+	return s.makeAPICall(ctx, url, req, map[string]string{
+		"api-key":      s.config.APIKey,
+		"Content-Type": "application/json",
 	})
 }
 
@@ -613,7 +648,10 @@ func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatComplet
 		return "", nil, err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctxWithTimeout, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", nil, err
 	}
@@ -734,7 +772,7 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 
 	// Create the request
 	req := ChatCompletionRequest{
-		Model: "gpt-4",
+		Model: s.config.ThemeExtractionModel,
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
@@ -750,18 +788,49 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 	}
 
 	// Make the API call
-	response, _, err := s.callOpenAI(ctx, req)
+	response, _, err := s.generateResponseForAIRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OpenAI: %w", err)
 	}
 
+	// Clean the response (strip markdown code blocks if present)
+	cleanedResponse := stripMarkdownCodeBlocks(response)
+
 	// Parse the JSON response
 	var themeConfig models.CreateChatWidgetRequest
-	if err := json.Unmarshal([]byte(response), &themeConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse AI response: %w", err)
+	if err := json.Unmarshal([]byte(cleanedResponse), &themeConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse AI response: %w. Response: %s", err, cleanedResponse)
 	}
 
 	return &themeConfig, nil
+}
+
+// stripMarkdownCodeBlocks removes markdown code block syntax from AI responses
+// Handles cases where the AI wraps JSON in ```json...``` or ```...```
+func stripMarkdownCodeBlocks(response string) string {
+	// Trim whitespace
+	response = strings.TrimSpace(response)
+
+	// Check if response starts with markdown code block
+	if strings.HasPrefix(response, "```") {
+		// Find the end of the opening marker (could be ```json or just ```)
+		firstNewline := strings.Index(response, "\n")
+		if firstNewline == -1 {
+			// No newline found, might be malformed
+			return response
+		}
+
+		// Skip the opening marker line
+		response = response[firstNewline+1:]
+
+		// Remove closing ``` if present (TrimSuffix is safe even if not present)
+		response = strings.TrimSuffix(response, "```")
+
+		// Trim any remaining whitespace
+		response = strings.TrimSpace(response)
+	}
+
+	return response
 }
 
 // buildThemePrompt creates a detailed prompt for theme generation

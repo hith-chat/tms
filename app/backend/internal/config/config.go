@@ -155,37 +155,39 @@ type ObservabilityConfig struct {
 
 // AIConfig represents AI/LLM configuration
 type AIConfig struct {
-	Enabled         bool          `mapstructure:"enabled"`
-	Provider        string        `mapstructure:"provider"` // "openai", "anthropic", "azure"
-	APIKey          string        `mapstructure:"api_key"`
-	Model           string        `mapstructure:"model"`
-	BaseURL         string        `mapstructure:"base_url"`
-	MaxTokens       int           `mapstructure:"max_tokens"`
-	Temperature     float64       `mapstructure:"temperature"`
-	SystemPrompt    string        `mapstructure:"system_prompt"`
-	HandoffKeywords []string      `mapstructure:"handoff_keywords"`
-	AutoHandoffTime time.Duration `mapstructure:"auto_handoff_time"`
+	Enabled              bool          `mapstructure:"enabled"`
+	Provider             string        `mapstructure:"provider"` // "openai", "anthropic", "azure"
+	APIKey               string        `mapstructure:"api_key"`
+	ThemeExtractionModel string        `mapstructure:"theme_extraction_model"`
+	Model                string        `mapstructure:"model"`
+	BaseURL              string        `mapstructure:"base_url"`
+	MaxTokens            int           `mapstructure:"max_tokens"`
+	Temperature          float64       `mapstructure:"temperature"`
+	SystemPrompt         string        `mapstructure:"system_prompt"`
+	HandoffKeywords      []string      `mapstructure:"handoff_keywords"`
+	AutoHandoffTime      time.Duration `mapstructure:"auto_handoff_time"`
 }
 
 // KnowledgeConfig represents knowledge management configuration
 type KnowledgeConfig struct {
-	Enabled                 bool          `mapstructure:"enabled"`
-	AiAgentServiceUrl       string        `mapstructure:"ai_agent_service_url"`
-	MaxFileSize             int64         `mapstructure:"max_file_size"`
-	MaxFilesPerProject      int           `mapstructure:"max_files_per_project"`
-	EmbeddingService        string        `mapstructure:"embedding_service"`
-	OpenAIEmbeddingModel    string        `mapstructure:"openai_embedding_model"`
-	OpenAIAPIKey            string        `mapstructure:"AI_API_KEY"`
-	ChunkSize               int           `mapstructure:"chunk_size"`
-	ChunkOverlap            int           `mapstructure:"chunk_overlap"`
-	ScrapeMaxDepth          int           `mapstructure:"scrape_max_depth"`
-	ScrapeRateLimit         time.Duration `mapstructure:"scrape_rate_limit"`
-	ScrapeUserAgent         string        `mapstructure:"scrape_user_agent"`
-	ScrapeTimeout           time.Duration `mapstructure:"scrape_timeout"`
-	EmbeddingTimeout        time.Duration `mapstructure:"embedding_timeout"`
-	PlaywrightWorkerCount   int           `mapstructure:"playwright_worker_count"`   // Workers for depth 0-1 (Playwright)
-	CollyWorkerCount        int           `mapstructure:"colly_worker_count"`        // Workers for depth >= 2 (Colly)
-	EnablePerformanceMetrics bool         `mapstructure:"enable_performance_metrics"` // Enable detailed performance tracking
+	Enabled                  bool          `mapstructure:"enabled"`
+	AiAgentServiceUrl        string        `mapstructure:"ai_agent_service_url"`
+	MaxFileSize              int64         `mapstructure:"max_file_size"`
+	MaxFilesPerProject       int           `mapstructure:"max_files_per_project"`
+	EmbeddingService         string        `mapstructure:"embedding_service"`
+	OpenAIEmbeddingModel     string        `mapstructure:"openai_embedding_model"`
+	OpenAIAPIKey             string        `mapstructure:"AI_API_KEY"`
+	ChunkSize                int           `mapstructure:"chunk_size"`
+	ChunkOverlap             int           `mapstructure:"chunk_overlap"`
+	ScrapeMaxDepth           int           `mapstructure:"scrape_max_depth"`
+	ScrapeRateLimit          time.Duration `mapstructure:"scrape_rate_limit"`
+	ScrapeUserAgent          string        `mapstructure:"scrape_user_agent"`
+	ScrapeTimeout            time.Duration `mapstructure:"scrape_timeout"`
+	EmbeddingTimeout         time.Duration `mapstructure:"embedding_timeout"`
+	PlaywrightWorkerCount    int           `mapstructure:"playwright_worker_count"`    // Workers for depth 0-1 (Playwright)
+	CollyWorkerCount         int           `mapstructure:"colly_worker_count"`         // Workers for depth >= 2 (Colly)
+	EnablePerformanceMetrics bool          `mapstructure:"enable_performance_metrics"` // Enable detailed performance tracking
+	AllowedFileExtensions    []string      `mapstructure:"allowed_file_extensions"`    // File extensions to crawl (.html, .md, etc.)
 }
 
 // PaymentConfig represents payment gateway configuration
@@ -248,6 +250,7 @@ func Load() (*Config, error) {
 	// AI configuration bindings
 	viper.BindEnv("ai.enabled", "AI_ENABLED")
 	viper.BindEnv("ai.provider", "AI_PROVIDER")
+	viper.BindEnv("ai.theme_extraction_model", "AI_THEME_EXTRACTION_MODEL")
 	viper.BindEnv("ai.api_key", "AI_API_KEY")
 	viper.BindEnv("ai.model", "AI_MODEL")
 	viper.BindEnv("ai.base_url", "AI_BASE_URL")
@@ -274,6 +277,7 @@ func Load() (*Config, error) {
 	viper.BindEnv("knowledge.playwright_worker_count", "KNOWLEDGE_PLAYWRIGHT_WORKER_COUNT")
 	viper.BindEnv("knowledge.colly_worker_count", "KNOWLEDGE_COLLY_WORKER_COUNT")
 	viper.BindEnv("knowledge.enable_performance_metrics", "KNOWLEDGE_ENABLE_PERFORMANCE_METRICS")
+	viper.BindEnv("knowledge.allowed_file_extensions", "KNOWLEDGE_ALLOWED_FILE_EXTENSIONS")
 
 	// Email subsystem bindings
 	viper.BindEnv("email.provider", "EMAIL_PROVIDER")
@@ -385,6 +389,7 @@ func setDefaults() {
 	// AI defaults
 	viper.SetDefault("ai.enabled", true)
 	viper.SetDefault("ai.provider", "openai")
+	viper.BindEnv("ai.theme_extraction_model", "gpt-4o-mini")
 	viper.SetDefault("ai.model", "gpt-4o-mini")
 	viper.SetDefault("ai.max_tokens", 1000)
 	viper.SetDefault("ai.temperature", 0.7)
@@ -405,9 +410,10 @@ func setDefaults() {
 	viper.SetDefault("knowledge.scrape_user_agent", "Hith Knowledge Bot 1.0")
 	viper.SetDefault("knowledge.scrape_timeout", "30s")
 	viper.SetDefault("knowledge.embedding_timeout", "120s")
-	viper.SetDefault("knowledge.playwright_worker_count", 3)   // Conservative for browser overhead
-	viper.SetDefault("knowledge.colly_worker_count", 15)       // Higher for lightweight HTTP
+	viper.SetDefault("knowledge.playwright_worker_count", 3) // Conservative for browser overhead
+	viper.SetDefault("knowledge.colly_worker_count", 15)     // Higher for lightweight HTTP
 	viper.SetDefault("knowledge.enable_performance_metrics", true)
+	viper.SetDefault("knowledge.allowed_file_extensions", []string{".html", ".htm", ".md", ".markdown", ".txt", ".pdf"})
 
 	// CORS defaults
 	viper.SetDefault("cors.allowed_origins", []string{"*"})
