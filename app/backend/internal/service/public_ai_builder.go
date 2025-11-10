@@ -20,10 +20,10 @@ import (
 )
 
 // PublicTenantID is the fixed tenant ID for all public AI widget builder projects
-var PublicTenantID = uuid.MustParse("79634696-84ca-11f0-b71d-063b1faa412d")
+var PublicTenantID = uuid.MustParse("7fb17866-be1f-11f0-bc68-bac7f8788f8c")
 
 // PublicProjectID is the fixed project ID for all public AI widget builder projects
-var PublicProjectID = uuid.MustParse("ec33f64a-3560-4bbe-80aa-f97c5409c9f0")
+var PublicProjectID = uuid.MustParse("7fb1ea91-be1f-11f0-bc68-bac7f8788f8c")
 
 // PublicAIBuilderService handles public AI widget builder requests
 type PublicAIBuilderService struct {
@@ -57,13 +57,13 @@ type parallelEmbeddedPage struct {
 
 // parallelProcessingStats tracks parallel processing metrics
 type parallelProcessingStats struct {
-	TotalURLs       int
-	ScrapedPages    int
-	FailedScrapes   int
-	EmbeddedPages   int
+	TotalURLs        int
+	ScrapedPages     int
+	FailedScrapes    int
+	EmbeddedPages    int
 	FailedEmbeddings int
-	StoredPages     int
-	FailedStores    int
+	StoredPages      int
+	FailedStores     int
 }
 
 // NewPublicAIBuilderService creates a new public AI builder service
@@ -139,9 +139,9 @@ func (s *PublicAIBuilderService) processURLsInParallel(
 		Stage:   "scraping",
 		Message: fmt.Sprintf("Stage 1: Successfully scraped %d/%d URLs", len(scrapedFiles), len(urls)),
 		Data: map[string]any{
-			"scraped":     len(scrapedFiles),
-			"total":       len(urls),
-			"failed":      len(urls) - len(scrapedFiles),
+			"scraped": len(scrapedFiles),
+			"total":   len(urls),
+			"failed":  len(urls) - len(scrapedFiles),
 		},
 	})
 
@@ -447,8 +447,8 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 						Stage:   "initialization",
 						Message: fmt.Sprintf("Found existing widget for %s, reusing it", domain),
 						Data: map[string]any{
-							"widget_id":        widget.ID.String(),
-							"widget_name":      widget.Name,
+							"widget_id":         widget.ID.String(),
+							"widget_name":       widget.Name,
 							"widget_created_at": widget.CreatedAt,
 						},
 					})
