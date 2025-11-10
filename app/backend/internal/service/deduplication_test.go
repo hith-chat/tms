@@ -22,7 +22,7 @@ func TestWebScrapingDeduplication(t *testing.T) {
 
 	page1 := &models.KnowledgeScrapedPage{
 		ID:         uuid.New(),
-		JobID:      jobID1,
+		JobID:      uuid.NullUUID{UUID: jobID1, Valid: true},
 		URL:        duplicateURL,
 		Title:      stringPtrTest("Page 1 - First Scrape"),
 		Content:    "This is the content from first scrape",
@@ -33,7 +33,7 @@ func TestWebScrapingDeduplication(t *testing.T) {
 
 	page2 := &models.KnowledgeScrapedPage{
 		ID:         uuid.New(),
-		JobID:      jobID2,
+		JobID:      uuid.NullUUID{UUID: jobID2, Valid: true},
 		URL:        duplicateURL, // Same URL!
 		Title:      stringPtrTest("Page 1 - Second Scrape"),
 		Content:    "This is the content from second scrape", // Different content (updated)

@@ -87,7 +87,7 @@ func MockScrapedPage() *models.KnowledgeScrapedPage {
 	title := "Test Page Title"
 	return &models.KnowledgeScrapedPage{
 		ID:        uuid.New(),
-		JobID:     MockJobID,
+		JobID:     uuid.NullUUID{UUID: MockJobID, Valid: true},
 		URL:       "https://example.com/page1",
 		Title:     &title,
 		Content:   "This is test content from a scraped web page.",

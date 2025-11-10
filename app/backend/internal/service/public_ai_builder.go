@@ -547,7 +547,7 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 	}
 
 	s.emit(ctx, events, AIBuilderEvent{
-		Type:    "builder_completed",
+		Type:    "completed",
 		Stage:   "completion",
 		Message: "AI widget successfully built and deployed",
 		Data: map[string]any{
