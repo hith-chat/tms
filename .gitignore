@@ -270,3 +270,5 @@ postgres-data/
 /app/backend/test/testdata/
 
 *.pyc
+# Local Netlify folder
+.netlify

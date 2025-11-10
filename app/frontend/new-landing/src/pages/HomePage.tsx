@@ -304,7 +304,7 @@ const HomePage = () => {
                 <span className="logo-text">Hith<span className="gradient-text">Chat</span></span>
               </div>
               <p className="footer-description">
-                AI-powered customer support for modern websites.
+                Hyper Intelligent Tech Helper
               </p>
             </div>
             <div className="footer-right">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   CheckCircle2,
   XCircle,
@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { apiClient } from '../utils/api'
 import { AIBuilderEvent, WidgetData } from '../utils/api'
-import { BUILD_EVENT_MESSAGES } from '../utils/constants'
 import './BuildPage.css'
 
 interface BuildStep {
@@ -32,7 +31,7 @@ const BuildPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [widgetData, setWidgetData] = useState<WidgetData | null>(null)
   const [isComplete, setIsComplete] = useState(false)
-  const [events, setEvents] = useState<AIBuilderEvent[]>([])
+  // const [events, setEvents] = useState<AIBuilderEvent[]>([])
 
   const [steps, setSteps] = useState<BuildStep[]>([
     {
@@ -77,7 +76,7 @@ const BuildPage = () => {
       websiteUrl,
       3,
       (event) => {
-        setEvents((prev) => [...prev, event])
+        // setEvents((prev) => [...prev, event])
         handleEvent(event)
       },
       (err) => {
@@ -243,7 +242,7 @@ const BuildPage = () => {
         </div>
 
         {/* Event Log */}
-        {events.length > 0 && (
+        {/* {events.length > 0 && (
           <motion.div
             className="event-log"
             initial={{ opacity: 0, y: 20 }}
@@ -272,7 +271,7 @@ const BuildPage = () => {
               </AnimatePresence>
             </div>
           </motion.div>
-        )}
+        )} */}
 
         {/* Error Display */}
         {error && (
