@@ -286,10 +286,15 @@ func (h *ChatWidgetHandler) ScrapeWebsiteTheme(c *gin.Context) {
 	c.JSON(http.StatusOK, themeConfig)
 }
 
-// GetEmbedSnippet returns a JavaScript snippet that can be embedded on a website to
-// load the chat widget for the given public widget id. It returns the snippet as
-// application/javascript so consumers can include it via a <script src="..."> tag
-// or fetch and inject it directly.
+// GetEmbedSnippet returns a lightweight JavaScript loader for a widget
+// @Summary Get widget embed snippet
+// @Description Returns a tiny JavaScript loader (~100 bytes) that sets widget config and loads the main widget from jsDelivr CDN for optimal performance. The loader is cached for 1 hour and loads the main widget asynchronously.
+// @Tags public-chat-widget
+// @Produce javascript
+// @Param widget_id path string true "Widget ID"
+// @Success 200 {string} string "JavaScript loader snippet"
+// @Failure 400 {object} map[string]string
+// @Router /api/public/chat/widgets/{widget_id}/embed.js [get]
 func (h *ChatWidgetHandler) GetEmbedSnippet(c *gin.Context) {
 	widgetIDStr := c.Param("widget_id")
 	widgetID, err := uuid.Parse(widgetIDStr)
@@ -299,7 +304,8 @@ func (h *ChatWidgetHandler) GetEmbedSnippet(c *gin.Context) {
 	}
 
 	// JavaScript snippet that sets the widget config and appends the remote script.
-	// Using the api.hith.chat domain per product requirements.
+	// This is a tiny loader (~100 bytes) that loads the main widget from jsDelivr CDN.
+	// The main widget script is shared across all widgets for excellent caching.
 	js := fmt.Sprintf(`(function() {
   window.TMSChatConfig = { widgetId: '%s' };
   var s = document.createElement('script');
@@ -307,6 +313,11 @@ func (h *ChatWidgetHandler) GetEmbedSnippet(c *gin.Context) {
   s.async = true;
   document.head.appendChild(s);
 })();`, widgetID)
+
+	// Set caching headers for optimal performance
+	// Cache for 1 hour - balances performance with config update flexibility
 	c.Header("Content-Type", "application/javascript; charset=utf-8")
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Header("X-Content-Type-Options", "nosniff")
 	c.String(http.StatusOK, js)
 }

@@ -177,7 +177,7 @@ func main() {
 	aiBuilderService := service.NewAIBuilderService(chatWidgetService, webScrapingService, knowledgeService, aiService)
 
 	// Public AI builder service for unauthenticated widget creation
-	publicAIBuilderService := service.NewPublicAIBuilderService(projectRepo, aiBuilderService, webScrapingService)
+	publicAIBuilderService := service.NewPublicAIBuilderService(projectRepo, chatWidgetRepo, aiBuilderService, webScrapingService)
 
 	// Payment services
 	ipGeolocationService := service.NewIPGeolocationService(redisService, "ip_track", 15*24*time.Hour)

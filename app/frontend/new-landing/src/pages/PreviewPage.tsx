@@ -43,11 +43,11 @@ const PreviewPage = () => {
   }, [location, navigate])
 
   useEffect(() => {
-    // Try to inject widget once iframe is loaded
-    if (iframeLoaded && widgetData?.widget_id && !widgetInjected) {
-      injectWidget()
+    // Inject widget directly in the page for preview
+    if (widgetData?.widget_id && !widgetInjected) {
+      injectWidgetInPage()
     }
-  }, [iframeLoaded, widgetData, widgetInjected])
+  }, [widgetData, widgetInjected])
 
   const handleIframeLoad = () => {
     setIframeLoaded(true)
@@ -57,6 +57,38 @@ const PreviewPage = () => {
   const handleIframeError = () => {
     setIframeError(true)
     setIframeLoaded(false)
+  }
+
+  const injectWidgetInPage = () => {
+    if (!widgetData?.widget_id) return
+
+    try {
+      // Check if widget script is already loaded
+      const existingScript = document.querySelector(
+        `script[src*="${widgetData.widget_id}"]`
+      )
+      if (existingScript) {
+        setWidgetInjected(true)
+        return
+      }
+
+      // Create script element to inject widget directly in the page
+      // This loads a tiny loader script that sets config and loads the main widget from CDN
+      const script = document.createElement('script')
+      script.src = `https://api.hith.chat/api/public/chat/widgets/${widgetData.widget_id}/embed.js`
+      script.async = true
+      script.onload = () => {
+        console.log('Widget script loaded successfully')
+        setWidgetInjected(true)
+      }
+      script.onerror = () => {
+        console.error('Failed to load widget script')
+      }
+
+      document.head.appendChild(script)
+    } catch (error) {
+      console.error('Error injecting widget:', error)
+    }
   }
 
   const injectWidget = () => {
@@ -105,16 +137,8 @@ const PreviewPage = () => {
   const getEmbedCode = () => {
     if (!widgetData?.widget_id) return ''
 
-    // In production, this would point to the actual CDN
-    return `<!-- Hith Chat Widget -->
-<script>
-  (function() {
-    var script = document.createElement('script');
-    script.src = 'https://api.hith.chat/chat-widget/key/${widgetData.widget_id}.js';
-    script.async = true;
-    document.head.appendChild(script);
-  })();
-</script>`
+    // Single-line script embed - loads tiny loader that fetches main widget from CDN
+    return `<script src="https://api.hith.chat/api/public/chat/widgets/${widgetData.widget_id}/embed.js" async></script>`
   }
 
   const copyCode = () => {
@@ -229,7 +253,7 @@ const PreviewPage = () => {
           />
 
           {/* Widget Badge */}
-          {iframeLoaded && widgetInjected && (
+          {widgetInjected && (
             <motion.div
               className="widget-badge"
               initial={{ opacity: 0, y: 20 }}
@@ -269,7 +293,7 @@ const PreviewPage = () => {
             <div className="instruction-item">
               <div className="instruction-number">3</div>
               <div className="instruction-text">
-                <strong>Deploy:</strong> Copy the one-line code snippet and paste it in your website's HTML
+                <strong>Deploy:</strong> Copy the single-line script tag and paste it in your website's HTML
               </div>
             </div>
           </div>
@@ -315,7 +339,7 @@ const PreviewPage = () => {
 
               <div className="modal-body">
                 <p className="modal-description">
-                  Copy this code and paste it before the closing <code>&lt;/body&gt;</code> tag in your website's HTML:
+                  Copy this single-line script tag and paste it before the closing <code>&lt;/body&gt;</code> tag in your website's HTML:
                 </p>
 
                 <div className="code-box">

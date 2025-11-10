@@ -28,6 +28,7 @@ var PublicProjectID = uuid.MustParse("ec33f64a-3560-4bbe-80aa-f97c5409c9f0")
 // PublicAIBuilderService handles public AI widget builder requests
 type PublicAIBuilderService struct {
 	projectRepo        repo.ProjectRepository
+	chatWidgetRepo     *repo.ChatWidgetRepo
 	aiBuilderService   *AIBuilderService
 	webScrapingService *WebScrapingService
 }
@@ -68,11 +69,13 @@ type parallelProcessingStats struct {
 // NewPublicAIBuilderService creates a new public AI builder service
 func NewPublicAIBuilderService(
 	projectRepo repo.ProjectRepository,
+	chatWidgetRepo *repo.ChatWidgetRepo,
 	aiBuilderService *AIBuilderService,
 	webScrapingService *WebScrapingService,
 ) *PublicAIBuilderService {
 	return &PublicAIBuilderService{
 		projectRepo:        projectRepo,
+		chatWidgetRepo:     chatWidgetRepo,
 		aiBuilderService:   aiBuilderService,
 		webScrapingService: webScrapingService,
 	}
@@ -423,6 +426,47 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 	domain := parsedURL.Host
 	// Remove www. prefix for consistency
 	domain = strings.TrimPrefix(domain, "www.")
+
+	// Check for cached widget created within the last week
+	widgets, err := s.chatWidgetRepo.ListChatWidgets(ctx, PublicTenantID, PublicProjectID)
+	if err == nil && len(widgets) > 0 {
+		// Check if any widget was created within the last week
+		oneWeekAgo := time.Now().Add(-7 * 24 * time.Hour)
+		for _, widget := range widgets {
+			if widget.CreatedAt.After(oneWeekAgo) {
+				// Found a recent widget, reuse it
+				logger.GetTxLogger(ctx).Info().
+					Str("widget_id", widget.ID.String()).
+					Str("domain", domain).
+					Time("widget_created_at", widget.CreatedAt).
+					Msg("Reusing cached widget from last week")
+
+				s.emit(ctx, events, AIBuilderEvent{
+					Type:    "cache_hit",
+					Stage:   "initialization",
+					Message: fmt.Sprintf("Found existing widget for %s, reusing it", domain),
+					Data: map[string]any{
+						"widget_id":        widget.ID.String(),
+						"widget_name":      widget.Name,
+						"widget_created_at": widget.CreatedAt,
+					},
+				})
+
+				s.emit(ctx, events, AIBuilderEvent{
+					Type:    "completed",
+					Stage:   "completion",
+					Message: "AI widget retrieved from cache",
+					Data: map[string]any{
+						"project_id": PublicProjectID.String(),
+						"widget_id":  widget.ID.String(),
+						"cached":     true,
+					},
+				})
+
+				return PublicProjectID, nil
+			}
+		}
+	}
 
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "builder_started",

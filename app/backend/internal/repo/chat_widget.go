@@ -194,3 +194,35 @@ func (r *ChatWidgetRepo) DeleteChatWidget(ctx context.Context, tenantID, project
 	_, err := r.db.ExecContext(ctx, query, tenantID, projectID, widgetID)
 	return err
 }
+
+// GetRecentWidgetByName finds a chat widget by name that was created within the specified time window
+func (r *ChatWidgetRepo) GetRecentWidgetByName(ctx context.Context, tenantID, projectID uuid.UUID, name string, withinDuration time.Duration) (*models.ChatWidget, error) {
+	query := `
+		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active,
+			   cw.primary_color, cw.secondary_color, cw.background_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
+			   cw.widget_size, cw.animation_style, cw.custom_css,
+			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
+			   cw.agent_name, cw.agent_avatar_url,
+			   cw.auto_open_delay, cw.show_agent_avatars, cw.allow_file_uploads, cw.require_email, cw.require_name,
+			   cw.sound_enabled, cw.show_powered_by, cw.use_ai,
+			   cw.business_hours, cw.embed_code, cw.created_at, cw.updated_at
+		FROM chat_widgets cw
+		WHERE cw.tenant_id = $1
+		  AND cw.project_id = $2
+		  AND cw.name = $3
+		  AND cw.created_at > $4
+		ORDER BY cw.created_at DESC
+		LIMIT 1
+	`
+
+	cutoffTime := time.Now().Add(-withinDuration)
+	var widget models.ChatWidget
+	err := r.db.GetContext(ctx, &widget, query, tenantID, projectID, name, cutoffTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &widget, nil
+}
