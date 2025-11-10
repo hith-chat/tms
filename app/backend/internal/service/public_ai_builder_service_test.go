@@ -64,7 +64,7 @@ func TestPublicAIBuilderService_BuildPublicWidget_InvalidURL(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubProjectRepository{}
-	svc := NewPublicAIBuilderService(repo, nil, nil)
+	svc := NewPublicAIBuilderService(repo, nil, nil, nil)
 
 	events := make(chan AIBuilderEvent, 2)
 	buildID, err := svc.BuildPublicWidget(context.Background(), ":://broken", 0, events)
@@ -81,28 +81,33 @@ func TestPublicAIBuilderService_BuildPublicWidget_InvalidURL(t *testing.T) {
 	}
 }
 
-func TestPublicAIBuilderService_BuildPublicWidget_DuplicateDomain(t *testing.T) {
+func TestPublicAIBuilderService_BuildPublicWidget_HTTPNotSupported(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubProjectRepository{
-		activeProject: &db.Project{ID: uuid.New(), ExpiresAt: ptrTime(time.Now().Add(4 * time.Hour))},
-	}
+	repo := &stubProjectRepository{}
+	svc := NewPublicAIBuilderService(repo, nil, nil, nil)
 
-	svc := NewPublicAIBuilderService(repo, nil, nil)
-	events := make(chan AIBuilderEvent, 3)
-
-	buildID, err := svc.BuildPublicWidget(context.Background(), "https://example.com", 2, events)
+	events := make(chan AIBuilderEvent, 2)
+	buildID, err := svc.BuildPublicWidget(context.Background(), "http://example.com", 0, events)
 
 	require.Error(t, err)
 	require.Equal(t, uuid.Nil, buildID)
-	require.Contains(t, err.Error(), "public widget already exists")
+	require.Contains(t, err.Error(), "only HTTPS URLs are supported")
+
+	select {
+	case evt := <-events:
+		require.Equal(t, "error", evt.Type)
+		require.Equal(t, "initialization", evt.Stage)
+	default:
+		t.Fatal("expected error event to be emitted")
+	}
 }
 
 func TestPublicAIBuilderService_CreatePublicProject_SetsExpectedFields(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubProjectRepository{}
-	svc := NewPublicAIBuilderService(repo, nil, nil)
+	svc := NewPublicAIBuilderService(repo, nil, nil, nil)
 
 	events := make(chan AIBuilderEvent, 1)
 	ctx := context.Background()
@@ -123,13 +128,9 @@ func TestPublicAIBuilderService_GenerateProjectKey(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubProjectRepository{}
-	svc := NewPublicAIBuilderService(repo, nil, nil)
+	svc := NewPublicAIBuilderService(repo, nil, nil, nil)
 
 	require.Equal(t, "EXAMPLE-COM-PUBLIC", svc.generateProjectKey("example.com"))
 	require.Equal(t, "DOCS-ANTHROPIC-COM-PUBLIC", svc.generateProjectKey("docs.anthropic.com"))
 	require.Equal(t, "LOCALHOST-PUBLIC", svc.generateProjectKey("localhost:8080"))
-}
-
-func ptrTime(t time.Time) *time.Time {
-	return &t
 }

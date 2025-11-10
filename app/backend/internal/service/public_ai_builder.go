@@ -427,43 +427,45 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 	// Remove www. prefix for consistency
 	domain = strings.TrimPrefix(domain, "www.")
 
-	// Check for cached widget created within the last week
-	widgets, err := s.chatWidgetRepo.ListChatWidgets(ctx, PublicTenantID, PublicProjectID)
-	if err == nil && len(widgets) > 0 {
-		// Check if any widget was created within the last week
-		oneWeekAgo := time.Now().Add(-7 * 24 * time.Hour)
-		for _, widget := range widgets {
-			if widget.CreatedAt.After(oneWeekAgo) {
-				// Found a recent widget, reuse it
-				logger.GetTxLogger(ctx).Info().
-					Str("widget_id", widget.ID.String()).
-					Str("domain", domain).
-					Time("widget_created_at", widget.CreatedAt).
-					Msg("Reusing cached widget from last week")
+	// Check for cached widget created within the last week (if repo is available)
+	if s.chatWidgetRepo != nil {
+		widgets, err := s.chatWidgetRepo.ListChatWidgets(ctx, PublicTenantID, PublicProjectID)
+		if err == nil && len(widgets) > 0 {
+			// Check if any widget was created within the last week
+			oneWeekAgo := time.Now().Add(-7 * 24 * time.Hour)
+			for _, widget := range widgets {
+				if widget.CreatedAt.After(oneWeekAgo) {
+					// Found a recent widget, reuse it
+					logger.GetTxLogger(ctx).Info().
+						Str("widget_id", widget.ID.String()).
+						Str("domain", domain).
+						Time("widget_created_at", widget.CreatedAt).
+						Msg("Reusing cached widget from last week")
 
-				s.emit(ctx, events, AIBuilderEvent{
-					Type:    "cache_hit",
-					Stage:   "initialization",
-					Message: fmt.Sprintf("Found existing widget for %s, reusing it", domain),
-					Data: map[string]any{
-						"widget_id":        widget.ID.String(),
-						"widget_name":      widget.Name,
-						"widget_created_at": widget.CreatedAt,
-					},
-				})
+					s.emit(ctx, events, AIBuilderEvent{
+						Type:    "cache_hit",
+						Stage:   "initialization",
+						Message: fmt.Sprintf("Found existing widget for %s, reusing it", domain),
+						Data: map[string]any{
+							"widget_id":        widget.ID.String(),
+							"widget_name":      widget.Name,
+							"widget_created_at": widget.CreatedAt,
+						},
+					})
 
-				s.emit(ctx, events, AIBuilderEvent{
-					Type:    "completed",
-					Stage:   "completion",
-					Message: "AI widget retrieved from cache",
-					Data: map[string]any{
-						"project_id": PublicProjectID.String(),
-						"widget_id":  widget.ID.String(),
-						"cached":     true,
-					},
-				})
+					s.emit(ctx, events, AIBuilderEvent{
+						Type:    "completed",
+						Stage:   "completion",
+						Message: "AI widget retrieved from cache",
+						Data: map[string]any{
+							"project_id": PublicProjectID.String(),
+							"widget_id":  widget.ID.String(),
+							"cached":     true,
+						},
+					})
 
-				return PublicProjectID, nil
+					return PublicProjectID, nil
+				}
 			}
 		}
 	}

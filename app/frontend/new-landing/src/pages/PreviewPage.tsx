@@ -91,49 +91,6 @@ const PreviewPage = () => {
     }
   }
 
-  const injectWidget = () => {
-    if (!iframeRef.current || !widgetData?.widget_id) return
-
-    try {
-      const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
-      if (!iframeDoc) {
-        console.error('Cannot access iframe document')
-        return
-      }
-
-      // Create script element to inject widget
-      const script = iframeDoc.createElement('script')
-
-      // Use the chat widget from the built version
-      // In production, this would be: https://api.hith.chat/chat-widget/key/${widgetData.widget_id}.js
-      // For now, we'll inject it directly
-      script.textContent = `
-        (function() {
-          // Load the chat widget library
-          var script = document.createElement('script');
-          script.src = '/chat-widget/dist/chat-widget.js';
-          script.onload = function() {
-            // Initialize the widget
-            if (window.TMSChatWidget) {
-              new window.TMSChatWidget({
-                widgetId: '${widgetData.widget_id}',
-                apiUrl: window.location.origin
-              });
-            }
-          };
-          document.head.appendChild(script);
-        })();
-      `
-
-      iframeDoc.body.appendChild(script)
-      setWidgetInjected(true)
-    } catch (error) {
-      console.error('Error injecting widget:', error)
-      // Cross-origin error - expected for external sites
-      setIframeError(true)
-    }
-  }
-
   const getEmbedCode = () => {
     if (!widgetData?.widget_id) return ''
 
