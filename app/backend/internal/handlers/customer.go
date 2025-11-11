@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/bareuptime/tms/internal/db"
 	"github.com/bareuptime/tms/internal/middleware"
 	"github.com/bareuptime/tms/internal/service"
 	"github.com/gin-gonic/gin"
@@ -248,6 +249,10 @@ func (h *CustomerHandler) ListCustomers(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list customers"})
 		return
+	}
+
+	if customers == nil {
+		customers = []*db.Customer{}
 	}
 
 	response := gin.H{
