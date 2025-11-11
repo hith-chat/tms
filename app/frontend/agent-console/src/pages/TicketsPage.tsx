@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { 
-  Plus, 
-  Search, 
-  MoreHorizontal, 
-  Clock, 
-  User, 
-  AlertCircle, 
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  Clock,
+  User,
+  AlertCircle,
   Download,
   RefreshCw,
   Inbox,
@@ -43,6 +43,7 @@ import {
   SelectValue
 } from '@tms/shared'
 import { apiClient, Ticket, CreateTicketRequest } from '../lib/api'
+import { PageHeader } from '../components/PageHeader'
 
 // Enterprise color schemes with CSS variables
 const statusConfig = {
@@ -196,69 +197,55 @@ export const TicketsPage: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
-        {/* Enhanced Header */}
-        <div className="border-b bg-card">
-          <div className="px-6 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25"></div>
-                  <div className="relative p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-                    <Inbox className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                </div>
+    <div className="h-full flex flex-col bg-gradient-to-br from-background via-background to-slate-50/20 dark:to-slate-950/20">
+      <PageHeader
+        icon={Inbox}
+        title="Tickets"
+        subtitle={`${filteredTickets.length} of ${tickets.length} tickets`}
+        gradientFrom="#2563eb"
+        gradientTo="#9333ea"
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label="Refresh tickets"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
 
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Tickets</h1>
-                  <div className="flex items-center gap-3 mt-1">
-                    <p className="text-sm text-muted-foreground">{filteredTickets.length} of {tickets.length} tickets</p>
-                  </div>
-                </div>
-              </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export tickets
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Manage views
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Bulk actions
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  aria-label="Refresh tickets"
-                >
-                  <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                </Button>
-                
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" aria-label="More actions">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export tickets
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Manage views
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Bulk actions
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                
-                <Button onClick={handleCreateTicket} size="sm" className="gap-1.5">
-                  <Plus className="h-4 w-4" />
-                  New Ticket
-                </Button>
-              </div>
-            </div>
+            <Button onClick={handleCreateTicket} size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              New Ticket
+            </Button>
           </div>
-        </div>
+        }
+      />
 
         {/* Enhanced Filters Bar */}
         <div className="border-b bg-card/50">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Users, Search, Mail, Calendar, User } from 'lucide-react'
 import { apiClient, Customer, CustomersResponse } from '../lib/api'
+import { PageHeader } from '../components/PageHeader'
 
 export function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -66,51 +67,31 @@ export function CustomersPage() {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-background via-background to-slate-50/20 dark:to-slate-950/20">
-      {/* Enhanced Header with gradient and glass effect */}
-      <div className="border-b border-border/50 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 shadow-sm">
-        <div className="px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25"></div>
-                <div className="relative p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-                  <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Customers
-                </h1>
-                <div className="flex items-center gap-3 mt-1">
-                  <p className="text-sm text-muted-foreground">
-                    View and manage customer information
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="flex items-center space-x-4">
-              <form onSubmit={handleSearch} className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search customers..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="flex h-10 w-80 rounded-lg border border-input bg-background px-3 py-2 pl-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-shadow"
-                />
-              </form>
-            </div>
+      <PageHeader
+        icon={Users}
+        title="Customers"
+        subtitle="View and manage customer information"
+        gradientFrom="#2563eb"
+        gradientTo="#9333ea"
+        actions={
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search customers..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex h-10 w-80 rounded-lg border border-input bg-background px-3 py-2 pl-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-shadow"
+            />
+          </form>
+        }
+      >
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <p className="text-destructive text-sm">{error}</p>
           </div>
-
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
-              <p className="text-destructive text-sm">{error}</p>
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </PageHeader>
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
