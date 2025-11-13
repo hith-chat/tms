@@ -800,6 +800,9 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
+	themeConfig.ShowAgentAvatars = true
+	themeConfig.UseAI = true
+
 	return &themeConfig, nil
 }
 

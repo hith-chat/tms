@@ -815,7 +815,7 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 	})
 
 	widget, sharedBrowser, err := s.aiBuilderService.buildWidget(ctx, PublicTenantID, PublicProjectID, targetURL, domain, events)
-	if err != nil{
+	if err != nil {
 		logger.GetTxLogger(ctx).Error().
 			Str("project_id", PublicProjectID.String()).
 			Err(err).
@@ -1006,6 +1006,54 @@ func (s *PublicAIBuilderService) emit(ctx context.Context, events chan<- AIBuild
 	case <-ctx.Done():
 	case events <- event:
 	}
+}
+
+// ExtractTheme extracts theme colors and styling from a website URL without crawling
+func (s *PublicAIBuilderService) ExtractTheme(ctx context.Context, targetURL string) (map[string]interface{}, error) {
+	// Scrape theme data from the website
+	themeData, sharedBrowser, err := s.webScrapingService.ScrapeWebsiteThemeWithBrowser(ctx, targetURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("scrape theme: %w", err)
+	}
+	defer func() {
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+	}()
+
+	// Generate widget theme using AI
+	cfg, err := s.aiBuilderService.aiService.GenerateWidgetTheme(ctx, themeData)
+	if err != nil {
+		return nil, fmt.Errorf("generate widget theme: %w", err)
+	}
+
+	// Apply widget defaults
+	s.aiBuilderService.applyWidgetDefaults(cfg)
+
+	// Convert to response map
+	response := map[string]interface{}{
+		"primary_color":      cfg.PrimaryColor,
+		"secondary_color":    cfg.SecondaryColor,
+		"background_color":   cfg.BackgroundColor,
+		"position":           cfg.Position,
+		"widget_shape":       cfg.WidgetShape,
+		"widget_size":        cfg.WidgetSize,
+		"chat_bubble_style":  cfg.ChatBubbleStyle,
+		"welcome_message":    cfg.WelcomeMessage,
+		"custom_greeting":    cfg.CustomGreeting,
+		"agent_name":         cfg.AgentName,
+		"show_agent_avatars": true,
+		"agent_avatar_url":   cfg.AgentAvatarURL,
+		"brand_info": map[string]interface{}{
+			"brand_name":    themeData.BrandName,
+			"page_title":    themeData.PageTitle,
+			"meta_desc":     themeData.MetaDesc,
+			"colors":        themeData.Colors,
+			"font_families": themeData.FontFamilies,
+		},
+	}
+
+	return response, nil
 }
 
 // ExtractURLsDebug extracts all URLs from a website for debugging purposes

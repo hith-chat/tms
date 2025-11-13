@@ -1405,7 +1405,7 @@ class APIClient {
     return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/knowledge/scraping-jobs/${jobId}/index/stream`
   }
 
-  getAIBuilderStreamUrl(): string {
+  getAIBuilderStreamUrl(trimmed: string, p0: number): string {
     const tenantId = localStorage.getItem('tenant_id') || this.tenantId
     const projectId = localStorage.getItem('project_id') || this.projectId
 
