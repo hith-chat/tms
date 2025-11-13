@@ -133,70 +133,70 @@ export function AppearanceSection({
 
             {/* Colors */}
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2">
-                <label 
-                  htmlFor="primary-color" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Primary Color <span className="text-destructive">*</span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="primary-color"
-                    type="color"
-                    value={formData.primary_color}
-                    onChange={(e) => onUpdate({ primary_color: e.target.value })}
-                    className="h-10 w-16 rounded-md border border-input bg-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-describedby="primary-color-description"
-                  />
+              <div className="flex items-center gap-3 p-3 rounded-md border border-input bg-background/50">
+                <input
+                  id="primary-color"
+                  type="color"
+                  value={formData.primary_color}
+                  onChange={(e) => onUpdate({ primary_color: e.target.value })}
+                  className="h-10 w-10 rounded-md border-0 cursor-pointer"
+                  aria-describedby="primary-color-description"
+                />
+                <div className="flex-1 min-w-0">
+                  <label
+                    htmlFor="primary-color"
+                    className="text-sm font-medium leading-none cursor-pointer block"
+                  >
+                    Primary Color <span className="text-destructive">*</span>
+                  </label>
+                  <p id="primary-color-description" className="text-xs text-muted-foreground mt-1">
+                    Main theme color
+                  </p>
                 </div>
-                <p id="primary-color-description" className="text-xs text-muted-foreground">
-                  Main theme color
-                </p>
               </div>
 
-              <div className="space-y-2">
-                <label 
-                  htmlFor="secondary-color" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Secondary Color
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="secondary-color"
-                    type="color"
-                    value={formData.secondary_color || '#6b7280'}
-                    onChange={(e) => onUpdate({ secondary_color: e.target.value })}
-                    className="h-10 w-16 rounded-md border border-input bg-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-describedby="secondary-color-description"
-                  />
+              <div className="flex items-center gap-3 p-3 rounded-md border border-input bg-background/50">
+                <input
+                  id="secondary-color"
+                  type="color"
+                  value={formData.secondary_color || '#6b7280'}
+                  onChange={(e) => onUpdate({ secondary_color: e.target.value })}
+                  className="h-10 w-10 rounded-md border-0 cursor-pointer"
+                  aria-describedby="secondary-color-description"
+                />
+                <div className="flex-1 min-w-0">
+                  <label
+                    htmlFor="secondary-color"
+                    className="text-sm font-medium leading-none cursor-pointer block"
+                  >
+                    Secondary Color
+                  </label>
+                  <p id="secondary-color-description" className="text-xs text-muted-foreground mt-1">
+                    Agent messages
+                  </p>
                 </div>
-                <p id="secondary-color-description" className="text-xs text-muted-foreground">
-                  Theme color for accents
-                </p>
               </div>
 
-              <div className="space-y-2">
-                <label
-                  htmlFor="background-color"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Background Color
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="background-color"
-                    type="color"
-                    value={formData.background_color || '#ffffff'}
-                    onChange={(e) => onUpdate({ background_color: e.target.value })}
-                    className="h-10 w-16 rounded-md border border-input bg-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-describedby="background-color-description"
-                  />
+              <div className="flex items-center gap-3 p-3 rounded-md border border-input bg-background/50">
+                <input
+                  id="background-color"
+                  type="color"
+                  value={formData.background_color || '#ffffff'}
+                  onChange={(e) => onUpdate({ background_color: e.target.value })}
+                  className="h-10 w-10 rounded-md border-0 cursor-pointer"
+                  aria-describedby="background-color-description"
+                />
+                <div className="flex-1 min-w-0">
+                  <label
+                    htmlFor="background-color"
+                    className="text-sm font-medium leading-none cursor-pointer block"
+                  >
+                    Background Color
+                  </label>
+                  <p id="background-color-description" className="text-xs text-muted-foreground mt-1">
+                    Chat window background
+                  </p>
                 </div>
-                <p id="background-color-description" className="text-xs text-muted-foreground">
-                  Background color
-                </p>
               </div>
             </div>
           </div>
