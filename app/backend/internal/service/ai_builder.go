@@ -81,12 +81,11 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 		return err
 	}
 
+	// Always generate FAQ
 	faqItems := []*models.KnowledgeFAQItem{}
-	if generateFaq {
-		faqItems, err = s.generateFAQ(ctx, tenantID, projectID, rootURL, jobID, selections, events)
-		if err != nil {
-			return err
-		}
+	faqItems, err = s.generateFAQ(ctx, tenantID, projectID, rootURL, jobID, selections, events)
+	if err != nil {
+		return err
 	}
 
 	embedCode := ""

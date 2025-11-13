@@ -81,20 +81,17 @@ func NewPublicAIBuilderService(
 	}
 }
 
-// processURLsInParallel processes a list of URLs through the new pipeline:
-// Stage 1: URLs → Scrape to text files (parallel)
-// Stage 2: AI ranking to select top 8 URLs
-// Stage 3: Read top 8 → Embed (batch) → Store in pgvector (parallel)
-func (s *PublicAIBuilderService) processURLsInParallel(
+// processURLsInParallelWithJobID processes URLs and returns the job ID for FAQ generation
+func (s *PublicAIBuilderService) processURLsInParallelWithJobID(
 	ctx context.Context,
 	tenantID, projectID uuid.UUID,
 	widgetID, buildID uuid.UUID,
 	urls []string,
 	widget *models.ChatWidget,
 	events chan<- AIBuilderEvent,
-) error {
+) (uuid.UUID, error) {
 	if len(urls) == 0 {
-		return fmt.Errorf("no URLs to process")
+		return uuid.Nil, fmt.Errorf("no URLs to process")
 	}
 
 	// Create a scraping job for tracking
@@ -103,7 +100,45 @@ func (s *PublicAIBuilderService) processURLsInParallel(
 		MaxDepth: 2,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create scraping job: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to create scraping job: %w", err)
+	}
+
+	// Process URLs using the stable pipeline
+	err = s.processURLsInParallelInternal(ctx, tenantID, projectID, widgetID, buildID, job.ID, urls, widget, events)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return job.ID, nil
+}
+
+// processURLsInParallel processes a list of URLs through the new pipeline (backward compatibility)
+func (s *PublicAIBuilderService) processURLsInParallel(
+	ctx context.Context,
+	tenantID, projectID uuid.UUID,
+	widgetID, buildID uuid.UUID,
+	urls []string,
+	widget *models.ChatWidget,
+	events chan<- AIBuilderEvent,
+) error {
+	_, err := s.processURLsInParallelWithJobID(ctx, tenantID, projectID, widgetID, buildID, urls, widget, events)
+	return err
+}
+
+// processURLsInParallelInternal processes a list of URLs through the new pipeline:
+// Stage 1: URLs → Scrape to text files (parallel)
+// Stage 2: AI ranking to select top 8 URLs
+// Stage 3: Read top 8 → Embed (batch) → Store in pgvector (parallel)
+func (s *PublicAIBuilderService) processURLsInParallelInternal(
+	ctx context.Context,
+	tenantID, projectID uuid.UUID,
+	widgetID, buildID, jobID uuid.UUID,
+	urls []string,
+	widget *models.ChatWidget,
+	events chan<- AIBuilderEvent,
+) error {
+	if len(urls) == 0 {
+		return fmt.Errorf("no URLs to process")
 	}
 
 	// Create working directory for this build
@@ -177,7 +212,7 @@ func (s *PublicAIBuilderService) processURLsInParallel(
 		Message: fmt.Sprintf("Stage 3: Generating embeddings and storing top 8 URLs"),
 	})
 
-	err = s.embedAndStoreTop8(ctx, tenantID, projectID, widgetID, job.ID, top8URLs, workDir, events)
+	err = s.embedAndStoreTop8(ctx, tenantID, projectID, widgetID, jobID, top8URLs, workDir, events)
 	if err != nil {
 		return fmt.Errorf("stage 3 failed: %w", err)
 	}
@@ -373,6 +408,284 @@ func (s *PublicAIBuilderService) runStorageWorkers(
 	}
 
 	wg.Wait()
+}
+
+// BuildWidgetForProject creates an AI widget for the given tenant and project
+// This is the stable workflow that supports FAQ generation
+// Returns the widget ID and any error
+func (s *PublicAIBuilderService) BuildWidgetForProject(
+	ctx context.Context,
+	tenantID, projectID uuid.UUID,
+	targetURL string,
+	depth int,
+	generateFAQ bool,
+	events chan<- AIBuilderEvent,
+) (uuid.UUID, error) {
+	if depth <= 0 {
+		depth = 3 // Default depth
+	}
+
+	// Generate unique build ID for this build session
+	buildID := uuid.New()
+
+	// Parse and validate URL
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "error",
+			Stage:   "initialization",
+			Message: "Invalid URL provided",
+			Detail:  err.Error(),
+		})
+		return uuid.Nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "error",
+			Stage:   "initialization",
+			Message: "Invalid URL provided",
+			Detail:  "URL must include both scheme (http/https) and host",
+		})
+		return uuid.Nil, fmt.Errorf("invalid URL: missing scheme or host")
+	}
+
+	domain := parsedURL.Host
+	// Remove www. prefix for consistency
+	domain = strings.TrimPrefix(domain, "www.")
+
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "builder_started",
+		Stage:   "initialization",
+		Message: fmt.Sprintf("Starting AI widget builder for %s (build ID: %s)", domain, buildID.String()),
+		Data: map[string]any{
+			"domain":     domain,
+			"url":        targetURL,
+			"tenant_id":  tenantID.String(),
+			"project_id": projectID.String(),
+			"build_id":   buildID.String(),
+		},
+	})
+
+	// Step 1: Build widget theme
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "theme_generation_started",
+		Stage:   "theme",
+		Message: "Generating chat widget theme from website",
+	})
+
+	widget, sharedBrowser, err := s.aiBuilderService.buildWidget(ctx, tenantID, projectID, targetURL, events)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().
+			Str("project_id", projectID.String()).
+			Err(err).
+			Msg("Widget theme generation failed")
+		return uuid.Nil, fmt.Errorf("widget generation failed: %w", err)
+	}
+
+	// Ensure browser is cleaned up when done
+	defer func() {
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+	}()
+
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "theme_generation_completed",
+		Stage:   "theme",
+		Message: fmt.Sprintf("Widget theme created: %s", widget.Name),
+		Data: map[string]any{
+			"widget_id": widget.ID.String(),
+		},
+	})
+
+	// Step 2: Extract all URLs using parallel extraction
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "url_extraction_started",
+		Stage:   "url_extraction",
+		Message: fmt.Sprintf("Extracting URLs from %s (depth: %d)", targetURL, depth),
+	})
+
+	urlEvents := make(chan URLExtractionEvent, 100)
+	var extractedURLs []string
+
+	// Run URL extraction in background and collect results
+	go func() {
+		if err := s.webScrapingService.ExtractURLsWithStream(ctx, targetURL, depth, urlEvents, sharedBrowser, buildID.String()); err != nil {
+			logger.GetTxLogger(ctx).Error().Err(err).Msg("URL extraction failed")
+		}
+	}()
+
+	// Collect extracted URLs
+	for event := range urlEvents {
+		// Forward URL extraction events to main event stream
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "url_extraction_progress",
+			Stage:   "url_extraction",
+			Message: event.Message,
+			Data: map[string]any{
+				"event_type":    event.Type,
+				"links_found":   event.LinksFound,
+				"current_depth": event.CurrentDepth,
+			},
+		})
+
+		// Collect final URL list
+		if event.Type == "completed" && len(event.URLs) > 0 {
+			extractedURLs = event.URLs
+		}
+	}
+
+	if len(extractedURLs) == 0 {
+		err := fmt.Errorf("no URLs were extracted from the website")
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "error",
+			Stage:   "url_extraction",
+			Message: err.Error(),
+		})
+		return uuid.Nil, err
+	}
+
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "url_extraction_completed",
+		Stage:   "url_extraction",
+		Message: fmt.Sprintf("Extracted %d URLs", len(extractedURLs)),
+		Data: map[string]any{
+			"total_urls": len(extractedURLs),
+		},
+	})
+
+	// Steps 3-7: Process URLs in parallel (scrape to files → AI rank top 8 → embed → store)
+	// This also creates a scraping job that we'll need for FAQ generation
+	jobID, err := s.processURLsInParallelWithJobID(ctx, tenantID, projectID, widget.ID, buildID, extractedURLs, widget, events)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().
+			Str("project_id", projectID.String()).
+			Err(err).
+			Msg("Parallel processing failed")
+		return uuid.Nil, fmt.Errorf("parallel processing failed: %w", err)
+	}
+
+	// Step 8: Generate FAQ if requested
+	if generateFAQ {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "faq_generation_started",
+			Stage:   "faq",
+			Message: "Generating knowledge Q&A from indexed content",
+		})
+
+		// Get scraped pages for FAQ generation
+		pages, err := s.webScrapingService.GetJobPages(ctx, jobID, tenantID, projectID)
+		if err != nil {
+			s.emit(ctx, events, AIBuilderEvent{
+				Type:    "faq_error",
+				Stage:   "faq",
+				Message: "Failed to load scraped pages for FAQ generation",
+				Detail:  err.Error(),
+			})
+		} else if len(pages) == 0 {
+			s.emit(ctx, events, AIBuilderEvent{
+				Type:    "faq_warning",
+				Stage:   "faq",
+				Message: "No content available for FAQ generation",
+			})
+		} else {
+			// Convert pages to sections for FAQ generation
+			sections := make([]KnowledgeSectionSummary, 0, len(pages))
+			for _, page := range pages {
+				if page == nil || page.Content == "" {
+					continue
+				}
+				title := ""
+				if page.Title != nil {
+					title = *page.Title
+				}
+				sections = append(sections, KnowledgeSectionSummary{
+					URL:     page.URL,
+					Title:   title,
+					Content: page.Content,
+				})
+			}
+
+			if len(sections) > 0 {
+				// Generate FAQs using AI
+				faqItems, err := s.aiBuilderService.aiService.GenerateKnowledgeFAQ(ctx, targetURL, sections, 10)
+				if err != nil {
+					s.emit(ctx, events, AIBuilderEvent{
+						Type:    "faq_error",
+						Stage:   "faq",
+						Message: "Failed to generate FAQs",
+						Detail:  err.Error(),
+					})
+				} else {
+					// Store FAQs in database
+					dbFAQItems := make([]*models.KnowledgeFAQItem, 0, len(faqItems))
+					now := time.Now()
+					for _, item := range faqItems {
+						question := strings.TrimSpace(item.Question)
+						answer := strings.TrimSpace(item.Answer)
+						if question == "" || answer == "" {
+							continue
+						}
+
+						faq := &models.KnowledgeFAQItem{
+							ID:        uuid.New(),
+							Question:  question,
+							Answer:    answer,
+							Metadata:  models.JSONMap{"source": "ai_builder_stable"},
+							CreatedAt: now,
+							UpdatedAt: now,
+						}
+
+						if trimmed := strings.TrimSpace(item.SourceURL); trimmed != "" {
+							urlCopy := trimmed
+							faq.SourceURL = &urlCopy
+						}
+
+						if section := strings.TrimSpace(item.SectionRef); section != "" {
+							sectionCopy := section
+							faq.SourceSection = &sectionCopy
+						}
+
+						dbFAQItems = append(dbFAQItems, faq)
+					}
+
+					if len(dbFAQItems) > 0 {
+						if err := s.aiBuilderService.knowledgeService.ReplaceFAQItems(ctx, tenantID, projectID, dbFAQItems); err != nil {
+							s.emit(ctx, events, AIBuilderEvent{
+								Type:    "faq_error",
+								Stage:   "faq",
+								Message: "Failed to persist FAQs",
+								Detail:  err.Error(),
+							})
+						} else {
+							s.emit(ctx, events, AIBuilderEvent{
+								Type:    "faq_ready",
+								Stage:   "faq",
+								Message: fmt.Sprintf("Generated %d knowledge Q&A items", len(dbFAQItems)),
+								Data: map[string]any{
+									"count": len(dbFAQItems),
+								},
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	s.emit(ctx, events, AIBuilderEvent{
+		Type:    "completed",
+		Stage:   "completion",
+		Message: "AI widget successfully built and deployed",
+		Data: map[string]any{
+			"project_id": projectID.String(),
+			"widget_id":  widget.ID.String(),
+			"total_urls": len(extractedURLs),
+		},
+	})
+
+	return widget.ID, nil
 }
 
 // BuildPublicWidget creates a public AI widget for the given URL

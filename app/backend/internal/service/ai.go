@@ -933,7 +933,7 @@ Return exactly %d unique URLs. Always include the homepage (%s) even if it was n
 		MaxTokens:   800,
 	}
 
-	response, _, err := s.callOpenAI(ctx, req)
+	response, _, err := s.generateResponseForAIRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to rank knowledge links: %w", err)
 	}
@@ -1061,7 +1061,7 @@ Here are the sections:
 		MaxTokens:   1600,
 	}
 
-	response, _, err := s.callOpenAI(ctx, req)
+	response, _, err := s.generateResponseForAIRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate FAQs: %w", err)
 	}

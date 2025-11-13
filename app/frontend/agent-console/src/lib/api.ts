@@ -1405,7 +1405,7 @@ class APIClient {
     return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/knowledge/scraping-jobs/${jobId}/index/stream`
   }
 
-  getAIBuilderStreamUrl(websiteUrl: string, depth: number = 3): string {
+  getAIBuilderStreamUrl(): string {
     const tenantId = localStorage.getItem('tenant_id') || this.tenantId
     const projectId = localStorage.getItem('project_id') || this.projectId
 
@@ -1413,10 +1413,8 @@ class APIClient {
       throw new Error('Tenant and project must be selected before starting the AI builder')
     }
 
-    const clampedDepth = Math.min(Math.max(depth, 1), 5)
     const baseUrl = this.client.defaults.baseURL || API_BASE_URL
-    const params = new URLSearchParams({ url: websiteUrl, depth: clampedDepth.toString() })
-    return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/ai/build?${params.toString()}`
+    return `${baseUrl}/tenants/${tenantId}/projects/${projectId}/ai/build`
   }
 
   async searchKnowledge(_projectId: string, query: string): Promise<KnowledgeSearchResult> {
