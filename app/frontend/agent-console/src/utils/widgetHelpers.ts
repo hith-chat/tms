@@ -1,10 +1,10 @@
 export const widgetShapes = [
-  { value: 'rounded', label: 'Rounded', desc: 'Friendly and approachable', preview: '🔵' },
-  { value: 'square', label: 'Square', desc: 'Clean and professional', preview: '⬛' },
-  { value: 'minimal', label: 'Minimal', desc: 'Ultra-clean design', preview: '⚪' },
-  { value: 'professional', label: 'Professional', desc: 'Enterprise-grade', preview: '🏢' },
-  { value: 'modern', label: 'Modern', desc: 'Contemporary style', preview: '✨' },
-  { value: 'classic', label: 'Classic', desc: 'Traditional design', preview: '📝' }
+  { value: 'rounded', label: 'Rounded', desc: 'Friendly and approachable', preview: '' },
+  { value: 'square', label: 'Square', desc: 'Clean and professional', preview: '' },
+  // { value: 'minimal', label: 'Minimal', desc: 'Ultra-clean design', preview: '' },
+  // { value: 'professional', label: 'Professional', desc: 'Enterprise-grade', preview: '' },
+  // { value: 'modern', label: 'Modern', desc: 'Contemporary style', preview: '' },
+  // { value: 'classic', label: 'Classic', desc: 'Traditional design', preview: '' }
 ] as const
 
 export const bubbleStyles = [
