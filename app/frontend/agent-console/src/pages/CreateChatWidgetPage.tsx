@@ -99,7 +99,7 @@ export function CreateChatWidgetPage() {
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
 
           {/* Left Column - Form Sections */}
-          <div className="xl:col-span-7 space-y-6">
+          <div className="xl:col-span-5 space-y-6">
             {/* AI Builder Section */}
             {builderMode === 'ai' && (
               <AIBuilderSection
@@ -135,42 +135,52 @@ export function CreateChatWidgetPage() {
 
             {/* Embedded Code Section */}
             {formData.embed_code && (
-              <div className="rounded border border-border bg-card p-4">
-                <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-card shadow-sm">
+                {/* Section Header */}
+                <div className="border-b border-border bg-muted/50 px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <Copy className="h-5 w-5 text-primary" />
+                    <h3 className="text-base font-semibold text-foreground">Embed Code</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">Add this code to your website to enable the chat widget</p>
+                </div>
+
+                {/* Section Content */}
+                <div className="p-6 space-y-4">
                   {/* Success message */}
                   {successMessage && (
-                    <div className="flex items-center gap-2 p-2 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200">
+                    <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200">
                       <CheckCircle className="h-4 w-4" />
                       <span className="text-sm font-medium">{successMessage}</span>
                     </div>
                   )}
 
-                  {/* Code block - full width */}
-                  <div className="rounded-md border border-border bg-muted/80 p-3">
+                  {/* Code block */}
+                  <div className="rounded-md border border-border bg-muted/50 p-4">
                     <code className="text-sm font-mono text-foreground break-all">
                       {formData.embed_code}
                     </code>
                   </div>
 
                   {/* Instructions and Copy button */}
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <p className="text-sm text-muted-foreground">
-                      Copy this single line and paste it before the closing &lt;/body&gt; tag in your HTML
+                      Copy this code and paste it before the closing &lt;/body&gt; tag in your HTML
                     </p>
                     <button
                       type="button"
                       onClick={copyEmbedCode}
-                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium transition-colors border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3"
+                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4"
                       disabled={!formData.embed_code}
                     >
                       {copiedCode ? (
                         <>
-                          <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                          <CheckCircle className="h-4 w-4 text-green-600" />
                           <span className="text-green-600">Copied!</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="h-3.5 w-3.5" />
+                          <Copy className="h-4 w-4" />
                           <span>Copy Code</span>
                         </>
                       )}
@@ -181,17 +191,15 @@ export function CreateChatWidgetPage() {
             )}
 
             {/* Form Actions */}
-            <div className="pt-1">
-              <FormActions
-                submitting={submitting}
-                widgetId={widgetId}
-                onCancel={handleCancel}
-              />
-            </div>
+            <FormActions
+              submitting={submitting}
+              widgetId={widgetId}
+              onCancel={handleCancel}
+            />
           </div>
 
           {/* Right Column - Live Preview */}
-          <div className="xl:col-span-5">
+          <div className="xl:col-span-7">
             <div className="xl:sticky xl:top-0">
               <WidgetSimulation
                 formData={formData}

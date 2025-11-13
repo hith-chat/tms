@@ -9,37 +9,40 @@ interface BuilderModeToggleProps {
 
 export function BuilderModeToggle({ mode, onChange }: BuilderModeToggleProps) {
   return (
-    <div className="flex items-center justify-between w-full min-w-0 mb-6 p-4 rounded-lg border border-border bg-card">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full min-w-0 mb-6 p-5 rounded-lg border border-border bg-card shadow-sm gap-4">
       <div>
-        <h3 className="text-lg font-medium text-foreground">
+        <h3 className="text-base font-semibold text-foreground">
           Widget Builder Mode
         </h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Choose how you want to create your widget
+        </p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 bg-muted/50 p-1 rounded-lg">
         <button
           type="button"
           onClick={() => onChange('ai')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
             mode === 'ai'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Wand2 className="h-3.5 w-3.5" />
-          Auto-generate using AI
+          <Wand2 className="h-4 w-4" />
+          AI Builder
         </button>
 
         <button
           type="button"
           onClick={() => onChange('manual')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
             mode === 'manual'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Settings className="h-3.5 w-3.5" />
+          <Settings className="h-4 w-4" />
           Manual
         </button>
       </div>

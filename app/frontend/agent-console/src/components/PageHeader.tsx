@@ -23,7 +23,7 @@ export function PageHeader({
   return (
     <div className="border-b border-border/50 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="relative">
               <div

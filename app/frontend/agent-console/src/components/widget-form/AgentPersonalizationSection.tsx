@@ -11,13 +11,22 @@ export function AgentPersonalizationSection({
   onUpdate
 }: AgentPersonalizationSectionProps) {
   return (
-    <div className="rounded border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-card shadow-sm">
+      {/* Section Header */}
+      <div className="border-b border-border bg-muted/50 px-6 py-4">
+        <div className="flex items-center gap-2">
+          <User className="h-5 w-5 text-primary" />
+          <h3 className="text-base font-semibold text-foreground">Agent Personalization</h3>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">Configure your agent's identity and greeting</p>
+      </div>
 
-      <div className="space-y-3">
+      {/* Section Content */}
+      <div className="p-6 space-y-5">
         {/* Domain URL Field */}
-        <div className="space-y-1">
-          <label htmlFor="domain-url" className="text-sm font-medium text-foreground flex items-center gap-1">
-            <Globe className="h-3.5 w-3.5" />
+        <div className="space-y-2">
+          <label htmlFor="domain-url" className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
             Domain <span className="text-destructive">*</span>
           </label>
           <input
@@ -26,13 +35,15 @@ export function AgentPersonalizationSection({
             value={formData.domain_url || ''}
             onChange={(e) => onUpdate({ domain_url: e.target.value })}
             placeholder="example.com"
-            className="h-9 w-full rounded border border-input bg-background px-3 py-2 text-sm"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             required
           />
+          <p className="text-xs text-muted-foreground">Enter the domain where this widget will be embedded</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
+        {/* Agent Details Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="space-y-2">
             <label htmlFor="agent-name" className="text-sm font-medium text-foreground">
               Agent Name
             </label>
@@ -42,13 +53,14 @@ export function AgentPersonalizationSection({
               value={formData.agent_name || ''}
               onChange={(e) => onUpdate({ agent_name: e.target.value })}
               placeholder="Sarah Johnson"
-              className="h-9 w-full rounded border border-input bg-background px-3 py-2 text-sm"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
+            <p className="text-xs text-muted-foreground">Name displayed in the chat interface</p>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <label htmlFor="agent-avatar" className="text-sm font-medium text-foreground">
-              Avatar URL (optional)
+              Avatar URL <span className="text-muted-foreground text-xs">(optional)</span>
             </label>
             <input
               id="agent-avatar"
@@ -56,25 +68,26 @@ export function AgentPersonalizationSection({
               value={formData.agent_avatar_url || ''}
               onChange={(e) => onUpdate({ agent_avatar_url: e.target.value })}
               placeholder="https://example.com/avatar.jpg"
-              className="h-9 w-full rounded border border-input bg-background px-3 py-2 text-sm"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
+            <p className="text-xs text-muted-foreground">Profile picture for your agent</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3">
-          <div className="space-y-1">
-            <label htmlFor="welcome-message" className="text-sm font-medium text-foreground">
-              Welcome Message
-            </label>
-            <textarea
-              id="welcome-message"
-              value={formData.welcome_message || ''}
-              onChange={(e) => onUpdate({ welcome_message: e.target.value })}
-              rows={2}
-              placeholder="Hi there! 👋 How can we help you today?"
-              className="w-full rounded border border-input bg-background px-3 py-2 text-sm resize-none"
-            />
-          </div>
+        {/* Welcome Message */}
+        <div className="space-y-2">
+          <label htmlFor="welcome-message" className="text-sm font-medium text-foreground">
+            Welcome Message
+          </label>
+          <textarea
+            id="welcome-message"
+            value={formData.welcome_message || ''}
+            onChange={(e) => onUpdate({ welcome_message: e.target.value })}
+            rows={3}
+            placeholder="Hi there! 👋 How can we help you today?"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          />
+          <p className="text-xs text-muted-foreground">Initial greeting message shown to visitors</p>
         </div>
       </div>
     </div>

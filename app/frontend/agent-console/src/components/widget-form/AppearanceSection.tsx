@@ -7,17 +7,25 @@ interface AppearanceSectionProps {
   onUpdate: (updates: Partial<CreateChatWidgetRequest>) => void
 }
 
-export function AppearanceSection({ 
-  formData, 
-  onUpdate 
+export function AppearanceSection({
+  formData,
+  onUpdate
 }: AppearanceSectionProps) {
   return (
     <div className="flex flex-col w-full min-w-0">
       {/* Card container with enterprise styling */}
       <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
+        {/* Section Header */}
+        <div className="border-b border-border bg-muted/50 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-primary" />
+            <h3 className="text-base font-semibold text-foreground">Appearance & Styling</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">Customize the look and feel of your chat widget</p>
+        </div>
 
         {/* Form content */}
-        <div className="px-6 pb-6 p-6">
+        <div className="p-6">
           <div className="space-y-6">
             {/* Widget Shape, Bubble Style, Widget Size, and Position */}
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
@@ -42,7 +50,7 @@ export function AppearanceSection({
                   ))}
                 </select>
                 <p id="widget-shape-description" className="text-xs text-muted-foreground">
-                  Overall shape of widget button
+                  Overall shape
                 </p>
               </div>
 
@@ -67,7 +75,7 @@ export function AppearanceSection({
                   ))}
                 </select>
                 <p id="bubble-style-description" className="text-xs text-muted-foreground">
-                  Style for chat message bubbles
+                  Style for message
                 </p>
               </div>
 
@@ -90,7 +98,7 @@ export function AppearanceSection({
                   <option value="large">Large</option>
                 </select>
                 <p id="widget-size-description" className="text-xs text-muted-foreground">
-                  Size of the chat widget
+                  Widget Size
                 </p>
               </div>
 
@@ -108,11 +116,11 @@ export function AppearanceSection({
                   className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-describedby="position-description"
                 >
-                  <option value="bottom-right">Bottom Right</option>
-                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-right">Right</option>
+                  <option value="bottom-left">Left</option>
                 </select>
                 <p id="position-description" className="text-xs text-muted-foreground">
-                  Location on the page
+                  Location
                 </p>
               </div>
             </div>
@@ -133,10 +141,10 @@ export function AppearanceSection({
                     htmlFor="primary-color"
                     className="text-sm font-medium leading-none cursor-pointer block"
                   >
-                    Primary Color <span className="text-destructive">*</span>
+                    Primary <span className="text-destructive">*</span>
                   </label>
                   <p id="primary-color-description" className="text-xs text-muted-foreground mt-1">
-                    Main theme color
+                    Main theme
                   </p>
                 </div>
               </div>
@@ -155,10 +163,10 @@ export function AppearanceSection({
                     htmlFor="secondary-color"
                     className="text-sm font-medium leading-none cursor-pointer block"
                   >
-                    Secondary Color
+                    Secondary
                   </label>
                   <p id="secondary-color-description" className="text-xs text-muted-foreground mt-1">
-                    Agent messages
+                    Agent
                   </p>
                 </div>
               </div>
@@ -177,10 +185,10 @@ export function AppearanceSection({
                     htmlFor="background-color"
                     className="text-sm font-medium leading-none cursor-pointer block"
                   >
-                    Background Color
+                    Background
                   </label>
                   <p id="background-color-description" className="text-xs text-muted-foreground mt-1">
-                    Chat window background
+                    Chat window
                   </p>
                 </div>
               </div>
