@@ -291,7 +291,39 @@
 /* Text selection styling */
 ::selection {
   background: hsl(var(--primary) / 0.2);
-  color: hsl(var(--primary-foreground));
+  color: hsl(var(--foreground));
+}
+
+/* Enhanced selection for dark theme */
+[data-theme="dark"] ::selection {
+  background: hsl(239 84% 67% / 0.35);
+  color: hsl(210 17% 98%);
+}
+
+/* Input and textarea selection - more visible */
+input::selection,
+textarea::selection {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--foreground));
+}
+
+[data-theme="dark"] input::selection,
+[data-theme="dark"] textarea::selection {
+  background: hsl(239 84% 67% / 0.45);
+  color: hsl(210 17% 98%);
+}
+
+/* Code block selection - distinct styling */
+code::selection,
+pre::selection {
+  background: hsl(var(--accent) / 0.4);
+  color: hsl(var(--foreground));
+}
+
+[data-theme="dark"] code::selection,
+[data-theme="dark"] pre::selection {
+  background: hsl(330 81% 60% / 0.35);
+  color: hsl(210 17% 98%);
 }
 
 /* Utilities for enterprise branding and tenant customization */

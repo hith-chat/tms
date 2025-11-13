@@ -15,9 +15,68 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /* Enhanced font rendering for dark theme */
+  [data-theme="dark"] body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1;
+  }
+
+  /* Improve text contrast and readability in dark theme */
+  [data-theme="dark"] {
+    letter-spacing: 0.01em;
+  }
+
+  /* Better font weights for dark backgrounds */
+  [data-theme="dark"] h1,
+  [data-theme="dark"] h2,
+  [data-theme="dark"] h3,
+  [data-theme="dark"] h4,
+  [data-theme="dark"] h5,
+  [data-theme="dark"] h6 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* Improve body text readability */
+  [data-theme="dark"] p,
+  [data-theme="dark"] span,
+  [data-theme="dark"] div {
+    font-weight: 400;
+  }
+
+  /* Slightly bolder for small text */
+  [data-theme="dark"] .text-sm,
+  [data-theme="dark"] .text-xs {
+    font-weight: 450;
+  }
 }
 
 @layer utilities {
+  /* Enhanced text selection for dark theme */
+  [data-theme="dark"] .selection-enhanced::selection {
+    background: linear-gradient(135deg, hsl(239 84% 67% / 0.4) 0%, hsl(330 81% 60% / 0.4) 100%);
+    color: hsl(210 17% 98%);
+    text-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Better selection for code and monospace text */
+  [data-theme="dark"] code::selection,
+  [data-theme="dark"] pre::selection,
+  [data-theme="dark"] .font-mono::selection {
+    background: hsl(330 81% 60% / 0.4);
+    color: hsl(210 17% 98%);
+  }
+
+  /* Enhanced selection for interactive elements */
+  [data-theme="dark"] button::selection,
+  [data-theme="dark"] a::selection {
+    background: hsl(173 80% 40% / 0.4);
+    color: hsl(210 17% 98%);
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -388,6 +447,23 @@
   input:-ms-input-placeholder,
   textarea:-ms-input-placeholder {
     color: hsl(var(--muted-foreground) / 0.6);
+  }
+
+  /* Enhanced placeholder visibility in dark theme */
+  [data-theme="dark"] input::placeholder,
+  [data-theme="dark"] textarea::placeholder {
+    color: hsl(215 16% 47% / 0.7);
+    opacity: 1;
+  }
+
+  [data-theme="dark"] input::-webkit-input-placeholder,
+  [data-theme="dark"] textarea::-webkit-input-placeholder {
+    color: hsl(215 16% 47% / 0.7);
+  }
+
+  [data-theme="dark"] input:-ms-input-placeholder,
+  [data-theme="dark"] textarea:-ms-input-placeholder {
+    color: hsl(215 16% 47% / 0.7);
   }
   
   /* Sidebar styles */

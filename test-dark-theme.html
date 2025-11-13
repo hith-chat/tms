@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Theme Test</title>
+    <style>
+        /* Import our theme tokens */
+        :root {
+            --primary: 239 84% 67%;
+            --foreground: 210 17% 98%;
+            --background: 222 47% 11%;
+            --muted-foreground: 215 16% 47%;
+        }
+
+        /* Enhanced selection for dark theme */
+        [data-theme="dark"] ::selection {
+            background: hsl(239 84% 67% / 0.35);
+            color: hsl(210 17% 98%);
+        }
+
+        /* Input and textarea selection - more visible */
+        [data-theme="dark"] input::selection,
+        [data-theme="dark"] textarea::selection {
+            background: hsl(239 84% 67% / 0.45);
+            color: hsl(210 17% 98%);
+        }
+
+        /* Code block selection - distinct styling */
+        [data-theme="dark"] code::selection,
+        [data-theme="dark"] pre::selection {
+            background: hsl(330 81% 60% / 0.35);
+            color: hsl(210 17% 98%);
+        }
+
+        /* Enhanced font rendering for dark theme */
+        [data-theme="dark"] body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            font-feature-settings: "rlig" 1, "calt" 1, "kern" 1;
+            background: hsl(var(--background));
+            color: hsl(var(--foreground));
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        /* Improve text contrast and readability in dark theme */
+        [data-theme="dark"] {
+            letter-spacing: 0.01em;
+        }
+
+        /* Better font weights for dark backgrounds */
+        [data-theme="dark"] h1,
+        [data-theme="dark"] h2,
+        [data-theme="dark"] h3 {
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            margin-bottom: 1rem;
+        }
+
+        input, textarea {
+            background: hsl(217 33% 17%);
+            border: 1px solid hsl(217 33% 20%);
+            color: hsl(var(--foreground));
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        /* Enhanced placeholder visibility in dark theme */
+        [data-theme="dark"] input::placeholder,
+        [data-theme="dark"] textarea::placeholder {
+            color: hsl(215 16% 47% / 0.7);
+            opacity: 1;
+        }
+
+        code {
+            background: hsl(217 33% 17%);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        pre {
+            background: hsl(217 33% 17%);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dark Theme Font & Selection Test</h1>
+        <p>Select this text to see the improved selection color with indigo gradient (35% opacity).</p>
+        
+        <h2>Input Fields</h2>
+        <input type="text" placeholder="Type here and select text - should have 45% opacity indigo selection">
+        
+        <h2>Textarea</h2>
+        <textarea rows="4" placeholder="Type here and select text - should have 45% opacity indigo selection">This is sample text in a textarea. Try selecting it to see the enhanced selection color.</textarea>
+        
+        <h2>Code Block</h2>
+        <p>Select the code below - should have pink/magenta selection (35% opacity):</p>
+        <pre><code>function example() {
+  console.log("Select this code!");
+  return true;
+}</code></pre>
+        
+        <h2>Regular Text</h2>
+        <p>This paragraph demonstrates the improved font rendering with better anti-aliasing and letter spacing. The text should appear crisp and easy to read on the dark background.</p>
+        
+        <h3>Font Features</h3>
+        <ul>
+            <li>Enhanced font-smoothing for better readability</li>
+            <li>Optimized letter-spacing (0.01em)</li>
+            <li>Better font weights for dark backgrounds</li>
+            <li>Improved placeholder text visibility (70% opacity)</li>
+        </ul>
+        
+        <h3>Selection Colors</h3>
+        <ul>
+            <li>Regular text: Indigo (35% opacity)</li>
+            <li>Input/Textarea: Indigo (45% opacity)</li>
+            <li>Code blocks: Pink/Magenta (35% opacity)</li>
+        </ul>
+    </div>
+</body>
+</html>
