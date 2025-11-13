@@ -510,19 +510,65 @@
 }
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
   font-weight: 400;
+  letter-spacing: -0.011em;
 
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
 
+  /* Enhanced font rendering */
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+  font-variant-ligatures: common-ligatures;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1, 'ss01' 1;
+}
+
+/* Enhanced monospace font rendering */
+code,
+pre,
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'SF Mono', Monaco, monospace;
+  font-variant-ligatures: common-ligatures discretionary-ligatures;
+  font-feature-settings: 'liga' 1, 'calt' 1, 'dlig' 1, 'ss01' 1, 'ss02' 1, 'ss03' 1, 'ss04' 1, 'zero' 1;
+  letter-spacing: 0;
+}
+
+/* Dark theme font adjustments for better readability */
+[data-theme="dark"] {
+  font-weight: 400;
+  letter-spacing: -0.009em;
+}
+
+[data-theme="dark"] body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Heading font weights */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+
+/* Optimize font rendering at different sizes */
+.text-xs, .text-sm {
+  letter-spacing: -0.006em;
+}
+
+.text-lg, .text-xl, .text-2xl {
+  letter-spacing: -0.017em;
+}
+
+.text-3xl, .text-4xl, .text-5xl {
+  letter-spacing: -0.025em;
+  font-weight: 700;
 }
 
 * {
