@@ -115,7 +115,7 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 		WelcomeMessage:   req.WelcomeMessage,
 		OfflineMessage:   req.OfflineMessage,
 		AutoOpenDelay:    req.AutoOpenDelay,
-		ShowAgentAvatars: req.ShowAgentAvatars,
+		ShowAgentAvatars: true, // Always default to true for new widgets
 		AllowFileUploads: req.AllowFileUploads,
 		RequireEmail:     req.RequireEmail,
 		RequireName:      req.RequireName,
@@ -295,7 +295,7 @@ func (s *ChatWidgetService) DeleteChatWidget(ctx context.Context, tenantID, proj
 func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
 	// Simple single-line embed that loads a tiny loader script from our API
 	// The loader script configures the widget and loads the main widget from CDN
-	return fmt.Sprintf(`<script src="https://api.hith.chat/api/public/chat/widgets/%s/embed.js" async></script>`, widgetID.String())
+	return fmt.Sprintf(`<script src="https://api.hith.chat/embed/%s.js" async></script>`, widgetID.String())
 }
 
 // generateSessionToken generates a secure session token

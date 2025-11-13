@@ -297,6 +297,9 @@ func (h *ChatWidgetHandler) ScrapeWebsiteTheme(c *gin.Context) {
 // @Router /api/public/chat/widgets/{widget_id}/embed.js [get]
 func (h *ChatWidgetHandler) GetEmbedSnippet(c *gin.Context) {
 	widgetIDStr := c.Param("widget_id")
+	if len(widgetIDStr) > 3 && widgetIDStr[len(widgetIDStr)-3:] == ".js" {
+		widgetIDStr = widgetIDStr[:len(widgetIDStr)-3]
+	}
 	widgetID, err := uuid.Parse(widgetIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid widget ID format"})

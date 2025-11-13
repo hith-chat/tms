@@ -634,7 +634,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		embedChat := router.Group("/embed")
 		{
-			embedChat.GET("/:widget_id/embed.js", chatWidgetHandler.GetEmbedSnippet)
+			embedChat.GET("/:widget_id", chatWidgetHandler.GetEmbedSnippet)
 		}
 
 	}

@@ -12,17 +12,13 @@ export function AgentPersonalizationSection({
 }: AgentPersonalizationSectionProps) {
   return (
     <div className="rounded border border-border bg-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <User className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-medium text-foreground">Personalization</h3>
-      </div>
 
       <div className="space-y-3">
         {/* Domain URL Field */}
         <div className="space-y-1">
           <label htmlFor="domain-url" className="text-sm font-medium text-foreground flex items-center gap-1">
             <Globe className="h-3.5 w-3.5" />
-            Website Domain <span className="text-destructive">*</span>
+            Domain <span className="text-destructive">*</span>
           </label>
           <input
             id="domain-url"
@@ -33,9 +29,6 @@ export function AgentPersonalizationSection({
             className="h-9 w-full rounded border border-input bg-background px-3 py-2 text-sm"
             required
           />
-          <p className="text-xs text-muted-foreground">
-            Enter your website domain (e.g., example.com). This will be used for the preview.
-          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

@@ -75,7 +75,7 @@ const PreviewPage = () => {
       // Create script element to inject widget directly in the page
       // This loads a tiny loader script that sets config and loads the main widget from CDN
       const script = document.createElement('script')
-      script.src = `https://api.hith.chat/api/public/chat/widgets/${widgetData.widget_id}/embed.js`
+      script.src = `https://api.hith.chat/embed/${widgetData.widget_id}.js`
       script.async = true
       script.onload = () => {
         console.log('Widget script loaded successfully')
@@ -95,7 +95,7 @@ const PreviewPage = () => {
     if (!widgetData?.widget_id) return ''
 
     // Single-line script embed - loads tiny loader that fetches main widget from CDN
-    return `<script src="https://api.hith.chat/api/public/chat/widgets/${widgetData.widget_id}/embed.js" async></script>`
+    return `<script src="https://api.hith.chat/embed/${widgetData.widget_id}.js" async></script>`
   }
 
   const copyCode = () => {

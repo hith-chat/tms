@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Copy, CheckCircle, Code } from 'lucide-react'
+import { Copy, CheckCircle } from 'lucide-react'
 import { CreateChatWidgetRequest, useChatWidgetForm } from '../hooks/useChatWidgetForm'
 import { PageHeader } from '../components/widget-form/PageHeader'
 // import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
@@ -135,66 +135,46 @@ export function CreateChatWidgetPage() {
 
             {/* Embedded Code Section */}
             {formData.embed_code && (
-              <div className="flex flex-col w-full min-w-0">
-                {/* Card container with enterprise styling */}
-                <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 p-6 pb-4">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-                      <Code className="h-4 w-4 text-primary" aria-hidden="true" />
+              <div className="rounded border border-border bg-card p-4">
+                <div className="space-y-3">
+                  {/* Success message */}
+                  {successMessage && (
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">{successMessage}</span>
                     </div>
-                    <div className="flex flex-col space-y-1">
-                      <h3 className="text-base font-semibold leading-none tracking-tight">
-                        Embed Code
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Copy this single line and paste it before the closing &lt;/body&gt; tag in your HTML
-                      </p>
-                    </div>
+                  )}
+
+                  {/* Code block - full width */}
+                  <div className="rounded-md border border-border bg-muted/80 p-3">
+                    <code className="text-xs font-mono text-foreground break-all">
+                      {formData.embed_code}
+                    </code>
                   </div>
 
-                  {/* Code content */}
-                  <div className="px-6 pb-6">
-                    <div className="space-y-4">
-                      {/* Success message */}
-                      {successMessage && (
-                        <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 border border-green-200 text-green-800">
-                          <CheckCircle className="h-4 w-4" />
-                          <span className="text-sm font-medium">{successMessage}</span>
-                        </div>
+                  {/* Instructions and Copy button */}
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-xs text-muted-foreground">
+                      Copy this single line and paste it before the closing &lt;/body&gt; tag in your HTML
+                    </p>
+                    <button
+                      type="button"
+                      onClick={copyEmbedCode}
+                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium transition-colors border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3"
+                      disabled={!formData.embed_code}
+                    >
+                      {copiedCode ? (
+                        <>
+                          <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                          <span className="text-green-600">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Copy Code</span>
+                        </>
                       )}
-
-                      {/* Code block */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 rounded-md border border-border bg-muted/80 p-4">
-                          <code className="text-sm font-mono text-foreground break-all">
-                            {formData.embed_code}
-                          </code>
-                        </div>
-
-                        {/* Copy button */}
-                        <button
-                          type="button"
-                          onClick={copyEmbedCode}
-                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4"
-                          disabled={!formData.embed_code}
-                        >
-                          {copiedCode ? (
-                            <>
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                              <span className="text-green-600">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-4 w-4" />
-                              <span>Copy Code</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-
-                    </div>
+                    </button>
                   </div>
                 </div>
               </div>

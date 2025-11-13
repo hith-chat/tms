@@ -15,23 +15,9 @@ export function AppearanceSection({
     <div className="flex flex-col w-full min-w-0">
       {/* Card container with enterprise styling */}
       <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
-        {/* Header */}
-        <div className="flex items-center gap-3 p-6 pb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-            <Palette className="h-4 w-4 text-primary" aria-hidden="true" />
-          </div>
-          <div className="flex flex-col space-y-1">
-            <h3 className="text-base font-semibold leading-none tracking-tight">
-              Appearance & Styling
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Customize the visual appearance and behavior of your chat widget
-            </p>
-          </div>
-        </div>
 
         {/* Form content */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 p-6">
           <div className="space-y-6">
             {/* Widget Shape, Bubble Style, Widget Size, and Position */}
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
