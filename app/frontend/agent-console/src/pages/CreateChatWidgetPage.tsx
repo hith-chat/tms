@@ -154,7 +154,7 @@ export function CreateChatWidgetPage() {
                         Embed Code
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Copy this code and paste it into your website's HTML
+                        Copy this single line and paste it before the closing &lt;/body&gt; tag in your HTML
                       </p>
                     </div>
                   </div>
@@ -171,18 +171,18 @@ export function CreateChatWidgetPage() {
                       )}
 
                       {/* Code block */}
-                      <div className="relative">
-                        <div className="rounded-md border border-border bg-muted/50 p-4">
-                          <pre className="text-sm font-mono leading-relaxed text-foreground overflow-x-auto whitespace-pre-wrap break-all">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 rounded-md border border-border bg-muted/80 p-4">
+                          <code className="text-sm font-mono text-foreground break-all">
                             {formData.embed_code}
-                          </pre>
+                          </code>
                         </div>
-                        
+
                         {/* Copy button */}
                         <button
                           type="button"
                           onClick={copyEmbedCode}
-                          className="absolute top-3 right-3 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4"
                           disabled={!formData.embed_code}
                         >
                           {copiedCode ? (
@@ -199,16 +199,7 @@ export function CreateChatWidgetPage() {
                         </button>
                       </div>
 
-                      {/* Instructions */}
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <p className="font-medium">Integration Instructions:</p>
-                        <ol className="list-decimal list-inside space-y-1 ml-2">
-                          <li>Copy the embed code above</li>
-                          <li>Paste it before the closing &lt;/body&gt; tag in your HTML</li>
-                          <li>The chat widget will automatically appear on your website</li>
-                          <li>Test the widget functionality after implementation</li>
-                        </ol>
-                      </div>
+
                     </div>
                   </div>
                 </div>

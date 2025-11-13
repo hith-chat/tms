@@ -242,18 +242,9 @@ func (s *ChatWidgetService) DeleteChatWidget(ctx context.Context, tenantID, proj
 
 // generateEmbedCode generates the JavaScript embed code for the chat widget
 func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
-	return fmt.Sprintf(`<!-- Hith Chat Widget -->
-<script>
-  (function() {
-    window.TMSChatConfig = {
-      widgetId: '%s'
-    };
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@hith/web-chat/dist/chat-widget.js';
-    script.async = true;
-    document.head.appendChild(script);
-  })();
-</script>`, widgetID.String())
+	// Simple single-line embed that loads a tiny loader script from our API
+	// The loader script configures the widget and loads the main widget from CDN
+	return fmt.Sprintf(`<script src="https://api.hith.chat/api/public/chat/widgets/%s/embed.js" async></script>`, widgetID.String())
 }
 
 // generateSessionToken generates a secure session token
