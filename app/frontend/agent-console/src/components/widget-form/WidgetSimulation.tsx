@@ -213,21 +213,25 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                 
                 {/* Chat Window */}
                 {isWidgetOpen && (
-                  <div 
+                  <div
                     className={`
-                      absolute bottom-full mb-4 
+                      absolute bottom-full mb-4
                       ${formData.position === 'bottom-left' ? 'left-0' : 'right-0'}
                       ${getWidgetWindowSize(formData.widget_size || 'medium')}
-                      rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700
+                      rounded-lg shadow-2xl
                       transform transition-all duration-300 origin-bottom
                       ${isWidgetOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}
+                      overflow-hidden
                     `}
                     style={{ backgroundColor: formData.background_color || '#ffffff' }}
                   >
                     {/* Chat Header */}
-                    <div 
-                      className="p-4 rounded-t-lg border-b border-slate-200 dark:border-slate-700 flex items-center gap-3"
-                      style={{ backgroundColor: formData.primary_color }}
+                    <div
+                      className="p-4 flex items-center gap-3"
+                      style={{
+                        backgroundColor: formData.primary_color,
+                        borderBottom: `1px solid ${formData.primary_color}22`
+                      }}
                     >
                       {formData.show_agent_avatars && (
                         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-medium">
@@ -328,7 +332,12 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                     </div>
                     
                     {/* Input Area */}
-                    <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                    <div
+                      className="p-4"
+                      style={{
+                        borderTop: `1px solid ${formData.secondary_color || '#e5e7eb'}33`
+                      }}
+                    >
                       <div className="flex gap-2">
                         {formData.allow_file_uploads && (
                           <button 
@@ -348,7 +357,6 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                           className="flex-1 px-3 py-2 rounded-lg text-sm focus:outline-none border-2 transition-colors"
                           style={{ 
                             backgroundColor: formData.background_color || '#ffffff',
-                            borderColor: formData.secondary_color || '#e5e7eb'
                           }}
                           disabled
                         />
