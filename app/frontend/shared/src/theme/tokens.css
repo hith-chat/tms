@@ -263,35 +263,83 @@
   border-radius: calc(var(--radius) * 0.5);
 }
 
-/* Custom scrollbar styling */
+/* Custom scrollbar styling - Enhanced for better visibility */
 * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(var(--border)) hsl(var(--background));
+  scrollbar-color: hsl(var(--muted)) hsl(var(--background));
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 *::-webkit-scrollbar-track {
   background: hsl(var(--background));
+  border-radius: calc(var(--radius) * 0.5);
 }
 
 *::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: hsl(var(--muted));
   border-radius: calc(var(--radius) * 0.5);
   border: 2px solid hsl(var(--background));
+  transition: background 0.2s ease;
 }
 
 *::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
 }
 
-/* Text selection styling */
+/* Dark theme scrollbar - More vibrant */
+[data-theme="dark"] * {
+  scrollbar-color: hsl(var(--muted) / 0.8) hsl(var(--background));
+}
+
+[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted) / 0.8);
+}
+
+[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent) / 0.6);
+}
+
+[data-theme="dark"] *::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--accent) / 0.8);
+}
+
+/* Text selection styling - Enhanced for better visibility */
 ::selection {
-  background: hsl(var(--primary) / 0.2);
-  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary) / 0.3);
+  text-shadow: none;
+}
+
+::-moz-selection {
+  background: hsl(var(--primary) / 0.3);
+  text-shadow: none;
+}
+
+/* Dark theme selection - More vibrant and visible */
+[data-theme="dark"] ::selection {
+  background: hsl(var(--accent) / 0.4);
+  text-shadow: none;
+}
+
+[data-theme="dark"] ::-moz-selection {
+  background: hsl(var(--accent) / 0.4);
+  text-shadow: none;
+}
+
+/* Code and monospace selection - Special styling */
+code::selection,
+pre::selection,
+.font-mono::selection {
+  background: hsl(var(--secondary) / 0.35);
+}
+
+[data-theme="dark"] code::selection,
+[data-theme="dark"] pre::selection,
+[data-theme="dark"] .font-mono::selection {
+  background: hsl(var(--primary) / 0.45);
 }
 
 /* Utilities for enterprise branding and tenant customization */
