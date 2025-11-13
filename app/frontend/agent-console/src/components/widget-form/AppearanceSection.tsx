@@ -33,11 +33,11 @@ export function AppearanceSection({
         {/* Form content */}
         <div className="px-6 pb-6">
           <div className="space-y-6">
-            {/* Widget Shape, Bubble Style, and Auto-open Delay */}
-            <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {/* Widget Shape, Bubble Style, Widget Size, and Position */}
+            <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <label 
-                  htmlFor="widget-shape" 
+                <label
+                  htmlFor="widget-shape"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Widget Shape <span className="text-destructive">*</span>
@@ -56,13 +56,13 @@ export function AppearanceSection({
                   ))}
                 </select>
                 <p id="widget-shape-description" className="text-xs text-muted-foreground">
-                  Overall shape of your chat widget button
+                  Overall shape of widget button
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label 
-                  htmlFor="bubble-style" 
+                <label
+                  htmlFor="bubble-style"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Bubble Style <span className="text-destructive">*</span>
@@ -81,37 +81,58 @@ export function AppearanceSection({
                   ))}
                 </select>
                 <p id="bubble-style-description" className="text-xs text-muted-foreground">
-                  Select the style for chat message bubbles
+                  Style for chat message bubbles
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label 
-                  htmlFor="auto-open-delay" 
+                <label
+                  htmlFor="widget-size"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Auto-open Delay (seconds)
+                  Widget Size <span className="text-destructive">*</span>
                 </label>
-                <input
-                  id="auto-open-delay"
-                  type="number"
-                  min="0"
-                  max="30"
-                  step="1"
-                  value={formData.auto_open_delay}
-                  onChange={(e) => onUpdate({ auto_open_delay: Number(e.target.value) })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="0"
-                  aria-describedby="auto-open-delay-description"
-                />
-                <p id="auto-open-delay-description" className="text-xs text-muted-foreground">
-                  Seconds to wait for chat (0 = disabled)
+                <select
+                  id="widget-size"
+                  value={formData.widget_size}
+                  onChange={(e) => onUpdate({ widget_size: e.target.value as any })}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-describedby="widget-size-description"
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+                <p id="widget-size-description" className="text-xs text-muted-foreground">
+                  Size of the chat widget
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="position"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Position <span className="text-destructive">*</span>
+                </label>
+                <select
+                  id="position"
+                  value={formData.position}
+                  onChange={(e) => onUpdate({ position: e.target.value as any })}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-describedby="position-description"
+                >
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="bottom-left">Bottom Left</option>
+                </select>
+                <p id="position-description" className="text-xs text-muted-foreground">
+                  Location on the page
                 </p>
               </div>
             </div>
 
-            {/* Colors, Size, and Position */}
-            <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+            {/* Colors */}
+            <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <label 
                   htmlFor="primary-color" 
@@ -157,8 +178,8 @@ export function AppearanceSection({
               </div>
 
               <div className="space-y-2">
-                <label 
-                  htmlFor="background-color" 
+                <label
+                  htmlFor="background-color"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Background Color
@@ -175,51 +196,6 @@ export function AppearanceSection({
                 </div>
                 <p id="background-color-description" className="text-xs text-muted-foreground">
                   Background color
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label 
-                  htmlFor="widget-size" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Widget Size <span className="text-destructive">*</span>
-                </label>
-                <select
-                  id="widget-size"
-                  value={formData.widget_size}
-                  onChange={(e) => onUpdate({ widget_size: e.target.value as any })}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-describedby="widget-size-description"
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </select>
-                <p id="widget-size-description" className="text-xs text-muted-foreground">
-                  Size of the chat widget
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label 
-                  htmlFor="position" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Position <span className="text-destructive">*</span>
-                </label>
-                <select
-                  id="position"
-                  value={formData.position}
-                  onChange={(e) => onUpdate({ position: e.target.value as any })}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-describedby="position-description"
-                >
-                  <option value="bottom-right">Bottom Right</option>
-                  <option value="bottom-left">Bottom Left</option>
-                </select>
-                <p id="position-description" className="text-xs text-muted-foreground">
-                  Location on the page
                 </p>
               </div>
             </div>

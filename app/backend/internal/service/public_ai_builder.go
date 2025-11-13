@@ -474,7 +474,7 @@ func (s *PublicAIBuilderService) BuildWidgetForProject(
 		Message: "Generating chat widget theme from website",
 	})
 
-	widget, sharedBrowser, err := s.aiBuilderService.buildWidget(ctx, tenantID, projectID, targetURL, events)
+	widget, sharedBrowser, err := s.aiBuilderService.buildWidget(ctx, tenantID, projectID, targetURL, domain, events)
 	if err != nil {
 		logger.GetTxLogger(ctx).Error().
 			Str("project_id", projectID.String()).
@@ -814,8 +814,8 @@ func (s *PublicAIBuilderService) BuildPublicWidget(
 		Message: "Generating chat widget theme from website",
 	})
 
-	widget, sharedBrowser, err := s.aiBuilderService.buildWidget(ctx, PublicTenantID, PublicProjectID, targetURL, events)
-	if err != nil {
+	widget, sharedBrowser, err := s.aiBuilderService.buildWidget(ctx, PublicTenantID, PublicProjectID, targetURL, domain, events)
+	if err != nil{
 		logger.GetTxLogger(ctx).Error().
 			Str("project_id", PublicProjectID.String()).
 			Err(err).

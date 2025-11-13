@@ -5,14 +5,14 @@ import type { DomainValidation } from '../lib/api'
 
 export interface CreateChatWidgetRequest {
   name: string
-  domain_id: string
+  domain_id: string // Deprecated: use domain_url instead
+  domain_url: string
   welcome_message?: string
   custom_greeting?: string
   away_message?: string
   primary_color?: string
   secondary_color?: string
   background_color?: string
-  accent_color?: string
   position?: 'bottom-right' | 'bottom-left'
   widget_shape?: 'rounded' | 'square' | 'minimal' | 'professional' | 'modern' | 'classic'
   chat_bubble_style?: 'modern' | 'classic' | 'minimal' | 'bot'
@@ -33,7 +33,8 @@ export interface CreateChatWidgetRequest {
 
 const defaultFormData: CreateChatWidgetRequest = {
   name: '',
-  domain_id: '',
+  domain_id: '', // Deprecated
+  domain_url: 'hith.chat',
   welcome_message: 'Hello! How can we help you today?',
   custom_greeting: 'Hi there! 👋 How can we help you today?',
   away_message: 'We\'re currently away. Leave us a message and we\'ll get back to you!',
@@ -52,8 +53,8 @@ const defaultFormData: CreateChatWidgetRequest = {
   require_email: false,
   require_name: false,
   sound_enabled: true,
-  show_powered_by: true,
-  use_ai: false,
+  show_powered_by: true, // Show branding by default
+  use_ai: true, // Enable AI assistance by default
   auto_open_delay: 0
 }
 
@@ -78,7 +79,8 @@ export function useChatWidgetForm() {
         const widget = await apiClient.getChatWidget(widgetId)
         setFormData({
           name: widget.name,
-          domain_id: widget.domain_id,
+          domain_id: widget.domain_id || '', // Deprecated
+          domain_url: widget.domain_url || 'hith.chat',
           welcome_message: widget.welcome_message || 'Hello! How can we help you today?',
           custom_greeting: widget.custom_greeting || 'Hi there! 👋 How can we help you today?',
           away_message: widget.away_message || 'We\'re currently away. Leave us a message and we\'ll get back to you!',

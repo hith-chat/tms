@@ -5,7 +5,6 @@ import { CreateChatWidgetRequest, useChatWidgetForm } from '../hooks/useChatWidg
 import { PageHeader } from '../components/widget-form/PageHeader'
 // import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
 import { AgentPersonalizationSection } from '../components/widget-form/AgentPersonalizationSection'
-import { FeaturesSection } from '../components/widget-form/FeaturesSection'
 import { AppearanceSection } from '../components/widget-form/AppearanceSection'
 import { WidgetSimulation } from '../components/widget-form/WidgetSimulation'
 import { FormActions } from '../components/widget-form/FormActions'
@@ -123,11 +122,6 @@ export function CreateChatWidgetPage() {
                 /> */}
 
                 <AgentPersonalizationSection
-                  formData={formData}
-                  onUpdate={updateFormData}
-                />
-
-                <FeaturesSection
                   formData={formData}
                   onUpdate={updateFormData}
                 />

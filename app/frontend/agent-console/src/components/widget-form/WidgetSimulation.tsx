@@ -1,4 +1,5 @@
-import { MessageCircle, X, Send, Paperclip } from 'lucide-react'
+import { MessageCircle, X, Send, Paperclip, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import type { CreateChatWidgetRequest } from '../../hooks/useChatWidgetForm'
 import type { DomainValidation } from '../../lib/api'
 import { useWidgetSimulation } from '../../hooks/useWidgetSimulation'
@@ -25,7 +26,7 @@ function IconSvg({ iconProps }: { iconProps: ReturnType<typeof getBubbleStyleIco
   )
 }
 
-export function WidgetSimulation({ formData, domains }: WidgetSimulationProps) {
+export function WidgetSimulation({ formData }: WidgetSimulationProps) {
   const {
     isWidgetOpen,
     isTyping,
@@ -34,6 +35,79 @@ export function WidgetSimulation({ formData, domains }: WidgetSimulationProps) {
     startTypingDemo
   } = useWidgetSimulation(formData.welcome_message, formData.agent_name)
 
+  const [iframeError, setIframeError] = useState(false)
+  const [showMockup, setShowMockup] = useState(false)
+  const [iframeLoaded, setIframeLoaded] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const timeoutRef = useRef<NodeJS.Timeout>()
+
+  // Normalize domain_url to add protocol if missing
+  const getIframeUrl = () => {
+    const domain = formData.domain_url || 'hith.chat'
+    if (domain.startsWith('http://') || domain.startsWith('https://')) {
+      return domain
+    }
+    return `https://${domain}`
+  }
+
+  const handleIframeError = () => {
+    setIframeError(true)
+    setShowMockup(true)
+    setIframeLoaded(false)
+  }
+
+  const handleIframeLoad = () => {
+    // Clear the timeout as iframe loaded successfully
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+
+    // Try to access iframe content to verify it's not blocked
+    try {
+      // If we can't access contentWindow or it's restricted, it might be blocked
+      // const iframeWindow = iframeRef.current?.contentWindow
+      // if (!iframeWindow || iframeWindow.location.href === 'about:blank') {
+      //   // Likely blocked by X-Frame-Options
+      //   handleIframeError()
+      //   return
+      // }
+
+      // Successfully loaded
+      setIframeError(false)
+      setIframeLoaded(true)
+      setShowMockup(false)
+    } catch (e) {
+      // Cross-origin or blocked - this is actually normal for cross-origin iframes
+      // So we'll consider it loaded unless we hit the timeout
+      setIframeError(false)
+      setIframeLoaded(true)
+      setShowMockup(false)
+    }
+  }
+
+  // Monitor iframe loading with timeout
+  useEffect(() => {
+    // Reset states when domain changes
+    setIframeLoaded(false)
+    setShowMockup(false)
+    setIframeError(false)
+
+    // Set a timeout to check if iframe loads within 3 seconds
+    timeoutRef.current = setTimeout(() => {
+      if (!iframeLoaded) {
+        // Iframe didn't load in time, show mockup
+        setIframeError(true)
+        setShowMockup(true)
+      }
+    }, 3000)
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [formData.domain_url, iframeLoaded])
+
   return (
     <div className="sticky top-6 space-y-4">
       <div className="rounded border border-border bg-card p-4">
@@ -41,43 +115,74 @@ export function WidgetSimulation({ formData, domains }: WidgetSimulationProps) {
           <MessageCircle className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-medium text-foreground">Live Preview</h3>
         </div>
-        
-        {/* Website Mockup Container */}
-        <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg p-6 h-[690px] relative overflow-hidden border flex flex-col">
-          {/* Mockup Browser UI */}
-          <div className="bg-white dark:bg-slate-800 rounded-t border-b border-slate-200 dark:border-slate-700 p-3 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1">
-                <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                <div className="w-3 h-3 rounded-full bg-green-400"></div>
-              </div>
-              <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded px-3 py-1 text-xs text-slate-600 dark:text-slate-400">
-                {domains.find(d => d.id === formData.domain_id)?.domain || 'your-website.com'}
+
+        {/* Website Container */}
+        <div className="rounded-lg h-[690px] relative overflow-hidden border border-border flex flex-col">
+          {/* Mockup Browser UI - Only show in mockup mode */}
+          {showMockup && (
+            <div className="bg-white dark:bg-slate-800 rounded-t border-b border-slate-200 dark:border-slate-700 p-3 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                </div>
+                <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded px-3 py-1 text-xs text-slate-600 dark:text-slate-400">
+                  {formData.domain_url || 'hith.chat'}
+                </div>
               </div>
             </div>
-          </div>
-          
+          )}
+
           {/* Website Content Area */}
-          <div className="bg-white dark:bg-slate-800 rounded-b flex-1 relative overflow-hidden">
-            <div className="p-6 space-y-6 h-full">
-              {/* Main headline placeholder */}
-              <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-3/4 max-w-md"></div>
-              
-              {/* Content paragraphs placeholder */}
-              <div className="space-y-3 max-w-2xl">
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-5/6"></div>
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-4/5"></div>
+          <div className={`flex-1 relative overflow-hidden ${showMockup ? 'bg-white dark:bg-slate-800 rounded-b' : ''}`}>
+            {/* Show iframe error message if blocked */}
+            {iframeError && showMockup && (
+              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-10 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 max-w-md">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-yellow-800 dark:text-yellow-200">
+                    <p className="font-medium">Preview not available</p>
+                    <p className="mt-1">This website blocks iframe embedding.</p>
+                  </div>
+                </div>
               </div>
-              
-              {/* Additional content sections */}
-              <div className="space-y-3 max-w-xl">
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+            )}
+
+            {/* Try to load real website in iframe */}
+            {!showMockup && (
+              <iframe
+                ref={iframeRef}
+                src={getIframeUrl()}
+                className="absolute inset-0 w-full h-full rounded-lg"
+                onError={handleIframeError}
+                onLoad={handleIframeLoad}
+                sandbox="allow-same-origin allow-scripts"
+                title="Website Preview"
+              />
+            )}
+
+            {/* Fallback mockup content */}
+            {showMockup && (
+              <div className="p-6 space-y-6 h-full">
+                {/* Main headline placeholder */}
+                <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-3/4 max-w-md"></div>
+
+                {/* Content paragraphs placeholder */}
+                <div className="space-y-3 max-w-2xl">
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-5/6"></div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-4/5"></div>
+                </div>
+
+                {/* Additional content sections */}
+                <div className="space-y-3 max-w-xl">
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                </div>
               </div>
-            </div>
-            
+            )}
+
             {/* Chat Widget Simulation */}
             <div className={`absolute ${formData.position === 'bottom-left' ? 'bottom-6 left-6' : 'bottom-6 right-6'} z-50`}>
               {/* Toggle Button */}

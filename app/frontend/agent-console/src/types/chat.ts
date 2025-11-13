@@ -4,6 +4,7 @@ export interface ChatWidget {
   tenant_id: string
   project_id: string
   domain_id: string
+  domain_url: string
   name: string
   is_active: boolean
   primary_color: string

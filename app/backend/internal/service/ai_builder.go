@@ -63,7 +63,15 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 	})
 
 	// Build widget and get shared browser context
-	widget, sharedBrowser, err := s.buildWidget(ctx, tenantID, projectID, rootURL, events)
+	// Extract domain from rootURL for domain_url field
+	parsedURL, _ := url.Parse(rootURL)
+	domain := parsedURL.Host
+	// Strip only "www." prefix
+	if strings.HasPrefix(domain, "www.") {
+		domain = strings.TrimPrefix(domain, "www.")
+	}
+
+	widget, sharedBrowser, err := s.buildWidget(ctx, tenantID, projectID, rootURL, domain, events)
 	if err != nil {
 		return err
 	}
@@ -111,7 +119,7 @@ func (s *AIBuilderService) Run(ctx context.Context, tenantID, projectID uuid.UUI
 	return nil
 }
 
-func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID uuid.UUID, rootURL string, events chan<- AIBuilderEvent) (*models.ChatWidget, *SharedBrowserContext, error) {
+func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID uuid.UUID, rootURL, domainURL string, events chan<- AIBuilderEvent) (*models.ChatWidget, *SharedBrowserContext, error) {
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "widget_stage_started",
 		Stage:   "widget",
@@ -159,6 +167,9 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 	}
 
 	s.applyWidgetDefaults(cfg)
+
+	// Set domain_url in the config
+	cfg.DomainURL = domainURL
 
 	widget, err := s.createOrUpdateWidget(ctx, tenantID, projectID, cfg)
 	if err != nil {

@@ -23,7 +23,7 @@ func NewChatWidgetRepo(db *sqlx.DB) *ChatWidgetRepo {
 func (r *ChatWidgetRepo) CreateChatWidget(ctx context.Context, widget *models.ChatWidget) error {
 	query := `
 		INSERT INTO chat_widgets (
-			id, tenant_id, project_id, name, is_active,
+			id, tenant_id, project_id, domain_url, name, is_active,
 			primary_color, secondary_color, background_color, position, widget_shape, chat_bubble_style,
 			widget_size, animation_style, custom_css,
 			welcome_message, offline_message, custom_greeting, away_message,
@@ -32,7 +32,7 @@ func (r *ChatWidgetRepo) CreateChatWidget(ctx context.Context, widget *models.Ch
 			sound_enabled, show_powered_by, use_ai,
 			business_hours, embed_code, created_at, updated_at
 		) VALUES (
-			:id, :tenant_id, :project_id, :name, :is_active,
+			:id, :tenant_id, :project_id, :domain_url, :name, :is_active,
 			:primary_color, :secondary_color, :background_color, :position, :widget_shape, :chat_bubble_style,
 			:widget_size, :animation_style, :custom_css,
 			:welcome_message, :offline_message, :custom_greeting, :away_message,
@@ -155,6 +155,7 @@ func (r *ChatWidgetRepo) UpdateChatWidget(ctx context.Context, widget *models.Ch
 	query := `
 		UPDATE chat_widgets SET
 			name = :name,
+			domain_url = :domain_url,
 			is_active = :is_active,
 			primary_color = :primary_color,
 			secondary_color = :secondary_color,
