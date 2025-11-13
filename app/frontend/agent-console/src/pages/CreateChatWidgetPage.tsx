@@ -108,6 +108,7 @@ export function CreateChatWidgetPage() {
                 error={aiError}
                 onLoadingChange={setAiLoading}
                 onError={setAiError}
+                initialUrl={formData.domain_url}
               />
             )}
 

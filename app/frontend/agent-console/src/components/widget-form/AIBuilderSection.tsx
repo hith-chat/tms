@@ -19,6 +19,7 @@ interface AIBuilderSectionProps {
   error: string | null
   onLoadingChange?: (loading: boolean) => void
   onError?: (error: string | null) => void
+  initialUrl?: string
 }
 
 interface BuilderEvent {
@@ -42,9 +43,10 @@ const STAGE_ORDER: Array<{ key: string; label: string }> = [
 export function AIBuilderSection({
   onThemeGenerated,
   onLoadingChange,
-  onError
+  onError,
+  initialUrl
 }: AIBuilderSectionProps) {
-  const [urlInput, setUrlInput] = useState('')
+  const [urlInput, setUrlInput] = useState(initialUrl || '')
   const [urlError, setUrlError] = useState<string | null>(null)
   const [events, setEvents] = useState<BuilderEvent[]>([])
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'error'>('idle')
@@ -303,7 +305,7 @@ export function AIBuilderSection({
           <div className="flex flex-col space-y-1">
             <h3 className="text-lg font-semibold gradient-text">AI Widget Builder</h3>
             <p className="text-sm text-muted-foreground">
-              Enter your website URL to automatically generate a chat widget with knowledge base
+              Enter your website URL to automatically generate a Chat Widget + Knowledge Base + FAQs
             </p>
           </div>
         </div>
