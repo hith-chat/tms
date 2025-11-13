@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,8 +26,24 @@ func NewChatWidgetService(chatWidgetRepo *repo.ChatWidgetRepo, domainRepo *repo.
 	}
 }
 
+// normalizeDomainURL normalizes a domain URL by stripping only "www." prefix
+func normalizeDomainURL(domainURL string) string {
+	normalized := strings.TrimSpace(strings.ToLower(domainURL))
+	// Strip only "www." prefix, not "www1." or other variants
+	if strings.HasPrefix(normalized, "www.") {
+		normalized = strings.TrimPrefix(normalized, "www.")
+	}
+	return normalized
+}
+
 // CreateChatWidget creates a new chat widget
 func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, projectID uuid.UUID, req *models.CreateChatWidgetRequest) (*models.ChatWidget, error) {
+
+	// Normalize domain_url
+	if req.DomainURL == "" {
+		req.DomainURL = "hith.chat"
+	}
+	req.DomainURL = normalizeDomainURL(req.DomainURL)
 
 	// Set defaults
 	if req.PrimaryColor == "" {
@@ -59,6 +76,15 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 	if req.WidgetShape == "" {
 		req.WidgetShape = "rounded"
 	}
+	if req.WidgetSize == "" {
+		req.WidgetSize = "medium"
+	}
+	if req.AnimationStyle == "" {
+		req.AnimationStyle = "smooth"
+	}
+	if req.AwayMessage == "" {
+		req.AwayMessage = "We're currently away. Leave us a message and we'll get back to you!"
+	}
 
 	if req.AgentAvatarURL == nil || *req.AgentAvatarURL == "" {
 		req.AgentAvatarURL = nil
@@ -68,12 +94,18 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 		ID:               uuid.New(),
 		TenantID:         tenantID,
 		ProjectID:        projectID,
+		DomainURL:        req.DomainURL,
 		Name:             req.AgentName,
 		AgentAvatarURL:   req.AgentAvatarURL,
 		AgentName:        req.AgentName,
 		CustomGreeting:   req.CustomGreeting,
 		ChatBubbleStyle:  req.ChatBubbleStyle,
 		WidgetShape:      req.WidgetShape,
+		WidgetSize:       req.WidgetSize,
+		AnimationStyle:   req.AnimationStyle,
+		AwayMessage:      req.AwayMessage,
+		SoundEnabled:     req.SoundEnabled,
+		ShowPoweredBy:    req.ShowPoweredBy,
 		UseAI:            req.UseAI,
 		IsActive:         true,
 		PrimaryColor:     req.PrimaryColor,
@@ -83,9 +115,10 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 		WelcomeMessage:   req.WelcomeMessage,
 		OfflineMessage:   req.OfflineMessage,
 		AutoOpenDelay:    req.AutoOpenDelay,
-		ShowAgentAvatars: req.ShowAgentAvatars,
+		ShowAgentAvatars: true, // Always default to true for new widgets
 		AllowFileUploads: req.AllowFileUploads,
 		RequireEmail:     req.RequireEmail,
+		RequireName:      req.RequireName,
 		BusinessHours:    req.BusinessHours,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
@@ -150,6 +183,9 @@ func (s *ChatWidgetService) UpdateChatWidget(ctx context.Context, tenantID, proj
 	}
 
 	// Update fields
+	if req.DomainURL != nil {
+		widget.DomainURL = normalizeDomainURL(*req.DomainURL)
+	}
 	if req.AgentName != nil {
 		widget.Name = *req.AgentName
 	}
@@ -219,6 +255,21 @@ func (s *ChatWidgetService) UpdateChatWidget(ctx context.Context, tenantID, proj
 	if req.UseAI != nil {
 		widget.UseAI = *req.UseAI
 	}
+	if req.AwayMessage != nil {
+		widget.AwayMessage = *req.AwayMessage
+	}
+	if req.WidgetSize != nil {
+		widget.WidgetSize = *req.WidgetSize
+	}
+	if req.AnimationStyle != nil {
+		widget.AnimationStyle = *req.AnimationStyle
+	}
+	if req.SoundEnabled != nil {
+		widget.SoundEnabled = *req.SoundEnabled
+	}
+	if req.ShowPoweredBy != nil {
+		widget.ShowPoweredBy = *req.ShowPoweredBy
+	}
 
 	// update timestamp to reflect modification
 	widget.UpdatedAt = time.Now()
@@ -242,18 +293,9 @@ func (s *ChatWidgetService) DeleteChatWidget(ctx context.Context, tenantID, proj
 
 // generateEmbedCode generates the JavaScript embed code for the chat widget
 func (s *ChatWidgetService) generateEmbedCode(widgetID uuid.UUID) string {
-	return fmt.Sprintf(`<!-- Hith Chat Widget -->
-<script>
-  (function() {
-    window.TMSChatConfig = {
-      widgetId: '%s'
-    };
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@hith/web-chat/dist/chat-widget.js';
-    script.async = true;
-    document.head.appendChild(script);
-  })();
-</script>`, widgetID.String())
+	// Simple single-line embed that loads a tiny loader script from our API
+	// The loader script configures the widget and loads the main widget from CDN
+	return fmt.Sprintf(`<script src="https://api.hith.chat/embed/%s.js" async></script>`, widgetID.String())
 }
 
 // generateSessionToken generates a secure session token

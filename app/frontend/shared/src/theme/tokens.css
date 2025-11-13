@@ -87,56 +87,79 @@
   --radius-lg: 0.75rem;
 }
 
-/* Dark theme - Enterprise Professional */
+/* Dark theme - Enterprise Professional (Landing Page Inspired) */
 [data-theme="dark"] {
-  --background: 210 11% 4%;
+  /* Base colors - Matching landing page #0f172a */
+  --background: 222 47% 11%;
   --foreground: 210 17% 98%;
-  
-  --card: 210 11% 6%;
+
+  /* Card surfaces - Matching landing page #1e293b */
+  --card: 217 33% 17%;
   --card-foreground: 210 17% 98%;
-  
-  --popover: 210 11% 6%;
+
+  /* Popover backgrounds - Matching card */
+  --popover: 217 33% 17%;
   --popover-foreground: 210 17% 98%;
-  
-  --primary: 213 94% 68%;
-  --primary-foreground: 210 11% 4%;
-  
-  --secondary: 210 11% 10%;
-  --secondary-foreground: 210 17% 98%;
-  
-  --muted: 210 11% 10%;
-  --muted-foreground: 210 11% 65%;
-  
-  --accent: 210 11% 10%;
-  --accent-foreground: 210 17% 98%;
-  
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 210 17% 98%;
-  
-  --border: 210 11% 15%;
-  --input: 210 11% 15%;
-  --ring: 213 94% 68%;
-  
-  --success: 142 69% 45%;
-  --success-foreground: 210 11% 4%;
+
+  /* Primary brand colors - Matching landing page indigo #6366f1 */
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary colors - Matching landing page pink #ec4899 */
+  --secondary: 330 81% 60%;
+  --secondary-foreground: 0 0% 100%;
+
+  /* Muted backgrounds - Matching landing page #334155 */
+  --muted: 215 25% 27%;
+  --muted-foreground: 215 16% 47%;
+
+  /* Accent colors - Matching landing page teal #14b8a6 */
+  --accent: 173 80% 40%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Destructive/danger - Matching landing page #ef4444 */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Border and input styling - Subtle borders */
+  --border: 217 33% 20%;
+  --input: 217 33% 17%;
+  --ring: 239 84% 67%;
+
+  /* Status colors - Matching landing page */
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
   --warning: 38 92% 50%;
   --warning-foreground: 26 83% 14%;
-  --info: 199 89% 48%;
-  --info-foreground: 210 11% 4%;
-  
+  --info: 173 80% 40%;
+  --info-foreground: 0 0% 100%;
+
   /* Enterprise semantic colors - Dark mode */
-  --surface-1: 210 11% 4%;
-  --surface-2: 210 11% 6%;
-  --surface-3: 210 11% 10%;
-  --text-primary: 210 17% 98%;
-  --text-secondary: 210 11% 65%;
-  --text-tertiary: 210 11% 46%;
-  
-  --chart-1: 213 94% 68%;
-  --chart-2: 142 69% 45%;
+  --surface-1: 222 47% 11%;
+  --surface-2: 217 33% 17%;
+  --surface-3: 215 25% 27%;
+  --text-primary: 210 40% 96%;
+  --text-secondary: 214 32% 80%;
+  --text-tertiary: 215 16% 65%;
+
+  /* Chart colors - Vibrant palette matching landing page */
+  --chart-1: 239 84% 67%;
+  --chart-2: 142 71% 45%;
   --chart-3: 38 92% 50%;
   --chart-4: 280 65% 60%;
-  --chart-5: 340 75% 55%;
+  --chart-5: 330 81% 60%;
+
+  /* Gradients - Landing page inspired */
+  --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(330 81% 60%) 100%);
+  --gradient-secondary: linear-gradient(135deg, hsl(173 80% 40%) 0%, hsl(239 84% 67%) 100%);
+  --gradient-dark: linear-gradient(135deg, hsl(217 33% 17%) 0%, hsl(222 47% 11%) 100%);
+
+  /* Shadows - Landing page inspired */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
 }
 
 /* High contrast accessibility theme */

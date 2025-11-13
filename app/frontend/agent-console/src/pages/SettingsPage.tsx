@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { 
-  Settings, 
-  Users, 
-  Key, 
+import {
+  Settings,
+  Users,
+  Key,
   Plus,
   Trash2,
   Edit,
@@ -18,6 +18,7 @@ import { useToast, Toaster } from '@tms/shared'
 import { AIStatusWidget } from '../components/chat/AIStatusWidget'
 import { AlertsSettings } from '../components/AlertsSettings'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { PageHeader } from '../components/PageHeader'
 
 // Tab types for settings navigation
 type SettingsTab = 'projects' | 'roles' | 'domains' | 'branding' | 'automations' | 'api-keys' | 'alerts' | 'credits'
@@ -2003,43 +2004,25 @@ export function SettingsPage() {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-background via-background to-slate-50/20 dark:to-slate-950/20">
-      {/* Enhanced Header with gradient and glass effect */}
-      <div className="border-b border-border/50 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 shadow-sm">
-        <div className="px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-red-600 rounded-lg blur opacity-25"></div>
-                <div className="relative p-3 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950 rounded-lg border border-orange-200/50 dark:border-orange-800/50">
-                  <Settings className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                  Settings
-                </h1>
-                <div className="flex items-center gap-3 mt-1">
-                  <p className="text-sm text-muted-foreground">
-                    Configure your account and system preferences
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
+      <PageHeader
+        icon={Settings}
+        title="Settings"
+        subtitle="Configure your account and system preferences"
+        gradientFrom="#ea580c"
+        gradientTo="#dc2626"
+      >
         {error && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
             <p className="text-destructive text-sm">{error}</p>
           </div>
         )}
 
         {successMessage && (
-          <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+          <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <p className="text-green-800 dark:text-green-300 text-sm">{successMessage}</p>
           </div>
         )}
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Content Area */}
       <div className="flex-1 flex min-h-0">

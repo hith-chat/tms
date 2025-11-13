@@ -496,7 +496,8 @@ type ChatWidget struct {
 	ID        uuid.UUID  `db:"id" json:"id"`
 	TenantID  uuid.UUID  `db:"tenant_id" json:"tenant_id"`
 	ProjectID uuid.UUID  `db:"project_id" json:"project_id"`
-	DomainID  *uuid.UUID `db:"domain_id" json:"domain_id,omitempty"`
+	DomainID  *uuid.UUID `db:"domain_id" json:"domain_id,omitempty"` // Deprecated: use DomainURL instead
+	DomainURL string     `db:"domain_url" json:"domain_url"`
 
 	// Widget configuration
 	Name     string `db:"name" json:"name"`
@@ -547,7 +548,8 @@ type ChatWidgetPublic struct {
 	ID        uuid.UUID  `db:"id" json:"id"`
 	TenantID  uuid.UUID  `db:"tenant_id" json:"-"`
 	ProjectID uuid.UUID  `db:"project_id" json:"-"`
-	DomainID  *uuid.UUID `db:"domain_id" json:"-"`
+	DomainID  *uuid.UUID `db:"domain_id" json:"-"` // Deprecated: use DomainURL instead
+	DomainURL string     `db:"domain_url" json:"domain_url"`
 
 	// Widget configuration
 	Name     string `db:"name" json:"name"`
@@ -676,8 +678,9 @@ type ChatSessionParticipant struct {
 
 // CreateChatWidgetRequest represents a request to create a chat widget
 type CreateChatWidgetRequest struct {
-	// DomainID         uuid.UUID `json:"domain_id" binding:"required"`
+	// DomainID         uuid.UUID `json:"domain_id" binding:"required"` // Deprecated
 	// Name             string    `json:"name" binding:"required,max=255"`
+	DomainURL        string  `json:"domain_url" binding:"required,max=255"`
 	PrimaryColor     string  `json:"primary_color" binding:"omitempty,len=7"`
 	SecondaryColor   string  `json:"secondary_color" binding:"omitempty,len=7"`
 	BackgroundColor  string  `json:"background_color" binding:"omitempty,len=7"`
@@ -691,16 +694,22 @@ type CreateChatWidgetRequest struct {
 	RequireName      bool    `json:"require_name"`
 	BusinessHours    JSONMap `json:"business_hours"`
 	ChatBubbleStyle  string  `json:"chat_bubble_style" binding:"omitempty,oneof=modern classic minimal bot"`
-	WidgetShape      string  `json:"widget_shape" binding:"omitempty,oneof=rounded square"`
+	WidgetShape      string  `json:"widget_shape" binding:"omitempty,oneof=rounded square minimal professional modern classic"`
+	WidgetSize       string  `json:"widget_size" binding:"omitempty,oneof=small medium large"`
+	AnimationStyle   string  `json:"animation_style" binding:"omitempty,oneof=smooth bounce fade slide"`
 	AgentName        string  `json:"agent_name" binding:"omitempty,max=255"`
 	AgentAvatarURL   *string `json:"agent_avatar_url" binding:"omitempty,url"`
 	CustomGreeting   *string `json:"custom_greeting" binding:"omitempty,max=500"`
+	AwayMessage      string  `json:"away_message" binding:"omitempty,max=500"`
+	SoundEnabled     bool    `json:"sound_enabled"`
+	ShowPoweredBy    bool    `json:"show_powered_by"`
 	UseAI            bool    `json:"use_ai"`
 }
 
 // UpdateChatWidgetRequest represents a request to update a chat widget
 type UpdateChatWidgetRequest struct {
 	// Name             *string  `json:"name,omitempty" binding:"omitempty,max=255"`
+	DomainURL        *string  `json:"domain_url,omitempty" binding:"omitempty,max=255"`
 	IsActive         *bool    `json:"is_active,omitempty"`
 	PrimaryColor     *string  `json:"primary_color,omitempty" binding:"omitempty,len=7"`
 	SecondaryColor   *string  `json:"secondary_color,omitempty" binding:"omitempty,len=7"`
@@ -708,14 +717,19 @@ type UpdateChatWidgetRequest struct {
 	Position         *string  `json:"position,omitempty" binding:"omitempty,oneof=bottom-right bottom-left"`
 	WelcomeMessage   *string  `json:"welcome_message,omitempty" binding:"omitempty,max=500"`
 	OfflineMessage   *string  `json:"offline_message,omitempty" binding:"omitempty,max=500"`
+	AwayMessage      *string  `json:"away_message,omitempty" binding:"omitempty,max=500"`
 	AutoOpenDelay    *int     `json:"auto_open_delay,omitempty" binding:"omitempty,min=0,max=60"`
 	ShowAgentAvatars *bool    `json:"show_agent_avatars,omitempty"`
 	AllowFileUploads *bool    `json:"allow_file_uploads,omitempty"`
 	RequireEmail     *bool    `json:"require_email,omitempty"`
 	RequireName      *bool    `json:"require_name,omitempty"`
+	SoundEnabled     *bool    `json:"sound_enabled,omitempty"`
+	ShowPoweredBy    *bool    `json:"show_powered_by,omitempty"`
 	BusinessHours    *JSONMap `json:"business_hours,omitempty"`
 	ChatBubbleStyle  *string  `json:"chat_bubble_style,omitempty" binding:"omitempty,oneof=modern classic minimal bot"`
-	WidgetShape      *string  `json:"widget_shape,omitempty" binding:"omitempty,oneof=rounded square"`
+	WidgetShape      *string  `json:"widget_shape,omitempty" binding:"omitempty,oneof=rounded square minimal professional modern classic"`
+	WidgetSize       *string  `json:"widget_size,omitempty" binding:"omitempty,oneof=small medium large"`
+	AnimationStyle   *string  `json:"animation_style,omitempty" binding:"omitempty,oneof=smooth bounce fade slide"`
 	AgentName        *string  `json:"agent_name,omitempty" binding:"omitempty,max=255"`
 	AgentAvatarURL   *string  `json:"agent_avatar_url,omitempty" binding:"omitempty,url"`
 	CustomGreeting   *string  `json:"custom_greeting,omitempty" binding:"omitempty,max=500"`

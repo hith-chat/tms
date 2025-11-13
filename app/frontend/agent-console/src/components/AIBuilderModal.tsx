@@ -494,11 +494,11 @@ export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBui
 
           {embedCode && (
             <div className="rounded-lg border border-border/60 bg-card/60 p-4">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">Embed Code</h3>
                   <p className="text-xs text-muted-foreground">
-                    Drop this snippet into your site to activate the chat widget.
+                    Copy this single line and paste it before the closing &lt;/body&gt; tag in your HTML
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleCopyEmbed}>
@@ -513,9 +513,9 @@ export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBui
                   )}
                 </Button>
               </div>
-              <pre className="mt-3 max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs text-foreground">
-                <code>{embedCode}</code>
-              </pre>
+              <div className="rounded-md bg-muted/80 p-3 border border-border/40">
+                <code className="text-xs text-foreground font-mono break-all">{embedCode}</code>
+              </div>
             </div>
           )}
 

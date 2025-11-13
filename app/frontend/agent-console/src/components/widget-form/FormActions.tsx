@@ -8,19 +8,10 @@ interface FormActionsProps {
 
 export function FormActions({ submitting, widgetId, onCancel }: FormActionsProps) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      {/* Left side - info text */}
-      <div className="flex-1">
-        <p className="text-sm text-muted-foreground">
-          {widgetId 
-            ? 'Changes will be applied to the existing widget configuration'
-            : 'A new chat widget will be created and can be embedded on your domain'
-          }
-        </p>
-      </div>
+    <div className="flex items-center justify-end gap-4">
 
       {/* Right side - action buttons */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 justify-end">
         <button
           type="button"
           onClick={onCancel}

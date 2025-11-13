@@ -208,7 +208,7 @@ func main() {
 
 	// Knowledge management handlers
 	knowledgeHandler := handlers.NewKnowledgeHandler(documentProcessorService, webScrapingService, knowledgeService, publicURLAnalysisService)
-	aiBuilderHandler := handlers.NewAIBuilderHandler(aiBuilderService)
+	aiBuilderHandler := handlers.NewAIBuilderHandler(aiBuilderService, publicAIBuilderService)
 
 	// Public AI builder handler
 	publicAIBuilderHandler := handlers.NewPublicAIBuilderHandler(publicAIBuilderService)
@@ -475,7 +475,6 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 			ais := projects.Group("/ai")
 			{
 				ais.POST("/usage/deduct", aiUsageHandler.DeductUsage)
-				ais.GET("/build", middleware.ProjectAdminMiddleware(), aiBuilderHandler.StreamBuild)
 				ais.POST("/build", middleware.ProjectAdminMiddleware(), aiBuilderHandler.StreamBuild)
 			}
 
@@ -635,7 +634,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		embedChat := router.Group("/embed")
 		{
-			embedChat.GET("/:widget_id/embed.js", chatWidgetHandler.GetEmbedSnippet)
+			embedChat.GET("/:widget_id", chatWidgetHandler.GetEmbedSnippet)
 		}
 
 	}
