@@ -52,6 +52,7 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
   }
 
   const handleIframeError = () => {
+    console.warn('Iframe failed to load or blocked by X-Frame-Options')
     setIframeError(true)
     setShowMockup(true)
     setIframeLoaded(false)
@@ -78,6 +79,7 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
       setIframeLoaded(true)
       setShowMockup(false)
     } catch (e) {
+      console.warn('Iframe load check failed:', e)
       // Cross-origin or blocked - this is actually normal for cross-origin iframes
       // So we'll consider it loaded unless we hit the timeout
       setIframeError(false)
@@ -107,7 +109,7 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [formData.domain_url, iframeLoaded])
+  }, [formData.domain_url])
 
   return (
     <div className="sticky top-6 space-y-4">
@@ -375,29 +377,22 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
         </div>
         
         {/* Quick Actions */}
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={toggleWidget}
-            className="flex-1 px-3 py-2 text-xs rounded-md font-medium transition-all hover:opacity-90 border border-border"
-          >
-            {isWidgetOpen ? 'Close Widget' : 'Open Widget'}
-          </button>
+        <div className="mt-4 flex gap-2 justify-end">
           <button
             type="button"
             onClick={startTypingDemo}
-            className="px-3 py-2 text-xs rounded-md font-medium transition-all hover:opacity-90"
-            style={{
-              backgroundColor: formData.primary_color || '#3b82f6',
-              color: 'white'
-            }}
+            className="px-3 py-2 text-xs rounded-md font-medium transition-all hover:opacity-90 border border-border flex items-center gap-1"
           >
             Demo Typing
           </button>
           <button
             type="button"
             onClick={() => setIsFullScreen(true)}
-            className="px-3 py-2 text-xs rounded-md font-medium transition-all hover:opacity-90 border border-border flex items-center gap-1"
+            className="px-3 py-2 text-xs rounded-md flex items-center gap-1 font-medium transition-all hover:opacity-90"
+            style={{
+              backgroundColor: formData.primary_color || '#3b82f6',
+              color: 'white'
+            }}
           >
             <Maximize2 className="h-3 w-3" />
             Full Screen
