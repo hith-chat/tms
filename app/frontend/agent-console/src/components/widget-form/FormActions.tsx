@@ -14,7 +14,7 @@ export function FormActions({ submitting, widgetId, onCancel }: FormActionsProps
           {/* Left side - Helper text */}
           <div className="hidden sm:block">
             <p className="text-sm text-muted-foreground">
-              {widgetId ? 'Update your widget configuration' : 'Create a new chat widget'}
+              {widgetId ? '' : 'Create a new chat widget'}
             </p>
           </div>
 

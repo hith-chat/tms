@@ -165,7 +165,7 @@ export function CreateChatWidgetPage() {
                   {/* Instructions and Copy button */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <p className="text-sm text-muted-foreground">
-                      Copy this code and paste it before the closing &lt;/body&gt; tag in your HTML
+                      Paste the code before &lt;/body&gt; tag in your HTML
                     </p>
                     <button
                       type="button"
@@ -190,12 +190,14 @@ export function CreateChatWidgetPage() {
               </div>
             )}
 
-            {/* Form Actions */}
-            <FormActions
-              submitting={submitting}
-              widgetId={widgetId}
-              onCancel={handleCancel}
-            />
+            {/* Form Actions - Only in Manual Mode */}
+            {builderMode === 'manual' && (
+              <FormActions
+                submitting={submitting}
+                widgetId={widgetId}
+                onCancel={handleCancel}
+              />
+            )}
           </div>
 
           {/* Right Column - Live Preview */}
