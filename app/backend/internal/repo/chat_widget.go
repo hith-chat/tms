@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,7 +50,7 @@ func (r *ChatWidgetRepo) CreateChatWidget(ctx context.Context, widget *models.Ch
 // GetChatWidget gets a chat widget by ID
 func (r *ChatWidgetRepo) GetChatWidget(ctx context.Context, tenantID, projectID, widgetID uuid.UUID) (*models.ChatWidget, error) {
 	query := `
-		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active,
+		SELECT cw.id, cw.tenant_id, cw.project_id,cw.domain_url, cw.name, cw.is_active,
 			   cw.primary_color, cw.secondary_color, cw.background_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
 			   cw.widget_size, cw.animation_style, cw.custom_css,
 			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
@@ -100,7 +101,7 @@ func (r *ChatWidgetRepo) GetChatWidgetById(ctx context.Context, widgetID uuid.UU
 // GetChatWidgetByDomain gets a chat widget by domain for public access
 func (r *ChatWidgetRepo) GetChatWidgetByDomain(ctx context.Context, domain string) (*models.ChatWidget, error) {
 	query := `
-		SELECT cw.id, cw.tenant_id, cw.project_id, cw.domain_id, cw.name, cw.is_active,
+		SELECT cw.id, cw.tenant_id, cw.project_id, cw.domain_id, cw.domain_url, cw.name, cw.is_active,
 			   cw.primary_color, cw.secondary_color, cw.background_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
 			   cw.widget_size, cw.animation_style, cw.custom_css,
 			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
@@ -127,8 +128,8 @@ func (r *ChatWidgetRepo) GetChatWidgetByDomain(ctx context.Context, domain strin
 // ListChatWidgets lists all chat widgets for a project
 func (r *ChatWidgetRepo) ListChatWidgets(ctx context.Context, tenantID, projectID uuid.UUID) ([]*models.ChatWidget, error) {
 	query := `
-		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active,
-			   cw.primary_color, cw.secondary_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
+		SELECT cw.id, cw.tenant_id, cw.project_id, cw.name, cw.is_active, cw.domain_url,
+			   cw.primary_color, cw.secondary_color, cw.background_color, cw.position, cw.widget_shape, cw.chat_bubble_style,
 			   cw.widget_size, cw.animation_style, cw.custom_css,
 			   cw.welcome_message, cw.offline_message, cw.custom_greeting, cw.away_message,
 			   cw.agent_name, cw.agent_avatar_url,
@@ -151,6 +152,8 @@ func (r *ChatWidgetRepo) ListChatWidgets(ctx context.Context, tenantID, projectI
 // UpdateChatWidget updates a chat widget
 func (r *ChatWidgetRepo) UpdateChatWidget(ctx context.Context, widget *models.ChatWidget) error {
 	widget.UpdatedAt = time.Now()
+	fmt.Println("hehehheehhehehe")
+	fmt.Println(widget)
 
 	query := `
 		UPDATE chat_widgets SET

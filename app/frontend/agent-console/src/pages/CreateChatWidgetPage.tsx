@@ -147,14 +147,14 @@ export function CreateChatWidgetPage() {
 
                   {/* Code block - full width */}
                   <div className="rounded-md border border-border bg-muted/80 p-3">
-                    <code className="text-xs font-mono text-foreground break-all">
+                    <code className="text-sm font-mono text-foreground break-all">
                       {formData.embed_code}
                     </code>
                   </div>
 
                   {/* Instructions and Copy button */}
                   <div className="flex items-center justify-between gap-4">
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Copy this single line and paste it before the closing &lt;/body&gt; tag in your HTML
                     </p>
                     <button
@@ -179,6 +179,15 @@ export function CreateChatWidgetPage() {
                 </div>
               </div>
             )}
+
+            {/* Form Actions */}
+            <div className="pt-1">
+              <FormActions
+                submitting={submitting}
+                widgetId={widgetId}
+                onCancel={handleCancel}
+              />
+            </div>
           </div>
 
           {/* Right Column - Live Preview */}
@@ -190,15 +199,6 @@ export function CreateChatWidgetPage() {
               />
             </div>
           </div>
-        </div>
-
-        {/* Form Actions */}
-        <div className="border-t border-border pt-6 mt-8">
-          <FormActions
-            submitting={submitting}
-            widgetId={widgetId}
-            onCancel={handleCancel}
-          />
         </div>
       </form>
       
