@@ -739,6 +739,48 @@ func (e *HeadlessBrowserURLExtractor) extractThemeFromPage(page playwright.Page)
 	return themeMap, nil
 }
 
+// CaptureScreenshotWithBrowser captures a screenshot using an existing browser context
+// This is more efficient than TakeFullPageScreenshot as it reuses the browser instance
+func (e *HeadlessBrowserURLExtractor) CaptureScreenshotWithBrowser(ctx context.Context, targetURL string, sharedCtx *SharedBrowserContext) ([]byte, error) {
+	if sharedCtx == nil {
+		// Fall back to creating a new instance
+		return e.TakeFullPageScreenshot(ctx, targetURL)
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	defer cancel()
+
+	page, err := sharedCtx.Context.NewPage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
+	defer page.Close()
+
+	// Navigate to the page
+	_, err = page.Goto(targetURL, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(float64(e.timeout.Milliseconds())),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to navigate to page: %w", err)
+	}
+
+	// Wait for page to fully render
+	page.WaitForTimeout(2000)
+
+	// Take full page screenshot
+	screenshot, err := page.Screenshot(playwright.PageScreenshotOptions{
+		FullPage: playwright.Bool(true),
+		Type:     playwright.ScreenshotTypePng,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to take screenshot: %w", err)
+	}
+
+	return screenshot, nil
+}
+
 // TakeFullPageScreenshot captures a full-page screenshot
 func (e *HeadlessBrowserURLExtractor) TakeFullPageScreenshot(ctx context.Context, targetURL string) ([]byte, error) {
 	// Create context with timeout

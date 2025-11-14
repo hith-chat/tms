@@ -323,7 +323,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 	publicAIWidgetRoutes.Use(middleware.PublicWidgetBuilderRateLimit(rateLimiter))
 	{
 		publicAIWidgetRoutes.GET("/ai-widget-builder", publicAIBuilderHandler.StreamBuild)
-
+		publicAIWidgetRoutes.GET("/extract-theme", publicAIBuilderHandler.ExtractTheme)
 		publicAIWidgetRoutes.GET("/extract-urls", publicAIBuilderHandler.DebugExtractURLs)
 	}
 

@@ -124,6 +124,57 @@ func (h *PublicAIBuilderHandler) StreamBuild(c *gin.Context) {
 	})
 }
 
+// ExtractTheme extracts theme colors and styling from a website URL
+// @Summary Extract website theme
+// @Description Analyzes a website and extracts theme colors, fonts, and brand information using AI. Returns theme configuration without crawling additional pages. Limited to 5 requests per hour per IP.
+// @Tags public-ai-builder
+// @Accept json
+// @Produce json
+// @Param url query string false "Website URL to analyze"
+// @Param theme body publicAIBuildRequest false "Theme extraction request (alternative to query params)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Failure 429 {object} map[string]interface{}
+// @Failure 500 {object} map[string]string
+// @Router /api/public/extract-theme [post]
+func (h *PublicAIBuilderHandler) ExtractTheme(c *gin.Context) {
+	// Parse URL from query param or request body
+	urlParam := c.Query("url")
+
+	// If URL not in query, try to parse from request body
+	if urlParam == "" {
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+			return
+		}
+
+		var req publicAIBuildRequest
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
+			return
+		}
+
+		urlParam = req.URL
+	}
+
+	if urlParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "url parameter is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Extract theme using the public builder service
+	theme, err := h.publicBuilder.ExtractTheme(ctx, urlParam)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to extract theme: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, theme)
+}
+
 // DebugExtractURLs extracts and streams all URLs from a given website for debugging
 // @Summary Debug URL extraction
 // @Description Extracts all URLs from a website at the specified depth and streams progress. Useful for debugging web scraping behavior. Limited to 5 requests per hour per IP.

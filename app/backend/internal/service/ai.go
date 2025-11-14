@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,8 +86,21 @@ type ChatCompletionRequest struct {
 
 // ChatCompletionMessage represents a message in the chat completion
 type ChatCompletionMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"` // Can be string or []ContentPart for multi-modal
+}
+
+// ContentPart represents a part of multi-modal content (text or image)
+type ContentPart struct {
+	Type     string    `json:"type"` // "text" or "image"
+	Text     string    `json:"text,omitempty"`
+	ImageURL *ImageURL `json:"image_url,omitempty"`
+}
+
+// ImageURL represents an image in the content
+type ImageURL struct {
+	URL    string `json:"url"`              // base64 data URL or regular URL
+	Detail string `json:"detail,omitempty"` // "low", "high", or "auto"
 }
 
 // ChatCompletionResponse represents the response from AI providers
@@ -693,7 +707,25 @@ func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatComplet
 		}
 	}
 
-	return chatResp.Choices[0].Message.Content, usageMetrics, nil
+	// Extract content from the message (handle both string and multi-modal content)
+	content := ""
+	switch v := chatResp.Choices[0].Message.Content.(type) {
+	case string:
+		content = v
+	case []interface{}:
+		// For multi-modal responses, extract text parts
+		for _, part := range v {
+			if partMap, ok := part.(map[string]interface{}); ok {
+				if partMap["type"] == "text" {
+					if text, ok := partMap["text"].(string); ok {
+						content += text
+					}
+				}
+			}
+		}
+	}
+
+	return content, usageMetrics, nil
 }
 
 // AcceptHandoff handles agent accepting a handoff request
@@ -763,12 +795,47 @@ type GeneratedFAQItem struct {
 
 // GenerateWidgetTheme generates chat widget theme based on website analysis
 func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData) (*models.CreateChatWidgetRequest, error) {
+	return s.GenerateWidgetThemeWithScreenshot(ctx, themeData, nil)
+}
+
+func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, themeData ThemeData, screenshot []byte) (*models.CreateChatWidgetRequest, error) {
 	if !s.IsEnabled() {
 		return nil, fmt.Errorf("AI service is not enabled")
 	}
 
-	// Prepare the prompt for GPT
-	prompt := s.buildThemePrompt(themeData)
+	// Prepare the prompt using unified color extraction approach
+	prompt := s.buildUnifiedThemePrompt(themeData)
+
+	// Build the user message with screenshot if available
+	var userMessage ChatCompletionMessage
+	if screenshot != nil && len(screenshot) > 0 {
+		// Use multi-modal content with image
+		base64Image := base64.StdEncoding.EncodeToString(screenshot)
+		dataURL := fmt.Sprintf("data:image/png;base64,%s", base64Image)
+
+		userMessage = ChatCompletionMessage{
+			Role: "user",
+			Content: []ContentPart{
+				{
+					Type: "text",
+					Text: prompt,
+				},
+				{
+					Type: "image_url",
+					ImageURL: &ImageURL{
+						URL:    dataURL,
+						Detail: "high",
+					},
+				},
+			},
+		}
+	} else {
+		// Text-only message
+		userMessage = ChatCompletionMessage{
+			Role:    "user",
+			Content: prompt,
+		}
+	}
 
 	// Create the request
 	req := ChatCompletionRequest{
@@ -776,15 +843,12 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
-				Content: "You are an expert UI/UX designer specializing in creating chat widget themes that match website aesthetics. Your task is to analyze website data and generate optimal chat widget configurations.",
+				Content: "You are a Color Extraction Agent specializing in analyzing website screenshots and DOM data to extract optimal color schemes for chat widgets. Return only valid JSON with no explanations.",
 			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
+			userMessage,
 		},
-		Temperature: 0.3, // Lower temperature for more consistent results
-		MaxTokens:   1000,
+		Temperature: 0.2, // Lower temperature for more consistent color extraction
+		MaxTokens:   800,  // Reduced since we only need 3 colors + metadata
 	}
 
 	// Make the API call
@@ -799,6 +863,9 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 	if err := json.Unmarshal([]byte(response), &themeConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
+
+	themeConfig.ShowAgentAvatars = true
+	themeConfig.UseAI = true
 
 	return &themeConfig, nil
 }
@@ -831,42 +898,106 @@ func stripMarkdownCodeBlocks(response string) string {
 	return response
 }
 
-// buildThemePrompt creates a detailed prompt for theme generation
-func (s *AIService) buildThemePrompt(themeData ThemeData) string {
-	return fmt.Sprintf(`
-Analyze the following website data and generate a JSON configuration for a chat widget that matches the website's theme:
+// buildUnifiedThemePrompt creates a unified prompt for theme extraction that works with or without screenshots
+func (s *AIService) buildUnifiedThemePrompt(themeData ThemeData) string {
+	return fmt.Sprintf(`You are a Color Extraction Agent. You will receive a screenshot of a website and/or extracted DOM data.
+Your task is to analyze ONLY the colors visible and return exactly 3 colors for building a chat widget theme.
 
-WEBSITE DATA:
+The output MUST be pure JSON with NO explanation.
+
+----------------------------------------------------
+WEBSITE CONTEXT:
+----------------------------------------------------
 - Brand Name: %s
 - Page Title: %s
 - Meta Description: %s
-- Extracted Colors: %v
-- Background Hues: %v
+- Detected Colors (from DOM): %v
+- Background Colors (from DOM): %v
 - Font Families: %v
 
-REQUIREMENTS:
-1. Choose colors that complement the website's existing palette
-2. Select a primary color that stands out but harmonizes with the brand
-3. Choose secondary and background colors that ensure good readability
-4. Create welcome and greeting messages that match the brand tone
-5. Select appropriate widget shape and bubble style based on the website's design aesthetic
+----------------------------------------------------
+EXTRACTION RULES
+----------------------------------------------------
 
-RESPONSE FORMAT (JSON only, no additional text):
+PRIMARY COLOR
+Definition:
+- The main accent or highlight color on the website.
+- Typically the most saturated or visually dominant color.
+- Usually appears in: buttons, CTAs, gradients, brand accents, highlights, or important text.
+
+Usage:
+- User chat bubble background
+- Chat title bar background
+- Agent's message bubble background (white text on top)
+
+Rules:
+- If the primary accent is a gradient, identify all colors in the gradient.
+- Choose the MOST DOMINANT or VISUALLY STRONGEST color from that gradient.
+- Return only one HEX value.
+- MUST work with WHITE (#FFFFFF) text - ensure minimum 4.5:1 contrast ratio.
+
+----------------------------------------------------
+SECONDARY COLOR
+Definition:
+- A lighter or softer supporting UI color that contrasts with the primary color.
+- Found in: secondary accents, pastel sections, light UI surfaces, tag backgrounds, muted gradients.
+
+Usage:
+- AI/Agent message bubble background
+- Black text will be placed on top (so this MUST be a light color)
+
+Rules:
+- If a secondary element uses a gradient, extract the gradient colors.
+- Choose the lightest or most appropriate color that ensures contrast with black text.
+- Return only one HEX value.
+- MUST work with DARK text (#1F2937 or #000000) - ensure minimum 4.5:1 contrast ratio.
+
+----------------------------------------------------
+BACKGROUND COLOR
+Definition:
+- The dominant background color of the website.
+- Found in: hero section, site background, large layout containers.
+
+Usage:
+- Overall chat background
+
+Rules:
+- Choose the most visually present background color.
+- Avoid accents or highlight colors.
+- Usually white (#FFFFFF) or very light gray (#F9FAFB, #F3F4F6).
+
+----------------------------------------------------
+GRADIENT HANDLING RULE
+----------------------------------------------------
+If ANY UI element uses a gradient:
+1. Identify all colors in the gradient.
+2. Collapse the gradient into ONE representative HEX by choosing:
+   - The most dominant or saturated color (for PRIMARY)
+   - The lightest color suitable for black text (for SECONDARY)
+3. Do NOT return gradient strings. Return one HEX color only.
+
+----------------------------------------------------
+STRICT OUTPUT FORMAT
+----------------------------------------------------
+Return EXACTLY this JSON structure:
 {
-  "primary_color": "#hex_color",
-  "secondary_color": "#hex_color",
-  "background_color": "#hex_color",
+  "primary_color": "#RRGGBB",
+  "secondary_color": "#RRGGBB",
+  "background_color": "#RRGGBB",
   "position": "bottom-right",
-  "widget_shape": "rounded|square|minimal|professional|modern|classic",
-  "chat_bubble_style": "modern|classic|minimal|bot",
-  "welcome_message": "Welcoming message that fits the brand",
-  "custom_greeting": "Friendly greeting with appropriate tone",
-  "agent_name": "Support representative name that fits the brand"
+  "widget_shape": "rounded",
+  "widget_size": "medium",
+  "chat_bubble_style": "modern",
+  "welcome_message": "Hi! How can we help you today?",
+  "custom_greeting": "Welcome! We're here to assist you.",
+  "agent_name": "Support Team"
 }
 
-Ensure all hex colors are valid 7-character codes starting with #.
-Choose widget_shape and chat_bubble_style that best match the website's design aesthetic.
-Keep messages professional but warm, and under 100 characters each.
+- Return ONLY valid 6-digit HEX codes in uppercase (e.g., #FF5733).
+- No explanations.
+- No additional fields.
+- Ensure PRIMARY works with white text, SECONDARY with dark text.
+- Messages should match brand tone and be under 100 characters.
 `,
 		themeData.GetBrandName(),
 		themeData.GetPageTitle(),

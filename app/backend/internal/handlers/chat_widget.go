@@ -269,15 +269,28 @@ func (h *ChatWidgetHandler) ScrapeWebsiteTheme(c *gin.Context) {
 		return
 	}
 
-	// Scrape website theme data
-	themeData, err := h.webScrapingService.ScrapeWebsiteTheme(c.Request.Context(), url)
+	// Scrape website theme data with browser context
+	themeData, sharedBrowser, err := h.webScrapingService.ScrapeWebsiteThemeWithBrowser(c.Request.Context(), url, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scrape website: " + err.Error()})
 		return
 	}
+	defer func() {
+		if sharedBrowser != nil {
+			sharedBrowser.Close()
+		}
+	}()
 
-	// Generate theme configuration using AI
-	themeConfig, err := h.aiService.GenerateWidgetTheme(c.Request.Context(), themeData)
+	// Capture screenshot using the shared browser context
+	var screenshot []byte
+	screenshot, err = h.webScrapingService.CaptureScreenshotWithBrowser(c.Request.Context(), url, sharedBrowser)
+	if err != nil {
+		// Log warning but continue without screenshot
+		screenshot = nil
+	}
+
+	// Generate theme configuration using AI with screenshot
+	themeConfig, err := h.aiService.GenerateWidgetThemeWithScreenshot(c.Request.Context(), themeData, screenshot)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate theme: " + err.Error()})
 		return

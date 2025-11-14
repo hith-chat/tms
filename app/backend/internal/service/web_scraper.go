@@ -2280,6 +2280,11 @@ func (s *WebScrapingService) ScrapeWebsiteTheme(ctx context.Context, targetURL s
 	return themeData, nil
 }
 
+// CaptureScreenshotWithBrowser captures a screenshot using an existing shared browser context
+func (s *WebScrapingService) CaptureScreenshotWithBrowser(ctx context.Context, targetURL string, sharedBrowser *SharedBrowserContext) ([]byte, error) {
+	return s.headlessBrowserExtractor.CaptureScreenshotWithBrowser(ctx, targetURL, sharedBrowser)
+}
+
 // scrapeThemeWithColly is a fallback method using Colly (original implementation)
 func (s *WebScrapingService) scrapeThemeWithColly(ctx context.Context, targetURL string) (*WebsiteThemeData, error) {
 	themeData := &WebsiteThemeData{

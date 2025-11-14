@@ -41,7 +41,7 @@ func (s *ChatWidgetService) CreateChatWidget(ctx context.Context, tenantID, proj
 
 	// Normalize domain_url
 	if req.DomainURL == "" {
-		req.DomainURL = "hith.chat"
+		req.DomainURL = "https://hith.chat"
 	}
 	req.DomainURL = normalizeDomainURL(req.DomainURL)
 
