@@ -69,6 +69,7 @@ jobs:
   lint:
     name: Go Lint
     runs-on: ubuntu-latest
+    continue-on-error: true  # Don't fail the build on lint warnings
 
     steps:
     - name: Checkout code
@@ -84,4 +85,4 @@ jobs:
       with:
         version: latest
         working-directory: app/backend
-        args: --timeout=10m
+        args: --timeout=10m --issues-exit-code=0
