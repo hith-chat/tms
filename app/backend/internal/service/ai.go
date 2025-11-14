@@ -92,14 +92,14 @@ type ChatCompletionMessage struct {
 
 // ContentPart represents a part of multi-modal content (text or image)
 type ContentPart struct {
-	Type string `json:"type"` // "text" or "image"
-	Text string `json:"text,omitempty"`
+	Type     string    `json:"type"` // "text" or "image"
+	Text     string    `json:"text,omitempty"`
 	ImageURL *ImageURL `json:"image_url,omitempty"`
 }
 
 // ImageURL represents an image in the content
 type ImageURL struct {
-	URL    string `json:"url"`    // base64 data URL or regular URL
+	URL    string `json:"url"`              // base64 data URL or regular URL
 	Detail string `json:"detail,omitempty"` // "low", "high", or "auto"
 }
 
@@ -803,8 +803,8 @@ func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, theme
 		return nil, fmt.Errorf("AI service is not enabled")
 	}
 
-	// Prepare the prompt
-	prompt := s.buildEnhancedThemePrompt(themeData)
+	// Prepare the prompt using unified color extraction approach
+	prompt := s.buildUnifiedThemePrompt(themeData)
 
 	// Build the user message with screenshot if available
 	var userMessage ChatCompletionMessage
@@ -843,12 +843,12 @@ func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, theme
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
-				Content: "You are an expert UI/UX designer specializing in creating chat widget themes that match website aesthetics. You analyze both visual design and content to generate optimal chat widget configurations with proper color contrast and readability.",
+				Content: "You are a Color Extraction Agent specializing in analyzing website screenshots and DOM data to extract optimal color schemes for chat widgets. Return only valid JSON with no explanations.",
 			},
 			userMessage,
 		},
-		Temperature: 0.3, // Lower temperature for more consistent results
-		MaxTokens:   1500,
+		Temperature: 0.2, // Lower temperature for more consistent color extraction
+		MaxTokens:   800,  // Reduced since we only need 3 colors + metadata
 	}
 
 	// Make the API call
@@ -898,125 +898,106 @@ func stripMarkdownCodeBlocks(response string) string {
 	return response
 }
 
-// buildThemePrompt creates a detailed prompt for theme generation
-func (s *AIService) buildThemePrompt(themeData ThemeData) string {
-	return fmt.Sprintf(`
-Analyze the following website data and generate a JSON configuration for a chat widget that matches the website's theme:
+// buildUnifiedThemePrompt creates a unified prompt for theme extraction that works with or without screenshots
+func (s *AIService) buildUnifiedThemePrompt(themeData ThemeData) string {
+	return fmt.Sprintf(`You are a Color Extraction Agent. You will receive a screenshot of a website and/or extracted DOM data.
+Your task is to analyze ONLY the colors visible and return exactly 3 colors for building a chat widget theme.
 
-WEBSITE DATA:
+The output MUST be pure JSON with NO explanation.
+
+----------------------------------------------------
+WEBSITE CONTEXT:
+----------------------------------------------------
 - Brand Name: %s
 - Page Title: %s
 - Meta Description: %s
-- Extracted Colors: %v
-- Background Hues: %v
+- Detected Colors (from DOM): %v
+- Background Colors (from DOM): %v
 - Font Families: %v
 
-REQUIREMENTS:
-1. Choose colors that complement the website's existing palette
-2. Select a primary color that stands out but harmonizes with the brand
-3. Choose secondary and background colors that ensure good readability
-4. Create welcome and greeting messages that match the brand tone
-5. Select appropriate widget shape and bubble style based on the website's design aesthetic
+----------------------------------------------------
+EXTRACTION RULES
+----------------------------------------------------
 
-RESPONSE FORMAT (JSON only, no additional text):
+PRIMARY COLOR
+Definition:
+- The main accent or highlight color on the website.
+- Typically the most saturated or visually dominant color.
+- Usually appears in: buttons, CTAs, gradients, brand accents, highlights, or important text.
+
+Usage:
+- User chat bubble background
+- Chat title bar background
+- Agent's message bubble background (white text on top)
+
+Rules:
+- If the primary accent is a gradient, identify all colors in the gradient.
+- Choose the MOST DOMINANT or VISUALLY STRONGEST color from that gradient.
+- Return only one HEX value.
+- MUST work with WHITE (#FFFFFF) text - ensure minimum 4.5:1 contrast ratio.
+
+----------------------------------------------------
+SECONDARY COLOR
+Definition:
+- A lighter or softer supporting UI color that contrasts with the primary color.
+- Found in: secondary accents, pastel sections, light UI surfaces, tag backgrounds, muted gradients.
+
+Usage:
+- AI/Agent message bubble background
+- Black text will be placed on top (so this MUST be a light color)
+
+Rules:
+- If a secondary element uses a gradient, extract the gradient colors.
+- Choose the lightest or most appropriate color that ensures contrast with black text.
+- Return only one HEX value.
+- MUST work with DARK text (#1F2937 or #000000) - ensure minimum 4.5:1 contrast ratio.
+
+----------------------------------------------------
+BACKGROUND COLOR
+Definition:
+- The dominant background color of the website.
+- Found in: hero section, site background, large layout containers.
+
+Usage:
+- Overall chat background
+
+Rules:
+- Choose the most visually present background color.
+- Avoid accents or highlight colors.
+- Usually white (#FFFFFF) or very light gray (#F9FAFB, #F3F4F6).
+
+----------------------------------------------------
+GRADIENT HANDLING RULE
+----------------------------------------------------
+If ANY UI element uses a gradient:
+1. Identify all colors in the gradient.
+2. Collapse the gradient into ONE representative HEX by choosing:
+   - The most dominant or saturated color (for PRIMARY)
+   - The lightest color suitable for black text (for SECONDARY)
+3. Do NOT return gradient strings. Return one HEX color only.
+
+----------------------------------------------------
+STRICT OUTPUT FORMAT
+----------------------------------------------------
+Return EXACTLY this JSON structure:
 {
-  "primary_color": "#hex_color",
-  "secondary_color": "#hex_color",
-  "background_color": "#hex_color",
+  "primary_color": "#RRGGBB",
+  "secondary_color": "#RRGGBB",
+  "background_color": "#RRGGBB",
   "position": "bottom-right",
-  "widget_shape": "rounded|square|minimal|professional|modern|classic",
-  "chat_bubble_style": "modern|classic|minimal|bot",
-  "welcome_message": "Welcoming message that fits the brand",
-  "custom_greeting": "Friendly greeting with appropriate tone",
-  "agent_name": "Support representative name that fits the brand"
+  "widget_shape": "rounded",
+  "widget_size": "medium",
+  "chat_bubble_style": "modern",
+  "welcome_message": "Hi! How can we help you today?",
+  "custom_greeting": "Welcome! We're here to assist you.",
+  "agent_name": "Support Team"
 }
 
-Ensure all hex colors are valid 7-character codes starting with #.
-Choose widget_shape and chat_bubble_style that best match the website's design aesthetic.
-Keep messages professional but warm, and under 100 characters each.
-`,
-		themeData.GetBrandName(),
-		themeData.GetPageTitle(),
-		themeData.GetMetaDesc(),
-		themeData.GetColors(),
-		themeData.GetBackgroundHues(),
-		themeData.GetFontFamilies(),
-	)
-}
-
-// buildEnhancedThemePrompt creates an enhanced prompt for vision-based theme extraction
-func (s *AIService) buildEnhancedThemePrompt(themeData ThemeData) string {
-	return fmt.Sprintf(`
-Analyze the provided website screenshot and extracted data to generate a JSON configuration for a chat widget that perfectly matches the website's visual design and brand identity.
-
-EXTRACTED WEBSITE DATA:
-- Brand Name: %s
-- Page Title: %s
-- Meta Description: %s
-- Detected Colors: %v
-- Background Colors: %v
-- Font Families: %v
-
-VISUAL ANALYSIS INSTRUCTIONS:
-If a screenshot is provided, carefully examine:
-1. **Hero Section Colors**: Analyze the main headline/hero text color and background - these prominent colors should influence the chat widget
-2. **Primary Action Colors**: Look for button colors, call-to-action elements, and interactive components
-3. **Navigation/Header Colors**: Check the header/navigation bar for brand colors
-4. **Text Hierarchy**: Observe the contrast between headings, body text, and backgrounds
-5. **Overall Design Style**: Assess if the design is modern, minimalist, professional, playful, etc.
-
-COLOR SELECTION GUIDELINES:
-**Primary Color (Visitor Chat Bubbles)**:
-- Should be a vibrant, attention-grabbing color that stands out
-- Often matches the website's primary CTA or brand color
-- MUST have white text (#FFFFFF) on it for optimal readability
-- Ensure WCAG AA contrast ratio (4.5:1 minimum) with white text
-- Consider using the hero section's prominent text color or primary button color
-
-**Secondary Color (Agent Message Bubbles)**:
-- Should be subtle and easy on the eyes for reading longer messages
-- Light gray (#F3F4F6, #E5E7EB) or soft neutral tones work best
-- MUST have dark text (#1F2937, #374151, or #000000) for readability
-- Should not compete with the primary color
-- Provides a calm, professional feeling for agent responses
-
-**Background Color (Chat Window)**:
-- Pure white (#FFFFFF) or very light gray (#F9FAFB) for maximum readability
-- Should provide high contrast with both primary and secondary colors
-- Creates a clean, spacious feeling
-
-CONTRAST REQUIREMENTS (CRITICAL):
-- Primary color + white text: minimum 4.5:1 contrast ratio
-- Secondary color + dark text: minimum 4.5:1 contrast ratio
-- Avoid using the same color intensity for both primary and secondary
-- The chat interface must be highly readable and accessible
-
-DESIGN AESTHETICS:
-- Match the widget_shape to the website's border radius style (sharp, rounded, etc.)
-- Choose chat_bubble_style that aligns with the overall design language
-- Ensure the widget feels like a natural extension of the website
-
-RESPONSE FORMAT (JSON only, no additional explanatory text):
-{
-  "primary_color": "#hex_color (for visitor messages with WHITE text)",
-  "secondary_color": "#hex_color (for agent messages with DARK text)",
-  "background_color": "#hex_color (chat window background, usually white)",
-  "position": "bottom-right",
-  "widget_shape": "rounded|square|minimal|professional|modern|classic",
-  "widget_size": "small|medium|large",
-  "chat_bubble_style": "modern|classic|minimal|bot",
-  "welcome_message": "Brand-appropriate welcoming message",
-  "custom_greeting": "Friendly first-time visitor greeting",
-  "agent_name": "Support representative name matching brand tone"
-}
-
-IMPORTANT RULES:
-- All hex colors must be 7 characters starting with #
-- Primary color MUST work with WHITE (#FFFFFF) text
-- Secondary color MUST work with DARK (#1F2937 or darker) text
-- Ensure proper contrast ratios for accessibility
-- Messages should be warm, professional, and under 100 characters
-- Consider the brand personality (formal, casual, technical, friendly)
+- Return ONLY valid 6-digit HEX codes in uppercase (e.g., #FF5733).
+- No explanations.
+- No additional fields.
+- Ensure PRIMARY works with white text, SECONDARY with dark text.
+- Messages should match brand tone and be under 100 characters.
 `,
 		themeData.GetBrandName(),
 		themeData.GetPageTitle(),

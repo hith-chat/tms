@@ -141,18 +141,38 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 		return nil, nil, fmt.Errorf("scrape theme: %w", err)
 	}
 
+	// Capture screenshot using the shared browser context
+	var screenshot []byte
+	screenshot, err = s.webScrapingService.CaptureScreenshotWithBrowser(ctx, rootURL, sharedBrowser)
+	if err != nil {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "warning",
+			Stage:   "widget",
+			Message: "Failed to capture screenshot, proceeding with DOM-only theme analysis",
+			Detail:  err.Error(),
+		})
+		screenshot = nil // Continue without screenshot
+	} else {
+		s.emit(ctx, events, AIBuilderEvent{
+			Type:    "widget_screenshot_captured",
+			Stage:   "widget",
+			Message: "Website screenshot captured for visual analysis",
+		})
+	}
+
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "widget_theme_ready",
 		Stage:   "widget",
 		Message: "Brand palette extracted",
 		Data: map[string]any{
-			"brand_name":  themeData.BrandName,
-			"page_title":  themeData.PageTitle,
-			"color_count": len(themeData.Colors),
+			"brand_name":       themeData.BrandName,
+			"page_title":       themeData.PageTitle,
+			"color_count":      len(themeData.Colors),
+			"screenshot_bytes": len(screenshot),
 		},
 	})
 
-	cfg, err := s.aiService.GenerateWidgetTheme(ctx, themeData)
+	cfg, err := s.aiService.GenerateWidgetThemeWithScreenshot(ctx, themeData, screenshot)
 	if err != nil {
 		s.emit(ctx, events, AIBuilderEvent{
 			Type:    "error",
