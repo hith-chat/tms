@@ -189,10 +189,19 @@ Pages to analyze:
 			i+1, file.URL, file.Title, file.Preview)
 	}
 
-	prompt += `\n\nRespond with ONLY a JSON array of exactly 8 URLs (the most important ones). Example format:
-["https://example.com/page1", "https://example.com/page2", ...]
+	prompt += fmt.Sprintf(`
 
-Response:`
+IMPORTANT: Respond with ONLY a valid JSON array containing the URLs of the most important pages.
+- If there are 8 or more pages available, select exactly 8 URLs
+- If there are fewer than 8 pages available, return all of them (e.g., if only 2 pages, return those 2)
+- Do NOT include any explanations, notes, or other text
+- Return ONLY the JSON array
+
+Example format:
+["https://example.com/page1", "https://example.com/page2"]
+
+Your JSON response:`)
+
 
 	// Call AI service to rank
 	s.emit(ctx, events, AIBuilderEvent{
@@ -210,9 +219,20 @@ Response:`
 	response = stripMarkdownCodeBlocks(response)
 	response = strings.TrimSpace(response)
 
+	// Try to extract JSON array if there's extra text
+	// Look for the first '[' and last ']' to extract just the JSON array
+	startIdx := strings.Index(response, "[")
+	endIdx := strings.LastIndex(response, "]")
+
+	if startIdx == -1 || endIdx == -1 || startIdx >= endIdx {
+		return nil, fmt.Errorf("failed to parse AI ranking response: no valid JSON array found in response: %s", response)
+	}
+
+	jsonStr := response[startIdx : endIdx+1]
+
 	var rankedURLs []string
-	if err := json.Unmarshal([]byte(response), &rankedURLs); err != nil {
-		return nil, fmt.Errorf("failed to parse AI ranking response: %w. Response: %s", err, response)
+	if err := json.Unmarshal([]byte(jsonStr), &rankedURLs); err != nil {
+		return nil, fmt.Errorf("failed to parse AI ranking response: %w. Extracted JSON: %s", err, jsonStr)
 	}
 
 	// Validate we got exactly 8 URLs (or less if fewer available)
