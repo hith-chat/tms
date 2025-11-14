@@ -1110,7 +1110,7 @@ func (s *AIService) CallAIForRanking(ctx context.Context, prompt string) (string
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
-				Content: "You are an expert at analyzing web content and selecting the most relevant pages for building a knowledge base. You always respond with valid JSON arrays only.",
+				Content: "You are an expert at analyzing web content and selecting the most relevant pages for building a knowledge base. You MUST respond with ONLY a valid JSON array - no explanations, no notes, no additional text before or after the JSON. Your entire response must be parseable as JSON.",
 			},
 			{
 				Role:    "user",
