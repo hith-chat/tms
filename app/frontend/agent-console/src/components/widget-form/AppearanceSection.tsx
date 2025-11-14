@@ -66,7 +66,7 @@ export function AppearanceSection({
               <div className="space-y-2">
                 <label
                   htmlFor="widget-shape"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  className="text-sm font-semibold text-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Widget Shape <span className="text-destructive">*</span>
                 </label>
@@ -74,7 +74,7 @@ export function AppearanceSection({
                   id="widget-shape"
                   value={formData.widget_shape}
                   onChange={(e) => onUpdate({ widget_shape: e.target.value as any })}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-describedby="widget-shape-description"
                 >
                   {widgetShapes.map((shape) => (
@@ -91,7 +91,7 @@ export function AppearanceSection({
               <div className="space-y-2">
                 <label
                   htmlFor="bubble-style"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  className="text-sm font-semibold text-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Bubble Style <span className="text-destructive">*</span>
                 </label>
@@ -99,7 +99,7 @@ export function AppearanceSection({
                   id="bubble-style"
                   value={formData.chat_bubble_style}
                   onChange={(e) => onUpdate({ chat_bubble_style: e.target.value as any })}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-describedby="bubble-style-description"
                 >
                   {bubbleStyles.map((style) => (
@@ -116,7 +116,7 @@ export function AppearanceSection({
               <div className="space-y-2">
                 <label
                   htmlFor="widget-size"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  className="text-sm font-semibold text-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Widget Size <span className="text-destructive">*</span>
                 </label>
@@ -124,7 +124,7 @@ export function AppearanceSection({
                   id="widget-size"
                   value={formData.widget_size}
                   onChange={(e) => onUpdate({ widget_size: e.target.value as any })}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-describedby="widget-size-description"
                 >
                   <option value="small">Small</option>
@@ -139,7 +139,7 @@ export function AppearanceSection({
               <div className="space-y-2">
                 <label
                   htmlFor="position"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  className="text-sm font-semibold text-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Position <span className="text-destructive">*</span>
                 </label>
@@ -147,7 +147,7 @@ export function AppearanceSection({
                   id="position"
                   value={formData.position}
                   onChange={(e) => onUpdate({ position: e.target.value as any })}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-describedby="position-description"
                 >
                   <option value="bottom-right">Right</option>
@@ -173,7 +173,7 @@ export function AppearanceSection({
                 <div className="flex-1 min-w-0">
                   <label
                     htmlFor="primary-color"
-                    className="text-sm font-medium leading-none cursor-pointer block"
+                    className="text-sm font-semibold text-foreground leading-none cursor-pointer block"
                   >
                     Primary <span className="text-destructive">*</span>
                   </label>
@@ -195,7 +195,7 @@ export function AppearanceSection({
                 <div className="flex-1 min-w-0">
                   <label
                     htmlFor="secondary-color"
-                    className="text-sm font-medium leading-none cursor-pointer block"
+                    className="text-sm font-semibold text-foreground leading-none cursor-pointer block"
                   >
                     Secondary
                   </label>
@@ -217,7 +217,7 @@ export function AppearanceSection({
                 <div className="flex-1 min-w-0">
                   <label
                     htmlFor="background-color"
-                    className="text-sm font-medium leading-none cursor-pointer block"
+                    className="text-sm font-semibold text-foreground leading-none cursor-pointer block"
                   >
                     Background
                   </label>

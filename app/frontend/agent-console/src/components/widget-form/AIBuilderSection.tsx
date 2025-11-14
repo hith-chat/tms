@@ -305,7 +305,7 @@ export function AIBuilderSection({
           <div className="flex flex-col space-y-1">
             <h3 className="text-lg font-semibold gradient-text">AI Widget Builder</h3>
             <p className="text-sm text-muted-foreground">
-              Enter your website URL to automatically generate a Chat Widget + Knowledge Base + FAQs
+              Enter your URL to generate - Chat Widget + Knowledge Base + FAQs
             </p>
           </div>
         </div>

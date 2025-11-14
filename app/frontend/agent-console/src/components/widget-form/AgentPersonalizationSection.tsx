@@ -53,7 +53,7 @@ export function AgentPersonalizationSection({
         <div className="p-6 space-y-5">
           {/* Domain URL Field */}
           <div className="space-y-2">
-          <label htmlFor="domain-url" className="text-sm font-medium text-foreground flex items-center gap-2">
+          <label htmlFor="domain-url" className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" />
             Domain <span className="text-destructive">*</span>
           </label>
@@ -63,7 +63,7 @@ export function AgentPersonalizationSection({
             value={formData.domain_url || ''}
             onChange={(e) => onUpdate({ domain_url: e.target.value })}
             placeholder="example.com"
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             required
           />
           <p className="text-xs text-muted-foreground">Enter the domain where this widget will be embedded</p>
@@ -72,7 +72,7 @@ export function AgentPersonalizationSection({
         {/* Agent Details Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="space-y-2">
-            <label htmlFor="agent-name" className="text-sm font-medium text-foreground">
+            <label htmlFor="agent-name" className="text-sm font-semibold text-foreground">
               Agent Name
             </label>
             <input
@@ -81,13 +81,13 @@ export function AgentPersonalizationSection({
               value={formData.agent_name || ''}
               onChange={(e) => onUpdate({ agent_name: e.target.value })}
               placeholder="Sarah Johnson"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
             <p className="text-xs text-muted-foreground">Name displayed in the chat interface</p>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="agent-avatar" className="text-sm font-medium text-foreground">
+            <label htmlFor="agent-avatar" className="text-sm font-semibold text-foreground">
               Avatar URL <span className="text-muted-foreground text-xs">(optional)</span>
             </label>
             <input
@@ -96,7 +96,7 @@ export function AgentPersonalizationSection({
               value={formData.agent_avatar_url || ''}
               onChange={(e) => onUpdate({ agent_avatar_url: e.target.value })}
               placeholder="https://example.com/avatar.jpg"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
             <p className="text-xs text-muted-foreground">Profile picture for your agent</p>
           </div>
@@ -104,7 +104,7 @@ export function AgentPersonalizationSection({
 
         {/* Welcome Message */}
         <div className="space-y-2">
-          <label htmlFor="welcome-message" className="text-sm font-medium text-foreground">
+          <label htmlFor="welcome-message" className="text-sm font-semibold text-foreground">
             Welcome Message
           </label>
           <textarea
@@ -113,7 +113,7 @@ export function AgentPersonalizationSection({
             onChange={(e) => onUpdate({ welcome_message: e.target.value })}
             rows={3}
             placeholder="Hi there! 👋 How can we help you today?"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground/90 resize-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
           <p className="text-xs text-muted-foreground">Initial greeting message shown to visitors</p>
         </div>
