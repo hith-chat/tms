@@ -46,6 +46,7 @@ export function CreateChatWidgetPage() {
   }
 
   const handleThemeGenerated = (theme: Partial<CreateChatWidgetRequest>) => {
+    // Called when user clicks "Continue to Widget Settings" after AI build completes
     updateFormData(theme)
     setBuilderMode('manual') // Switch to manual mode to show the generated values
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Wand2,
   Globe,
@@ -8,7 +9,6 @@ import {
   Circle,
   Sparkles,
   Database,
-  Link2,
   AlertTriangle
 } from 'lucide-react'
 import { apiClient } from '../../lib/api'
@@ -46,17 +46,41 @@ export function AIBuilderSection({
   onError,
   initialUrl
 }: AIBuilderSectionProps) {
+  const navigate = useNavigate()
   const [urlInput, setUrlInput] = useState(initialUrl || '')
   const [urlError, setUrlError] = useState<string | null>(null)
   const [events, setEvents] = useState<BuilderEvent[]>([])
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'error'>('idle')
   const [widgetId, setWidgetId] = useState<string | null>(null)
-  const [iframeError, setIframeError] = useState(false)
-  const [iframeLoaded, setIframeLoaded] = useState(false)
+  const [widgetThemeData, setWidgetThemeData] = useState<any>(null)
+  const [completedData, setCompletedData] = useState<any>(null)
 
   const eventSourceRef = useRef<EventSource | null>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
+
+  // Map backend stage names to frontend stage keys
+  const mapBackendStageToFrontend = (backendStage: string): string => {
+    switch (backendStage) {
+      case 'initialization':
+      case 'theme':
+      case 'widget':
+        return 'widget'
+
+      case 'url_extraction':
+      case 'scraping':
+      case 'ai_ranking':
+        return 'scraping'
+
+      case 'embedding_storage':
+        return 'indexing'
+
+      case 'faq':
+        return 'faq'
+
+      default:
+        return backendStage
+    }
+  }
 
   // Auto-scroll timeline as new events arrive
   useEffect(() => {
@@ -82,25 +106,37 @@ export function AIBuilderSection({
 
     events.forEach((event) => {
       if (!event.stage) return
-      if (!map.has(event.stage)) return
 
+      // Map backend stage to frontend stage
+      const frontendStage = mapBackendStageToFrontend(event.stage)
+      if (!map.has(frontendStage)) return
+
+      // Check for errors (don't override complete status)
       if (event.type === 'error' || event.type?.endsWith('_error')) {
-        map.set(event.stage, 'error')
+        // Allow partial success: only mark as error if not already complete
+        if (map.get(frontendStage) !== 'complete') {
+          map.set(frontendStage, 'error')
+        }
         return
       }
 
-      if (
-        event.type === 'completed' ||
-        event.type?.endsWith('_completed') ||
-        event.type === 'faq_ready' ||
-        event.type === 'widget_ready' ||
-        event.type === 'knowledge_links_chosen'
-      ) {
-        map.set(event.stage, 'complete')
+      // Mark stages complete based on specific completion events
+      const completionEvents: Record<string, string[]> = {
+        widget: ['widget_ready', 'theme_generation_completed'],
+        scraping: ['stage_2_completed', 'url_extraction_completed'],
+        indexing: ['stage_3_completed'],
+        faq: ['faq_ready'],
+      }
+
+      if (completionEvents[frontendStage]?.includes(event.type)) {
+        map.set(frontendStage, 'complete')
         return
       }
 
-      map.set(event.stage, 'active')
+      // Mark as active if it's started but not complete
+      if (map.get(frontendStage) === 'pending') {
+        map.set(frontendStage, 'active')
+      }
     })
 
     return map
@@ -135,8 +171,6 @@ export function AIBuilderSection({
     setStatus('running')
     setEvents([])
     setWidgetId(null)
-    setIframeError(false)
-    setIframeLoaded(false)
     onLoadingChange?.(true)
     onError?.(null)
 
@@ -225,10 +259,13 @@ export function AIBuilderSection({
   const handleBuilderEvent = (event: BuilderEvent) => {
     setEvents((prev) => [...prev, event])
 
-    // Handle widget_ready event
+    // Handle widget_ready event - store data and update URL
     if (event.type === 'widget_ready' && event.data?.widget_id) {
       setWidgetId(event.data.widget_id)
-      onThemeGenerated(event.data)
+      setWidgetThemeData(event.data) // Store for later use
+
+      // Update URL to /edit/:widgetId without remounting
+      navigate(`/chat/widget/edit/${event.data.widget_id}`, { replace: true })
     }
 
     // Handle embed_code_ready event
@@ -236,30 +273,33 @@ export function AIBuilderSection({
       setWidgetId(event.data.widget_id)
     }
 
-    // Handle completion
+    // Handle completion - store data but DON'T auto-switch
     if (event.type === 'completed') {
       setStatus('completed')
+      setCompletedData(event.data)
       onLoadingChange?.(false)
+      // Note: Don't call onThemeGenerated here - let user click "Continue" button
     }
 
-    // Handle errors
+    // Handle errors (allow partial success)
     if (event.type === 'error' || event.type?.endsWith('_error')) {
-      setStatus('error')
+      // Only set overall error status if no stages have completed yet
+      const hasCompletedStages = events.some(
+        (e) =>
+          e.type === 'widget_ready' ||
+          e.type === 'stage_3_completed' ||
+          e.type === 'faq_ready'
+      )
+
+      if (!hasCompletedStages) {
+        setStatus('error')
+      }
+
       const errorMsg = event.message || event.detail || 'An error occurred'
       setUrlError(errorMsg)
       onError?.(errorMsg)
       onLoadingChange?.(false)
     }
-  }
-
-  const handleIframeLoad = () => {
-    setIframeLoaded(true)
-    setIframeError(false)
-  }
-
-  const handleIframeError = () => {
-    setIframeError(true)
-    setIframeLoaded(false)
   }
 
   const getStatusIcon = (stageKey: string) => {
@@ -292,6 +332,22 @@ export function AIBuilderSection({
       default:
         return 'text-gray-400'
     }
+  }
+
+  const handleContinue = () => {
+    // Merge widget theme data and completed data
+    const finalData = {
+      ...widgetThemeData,
+      ...completedData,
+    }
+    onThemeGenerated(finalData)
+  }
+
+  const getStageSummary = () => {
+    const statusMap = stageStatus()
+    const completed = Array.from(statusMap.values()).filter((s) => s === 'complete').length
+    const errors = Array.from(statusMap.values()).filter((s) => s === 'error').length
+    return { total: STAGE_ORDER.length, completed, errors }
   }
 
   return (
@@ -413,52 +469,56 @@ export function AIBuilderSection({
         </div>
       )}
 
-      {/* Preview iframe */}
-      {widgetId && urlInput && (
+      {/* Completion Card */}
+      {status === 'completed' && (
         <div className="rounded-lg border border-border bg-card shadow-sm p-6">
           <div className="flex items-center gap-3 mb-4">
-            <Link2 className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold">Live Preview</h3>
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+            <div>
+              <h3 className="text-lg font-semibold">Build Complete!</h3>
+              <p className="text-sm text-muted-foreground">
+                {(() => {
+                  const { completed, errors, total } = getStageSummary()
+                  if (errors > 0) {
+                    return `${completed}/${total} stages completed with ${errors} ${errors === 1 ? 'warning' : 'warnings'}`
+                  }
+                  return `All ${total} stages completed successfully`
+                })()}
+              </p>
+            </div>
           </div>
 
-          <div className="relative rounded-lg overflow-hidden border border-border bg-background">
-            {!iframeLoaded && !iframeError && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            )}
-
-            {iframeError ? (
-              <div className="h-[600px] flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted/20 p-8">
-                <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Preview Not Available</h3>
-                <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
-                  The website cannot be displayed in an iframe due to security restrictions (X-Frame-Options).
-                  Your chat widget will still work when embedded on the actual website.
-                </p>
-                <div className="w-full max-w-2xl rounded-lg border border-border bg-card p-6">
-                  <p className="text-sm text-center text-muted-foreground">
-                    Widget is ready! Copy the embed code from the next step to add it to your website.
-                  </p>
+          {/* Stage Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {STAGE_ORDER.map((stage) => {
+              const statusMap = stageStatus()
+              const stageState = statusMap.get(stage.key) || 'pending'
+              return (
+                <div
+                  key={stage.key}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-background p-3"
+                >
+                  {getStatusIcon(stage.key)}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-medium truncate">{stage.label}</span>
+                    <span className={`text-xs ${getStatusColor(stage.key)} capitalize`}>
+                      {stageState}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <iframe
-                ref={iframeRef}
-                src={urlInput.startsWith('http') ? urlInput : `https://${urlInput}`}
-                className="w-full h-[600px]"
-                onLoad={handleIframeLoad}
-                onError={handleIframeError}
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                title="Website Preview"
-              />
-            )}
+              )
+            })}
           </div>
 
-          <p className="text-xs text-muted-foreground mt-3 flex items-center gap-2">
-            <Sparkles className="h-3 w-3" />
-            Your chat widget is being loaded on the preview. It may take a few seconds to appear.
-          </p>
+          {/* Continue Button */}
+          <button
+            type="button"
+            onClick={handleContinue}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium bg-gradient-primary text-white hover:opacity-90 h-10 px-6 transition-all shadow-glow"
+          >
+            <Sparkles className="h-4 w-4" />
+            Continue to Widget Settings
+          </button>
         </div>
       )}
     </div>
