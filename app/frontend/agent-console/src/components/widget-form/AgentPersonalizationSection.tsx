@@ -1,30 +1,58 @@
-import { User, Globe } from 'lucide-react'
+import { User, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import type { CreateChatWidgetRequest } from '../../hooks/useChatWidgetForm'
 
 interface AgentPersonalizationSectionProps {
   formData: CreateChatWidgetRequest
   onUpdate: (updates: Partial<CreateChatWidgetRequest>) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
+}
+
+// Helper function to check if all required agent personalization fields are complete
+export function isAgentPersonalizationComplete(formData: CreateChatWidgetRequest): boolean {
+  return !!(formData.domain_url && formData.domain_url.trim().length > 0)
 }
 
 export function AgentPersonalizationSection({
   formData,
-  onUpdate
+  onUpdate,
+  isCollapsed = false,
+  onToggleCollapse
 }: AgentPersonalizationSectionProps) {
   return (
     <div className="rounded-lg border border-border bg-card shadow-sm">
       {/* Section Header */}
       <div className="border-b border-border bg-muted/50 px-6 py-4">
-        <div className="flex items-center gap-2">
-          <User className="h-5 w-5 text-primary" />
-          <h3 className="text-base font-semibold text-foreground">Agent Personalization</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <User className="h-5 w-5 text-primary" />
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Agent Personalization</h3>
+              <p className="text-sm text-muted-foreground mt-1">Configure your agent's identity and greeting</p>
+            </div>
+          </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 w-9"
+              aria-label={isCollapsed ? "Expand section" : "Collapse section"}
+            >
+              {isCollapsed ? (
+                <ChevronDown className="h-5 w-5" />
+              ) : (
+                <ChevronUp className="h-5 w-5" />
+              )}
+            </button>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground mt-1">Configure your agent's identity and greeting</p>
       </div>
 
       {/* Section Content */}
-      <div className="p-6 space-y-5">
-        {/* Domain URL Field */}
-        <div className="space-y-2">
+      {!isCollapsed && (
+        <div className="p-6 space-y-5">
+          {/* Domain URL Field */}
+          <div className="space-y-2">
           <label htmlFor="domain-url" className="text-sm font-medium text-foreground flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" />
             Domain <span className="text-destructive">*</span>
@@ -90,6 +118,7 @@ export function AgentPersonalizationSection({
           <p className="text-xs text-muted-foreground">Initial greeting message shown to visitors</p>
         </div>
       </div>
+      )}
     </div>
   )
 }

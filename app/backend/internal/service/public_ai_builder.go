@@ -1010,6 +1010,16 @@ func (s *PublicAIBuilderService) emit(ctx context.Context, events chan<- AIBuild
 
 // ExtractTheme extracts theme colors and styling from a website URL without crawling
 func (s *PublicAIBuilderService) ExtractTheme(ctx context.Context, targetURL string) (map[string]interface{}, error) {
+	// Capture screenshot of the website
+	screenshot, err := s.webScrapingService.headlessBrowserExtractor.TakeFullPageScreenshot(ctx, targetURL)
+	if err != nil {
+		logger.GetTxLogger(ctx).Warn().
+			Err(err).
+			Str("url", targetURL).
+			Msg("Failed to capture screenshot, proceeding without vision analysis")
+		screenshot = nil // Continue without screenshot
+	}
+
 	// Scrape theme data from the website
 	themeData, sharedBrowser, err := s.webScrapingService.ScrapeWebsiteThemeWithBrowser(ctx, targetURL, nil)
 	if err != nil {
@@ -1021,8 +1031,8 @@ func (s *PublicAIBuilderService) ExtractTheme(ctx context.Context, targetURL str
 		}
 	}()
 
-	// Generate widget theme using AI
-	cfg, err := s.aiBuilderService.aiService.GenerateWidgetTheme(ctx, themeData)
+	// Generate widget theme using AI with screenshot
+	cfg, err := s.aiBuilderService.aiService.GenerateWidgetThemeWithScreenshot(ctx, themeData, screenshot)
 	if err != nil {
 		return nil, fmt.Errorf("generate widget theme: %w", err)
 	}

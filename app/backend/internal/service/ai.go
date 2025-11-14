@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,8 +86,21 @@ type ChatCompletionRequest struct {
 
 // ChatCompletionMessage represents a message in the chat completion
 type ChatCompletionMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"` // Can be string or []ContentPart for multi-modal
+}
+
+// ContentPart represents a part of multi-modal content (text or image)
+type ContentPart struct {
+	Type string `json:"type"` // "text" or "image"
+	Text string `json:"text,omitempty"`
+	ImageURL *ImageURL `json:"image_url,omitempty"`
+}
+
+// ImageURL represents an image in the content
+type ImageURL struct {
+	URL    string `json:"url"`    // base64 data URL or regular URL
+	Detail string `json:"detail,omitempty"` // "low", "high", or "auto"
 }
 
 // ChatCompletionResponse represents the response from AI providers
@@ -693,7 +707,25 @@ func (s *AIService) makeAPICall(ctx context.Context, url string, req ChatComplet
 		}
 	}
 
-	return chatResp.Choices[0].Message.Content, usageMetrics, nil
+	// Extract content from the message (handle both string and multi-modal content)
+	content := ""
+	switch v := chatResp.Choices[0].Message.Content.(type) {
+	case string:
+		content = v
+	case []interface{}:
+		// For multi-modal responses, extract text parts
+		for _, part := range v {
+			if partMap, ok := part.(map[string]interface{}); ok {
+				if partMap["type"] == "text" {
+					if text, ok := partMap["text"].(string); ok {
+						content += text
+					}
+				}
+			}
+		}
+	}
+
+	return content, usageMetrics, nil
 }
 
 // AcceptHandoff handles agent accepting a handoff request
@@ -763,12 +795,47 @@ type GeneratedFAQItem struct {
 
 // GenerateWidgetTheme generates chat widget theme based on website analysis
 func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData) (*models.CreateChatWidgetRequest, error) {
+	return s.GenerateWidgetThemeWithScreenshot(ctx, themeData, nil)
+}
+
+func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, themeData ThemeData, screenshot []byte) (*models.CreateChatWidgetRequest, error) {
 	if !s.IsEnabled() {
 		return nil, fmt.Errorf("AI service is not enabled")
 	}
 
-	// Prepare the prompt for GPT
-	prompt := s.buildThemePrompt(themeData)
+	// Prepare the prompt
+	prompt := s.buildEnhancedThemePrompt(themeData)
+
+	// Build the user message with screenshot if available
+	var userMessage ChatCompletionMessage
+	if screenshot != nil && len(screenshot) > 0 {
+		// Use multi-modal content with image
+		base64Image := base64.StdEncoding.EncodeToString(screenshot)
+		dataURL := fmt.Sprintf("data:image/png;base64,%s", base64Image)
+
+		userMessage = ChatCompletionMessage{
+			Role: "user",
+			Content: []ContentPart{
+				{
+					Type: "text",
+					Text: prompt,
+				},
+				{
+					Type: "image_url",
+					ImageURL: &ImageURL{
+						URL:    dataURL,
+						Detail: "high",
+					},
+				},
+			},
+		}
+	} else {
+		// Text-only message
+		userMessage = ChatCompletionMessage{
+			Role:    "user",
+			Content: prompt,
+		}
+	}
 
 	// Create the request
 	req := ChatCompletionRequest{
@@ -776,15 +843,12 @@ func (s *AIService) GenerateWidgetTheme(ctx context.Context, themeData ThemeData
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
-				Content: "You are an expert UI/UX designer specializing in creating chat widget themes that match website aesthetics. Your task is to analyze website data and generate optimal chat widget configurations.",
+				Content: "You are an expert UI/UX designer specializing in creating chat widget themes that match website aesthetics. You analyze both visual design and content to generate optimal chat widget configurations with proper color contrast and readability.",
 			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
+			userMessage,
 		},
 		Temperature: 0.3, // Lower temperature for more consistent results
-		MaxTokens:   1000,
+		MaxTokens:   1500,
 	}
 
 	// Make the API call
@@ -870,6 +934,89 @@ RESPONSE FORMAT (JSON only, no additional text):
 Ensure all hex colors are valid 7-character codes starting with #.
 Choose widget_shape and chat_bubble_style that best match the website's design aesthetic.
 Keep messages professional but warm, and under 100 characters each.
+`,
+		themeData.GetBrandName(),
+		themeData.GetPageTitle(),
+		themeData.GetMetaDesc(),
+		themeData.GetColors(),
+		themeData.GetBackgroundHues(),
+		themeData.GetFontFamilies(),
+	)
+}
+
+// buildEnhancedThemePrompt creates an enhanced prompt for vision-based theme extraction
+func (s *AIService) buildEnhancedThemePrompt(themeData ThemeData) string {
+	return fmt.Sprintf(`
+Analyze the provided website screenshot and extracted data to generate a JSON configuration for a chat widget that perfectly matches the website's visual design and brand identity.
+
+EXTRACTED WEBSITE DATA:
+- Brand Name: %s
+- Page Title: %s
+- Meta Description: %s
+- Detected Colors: %v
+- Background Colors: %v
+- Font Families: %v
+
+VISUAL ANALYSIS INSTRUCTIONS:
+If a screenshot is provided, carefully examine:
+1. **Hero Section Colors**: Analyze the main headline/hero text color and background - these prominent colors should influence the chat widget
+2. **Primary Action Colors**: Look for button colors, call-to-action elements, and interactive components
+3. **Navigation/Header Colors**: Check the header/navigation bar for brand colors
+4. **Text Hierarchy**: Observe the contrast between headings, body text, and backgrounds
+5. **Overall Design Style**: Assess if the design is modern, minimalist, professional, playful, etc.
+
+COLOR SELECTION GUIDELINES:
+**Primary Color (Visitor Chat Bubbles)**:
+- Should be a vibrant, attention-grabbing color that stands out
+- Often matches the website's primary CTA or brand color
+- MUST have white text (#FFFFFF) on it for optimal readability
+- Ensure WCAG AA contrast ratio (4.5:1 minimum) with white text
+- Consider using the hero section's prominent text color or primary button color
+
+**Secondary Color (Agent Message Bubbles)**:
+- Should be subtle and easy on the eyes for reading longer messages
+- Light gray (#F3F4F6, #E5E7EB) or soft neutral tones work best
+- MUST have dark text (#1F2937, #374151, or #000000) for readability
+- Should not compete with the primary color
+- Provides a calm, professional feeling for agent responses
+
+**Background Color (Chat Window)**:
+- Pure white (#FFFFFF) or very light gray (#F9FAFB) for maximum readability
+- Should provide high contrast with both primary and secondary colors
+- Creates a clean, spacious feeling
+
+CONTRAST REQUIREMENTS (CRITICAL):
+- Primary color + white text: minimum 4.5:1 contrast ratio
+- Secondary color + dark text: minimum 4.5:1 contrast ratio
+- Avoid using the same color intensity for both primary and secondary
+- The chat interface must be highly readable and accessible
+
+DESIGN AESTHETICS:
+- Match the widget_shape to the website's border radius style (sharp, rounded, etc.)
+- Choose chat_bubble_style that aligns with the overall design language
+- Ensure the widget feels like a natural extension of the website
+
+RESPONSE FORMAT (JSON only, no additional explanatory text):
+{
+  "primary_color": "#hex_color (for visitor messages with WHITE text)",
+  "secondary_color": "#hex_color (for agent messages with DARK text)",
+  "background_color": "#hex_color (chat window background, usually white)",
+  "position": "bottom-right",
+  "widget_shape": "rounded|square|minimal|professional|modern|classic",
+  "widget_size": "small|medium|large",
+  "chat_bubble_style": "modern|classic|minimal|bot",
+  "welcome_message": "Brand-appropriate welcoming message",
+  "custom_greeting": "Friendly first-time visitor greeting",
+  "agent_name": "Support representative name matching brand tone"
+}
+
+IMPORTANT RULES:
+- All hex colors must be 7 characters starting with #
+- Primary color MUST work with WHITE (#FFFFFF) text
+- Secondary color MUST work with DARK (#1F2937 or darker) text
+- Ensure proper contrast ratios for accessibility
+- Messages should be warm, professional, and under 100 characters
+- Consider the brand personality (formal, casual, technical, friendly)
 `,
 		themeData.GetBrandName(),
 		themeData.GetPageTitle(),

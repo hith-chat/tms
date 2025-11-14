@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Copy, CheckCircle } from 'lucide-react'
 import { CreateChatWidgetRequest, useChatWidgetForm } from '../hooks/useChatWidgetForm'
 import { PageHeader } from '../components/widget-form/PageHeader'
 // import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
-import { AgentPersonalizationSection } from '../components/widget-form/AgentPersonalizationSection'
-import { AppearanceSection } from '../components/widget-form/AppearanceSection'
+import { AgentPersonalizationSection, isAgentPersonalizationComplete } from '../components/widget-form/AgentPersonalizationSection'
+import { AppearanceSection, isAppearanceSectionComplete } from '../components/widget-form/AppearanceSection'
 import { WidgetSimulation } from '../components/widget-form/WidgetSimulation'
 import { FormActions } from '../components/widget-form/FormActions'
 import { BuilderModeToggle, type BuilderMode } from '../components/widget-form/BuilderModeToggle'
@@ -18,6 +18,8 @@ export function CreateChatWidgetPage() {
   const [builderMode, setBuilderMode] = useState<BuilderMode>('manual')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [isAgentPersonalizationCollapsed, setIsAgentPersonalizationCollapsed] = useState(false)
+  const [isAppearanceCollapsed, setIsAppearanceCollapsed] = useState(false)
   const {
     widgetId,
     domains,
@@ -28,6 +30,7 @@ export function CreateChatWidgetPage() {
     updateFormData,
     submitForm
   } = useChatWidgetForm()
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,6 +54,14 @@ export function CreateChatWidgetPage() {
   const handleModeChange = (mode: BuilderMode) => {
     setBuilderMode(mode)
     setAiError(null)
+  }
+
+  const toggleAgentPersonalizationCollapse = () => {
+    setIsAgentPersonalizationCollapsed(!isAgentPersonalizationCollapsed)
+  }
+
+  const toggleAppearanceCollapse = () => {
+    setIsAppearanceCollapsed(!isAppearanceCollapsed)
   }
 
   const copyEmbedCode = () => {
@@ -125,11 +136,15 @@ export function CreateChatWidgetPage() {
                 <AgentPersonalizationSection
                   formData={formData}
                   onUpdate={updateFormData}
+                  isCollapsed={isAgentPersonalizationCollapsed}
+                  onToggleCollapse={toggleAgentPersonalizationCollapse}
                 />
 
                 <AppearanceSection
                   formData={formData}
                   onUpdate={updateFormData}
+                  isCollapsed={isAppearanceCollapsed}
+                  onToggleCollapse={toggleAppearanceCollapse}
                 />
               </>
             )}

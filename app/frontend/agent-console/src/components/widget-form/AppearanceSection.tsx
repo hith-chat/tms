@@ -1,15 +1,30 @@
-import { Palette } from 'lucide-react'
+import { Palette, ChevronDown, ChevronUp } from 'lucide-react'
 import type { CreateChatWidgetRequest } from '../../hooks/useChatWidgetForm'
 import { widgetShapes, bubbleStyles } from '../../utils/widgetHelpers'
 
 interface AppearanceSectionProps {
   formData: CreateChatWidgetRequest
   onUpdate: (updates: Partial<CreateChatWidgetRequest>) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
+}
+
+// Helper function to check if all required appearance fields are complete
+export function isAppearanceSectionComplete(formData: CreateChatWidgetRequest): boolean {
+  return !!(
+    formData.widget_shape &&
+    formData.chat_bubble_style &&
+    formData.widget_size &&
+    formData.position &&
+    formData.primary_color
+  )
 }
 
 export function AppearanceSection({
   formData,
-  onUpdate
+  onUpdate,
+  isCollapsed = false,
+  onToggleCollapse
 }: AppearanceSectionProps) {
   return (
     <div className="flex flex-col w-full min-w-0">
@@ -17,18 +32,37 @@ export function AppearanceSection({
       <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
         {/* Section Header */}
         <div className="border-b border-border bg-muted/50 px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Palette className="h-5 w-5 text-primary" />
-            <h3 className="text-base font-semibold text-foreground">Appearance & Styling</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Palette className="h-5 w-5 text-primary" />
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Appearance & Styling</h3>
+                <p className="text-sm text-muted-foreground mt-1">Customize the look and feel of your chat widget</p>
+              </div>
+            </div>
+            {onToggleCollapse && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 w-9"
+                aria-label={isCollapsed ? "Expand section" : "Collapse section"}
+              >
+                {isCollapsed ? (
+                  <ChevronDown className="h-5 w-5" />
+                ) : (
+                  <ChevronUp className="h-5 w-5" />
+                )}
+              </button>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground mt-1">Customize the look and feel of your chat widget</p>
         </div>
 
         {/* Form content */}
-        <div className="p-6">
-          <div className="space-y-6">
-            {/* Widget Shape, Bubble Style, Widget Size, and Position */}
-            <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        {!isCollapsed && (
+          <div className="p-6">
+            <div className="space-y-6">
+              {/* Widget Shape, Bubble Style, Widget Size, and Position */}
+              <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <label
                   htmlFor="widget-shape"
@@ -195,6 +229,7 @@ export function AppearanceSection({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
