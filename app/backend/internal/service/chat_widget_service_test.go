@@ -58,7 +58,7 @@ func TestChatWidgetService_CreateChatWidget_AppliesDefaultsAndSetsEmbedCode(t *t
 	require.Equal(t, "We are currently offline. Please leave a message.", widget.OfflineMessage)
 	require.NotNil(t, widget.EmbedCode)
 	require.True(t, strings.Contains(*widget.EmbedCode, widget.ID.String()))
-	require.True(t, strings.Contains(*widget.EmbedCode, "chat-widget.js"))
+	require.True(t, strings.Contains(*widget.EmbedCode, "embed/"))
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -1,5 +1,10 @@
 # Hith - Enterprise Ticket Management System
 
+[![Tests](https://github.com/bareuptime/tms/actions/workflows/tests.yml/badge.svg)](https://github.com/bareuptime/tms/actions/workflows/tests.yml)
+[![Backend Docker](https://github.com/bareuptime/tms/actions/workflows/backend-docker.yml/badge.svg)](https://github.com/bareuptime/tms/actions/workflows/backend-docker.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+
 A production-grade multi-tenant support ticketing system with enterprise UI, magic-link authentication, and real-time messaging.
 
 ## Architecture
