@@ -1,5 +1,4 @@
-import { AlertCircle, AlertTriangle } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { AlertCircle } from 'lucide-react'
 import type { DomainValidation } from '../../lib/api'
 
 interface PageHeaderProps {
@@ -8,7 +7,7 @@ interface PageHeaderProps {
   domains: DomainValidation[]
 }
 
-export function PageHeader({ widgetId: _widgetId, error, domains }: PageHeaderProps) {
+export function PageHeader({ widgetId: _widgetId, error, domains: _domains }: PageHeaderProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* Error Alert */}

@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Copy, CheckCircle } from 'lucide-react'
-import { CreateChatWidgetRequest, useChatWidgetForm } from '../hooks/useChatWidgetForm'
+import { useChatWidgetForm } from '../hooks/useChatWidgetForm'
 import { PageHeader } from '../components/widget-form/PageHeader'
 // import { BasicInformationSection } from '../components/widget-form/BasicInformationSection'
-import { AgentPersonalizationSection, isAgentPersonalizationComplete } from '../components/widget-form/AgentPersonalizationSection'
-import { AppearanceSection, isAppearanceSectionComplete } from '../components/widget-form/AppearanceSection'
+import { AgentPersonalizationSection } from '../components/widget-form/AgentPersonalizationSection'
+import { AppearanceSection } from '../components/widget-form/AppearanceSection'
 import { WidgetSimulation } from '../components/widget-form/WidgetSimulation'
 import { FormActions } from '../components/widget-form/FormActions'
 import { BuilderModeToggle, type BuilderMode } from '../components/widget-form/BuilderModeToggle'
@@ -61,7 +61,7 @@ export function CreateChatWidgetPage() {
     }
 
     // Update form data with all widget configuration
-    const { widget_id, ...widgetData } = theme
+    const { widget_id: _widget_id, ...widgetData } = theme
     updateFormData(widgetData)
 
     setBuilderMode('manual') // Switch to manual mode to show the generated values

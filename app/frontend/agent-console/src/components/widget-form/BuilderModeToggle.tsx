@@ -1,4 +1,4 @@
-import { Wand2, Settings, Brain } from 'lucide-react'
+import { Settings, Brain } from 'lucide-react'
 
 export type BuilderMode = 'manual' | 'ai'
 

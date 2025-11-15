@@ -1,5 +1,4 @@
 import { KnowledgeManagement } from '../components/KnowledgeManagement'
-import { ErrorBoundary } from '../components/ErrorBoundary'
 import { PageHeader } from '../components/PageHeader'
 import { Brain } from 'lucide-react'
 

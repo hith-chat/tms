@@ -5,10 +5,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@shared/components/ui/dialog'
-import { Button } from '@shared/components/ui/button'
-import { Input } from '@shared/components/ui/input'
-import { Badge } from '@shared/components/ui/badge'
+  Button,
+  Input,
+  Badge
+} from '@tms/shared'
 import { apiClient } from '../lib/api'
 import {
   Sparkles,

@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Wand2,
-  Globe,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -52,7 +50,7 @@ export function AIBuilderSection({
   const [urlError, setUrlError] = useState<string | null>(null)
   const [events, setEvents] = useState<BuilderEvent[]>([])
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'error'>('idle')
-  const [widgetId, setWidgetId] = useState<string | null>(null)
+  const [_widgetId, setWidgetId] = useState<string | null>(null)
   const [widgetThemeData, setWidgetThemeData] = useState<any>(null)
   const [completedData, setCompletedData] = useState<any>(null)
 
@@ -176,9 +174,9 @@ export function AIBuilderSection({
     onError?.(null)
 
     try {
-      const streamUrl = apiClient.getAIBuilderStreamUrl()
-      const token = localStorage.getItem('auth_token')
       const depth = 3
+      const streamUrl = apiClient.getAIBuilderStreamUrl(normalizedUrl, depth)
+      const token = localStorage.getItem('auth_token')
 
       const response = await fetch(streamUrl, {
         method: 'POST',
