@@ -187,7 +187,7 @@ export function AppearanceSection({
                 <input
                   id="secondary-color"
                   type="color"
-                  value={formData.secondary_color || '#6b7280'}
+                  value={formData.secondary_color || '#e0e7ff'}
                   onChange={(e) => onUpdate({ secondary_color: e.target.value })}
                   className="h-10 w-10 rounded-md border-0 cursor-pointer"
                   aria-describedby="secondary-color-description"

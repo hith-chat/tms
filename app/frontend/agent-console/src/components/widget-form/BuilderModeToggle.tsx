@@ -1,4 +1,4 @@
-import { Wand2, Settings } from 'lucide-react'
+import { Wand2, Settings, Brain } from 'lucide-react'
 
 export type BuilderMode = 'manual' | 'ai'
 
@@ -29,7 +29,7 @@ export function BuilderModeToggle({ mode, onChange }: BuilderModeToggleProps) {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Wand2 className="h-4 w-4" />
+          <Brain className="h-4 w-4" />
           AI Builder
         </button>
 

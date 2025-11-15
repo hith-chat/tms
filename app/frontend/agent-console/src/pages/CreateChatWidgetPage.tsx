@@ -28,7 +28,8 @@ export function CreateChatWidgetPage() {
     error,
     formData,
     updateFormData,
-    submitForm
+    submitForm,
+    setWidgetIdDynamic
   } = useChatWidgetForm()
 
 
@@ -45,9 +46,24 @@ export function CreateChatWidgetPage() {
     navigate('/chat/widgets')
   }
 
-  const handleThemeGenerated = (theme: Partial<CreateChatWidgetRequest>) => {
+  const handleThemeGenerated = (theme: any) => {
     // Called when user clicks "Continue to Widget Settings" after AI build completes
-    updateFormData(theme)
+    // Extract widget_id if present and update it dynamically
+    if (theme.widget_id) {
+      setWidgetIdDynamic(theme.widget_id)
+
+      // Update URL without navigation to include widget ID
+      window.history.replaceState(
+        null,
+        '',
+        `/chat/widget/edit/${theme.widget_id}`
+      )
+    }
+
+    // Update form data with all widget configuration
+    const { widget_id, ...widgetData } = theme
+    updateFormData(widgetData)
+
     setBuilderMode('manual') // Switch to manual mode to show the generated values
   }
 

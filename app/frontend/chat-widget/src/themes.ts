@@ -256,7 +256,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
   // Generate dynamic placeholder color
   const placeholderColor = generatePlaceholderColor(
     widget.background_color || '#ffffff',
-    widget.secondary_color || '#6b7280'
+    widget.secondary_color || '#e0e7ff'
   )
 
   // Get customization values
@@ -269,8 +269,8 @@ export function generateWidgetCSS(widget: ChatWidget): string {
     :root {
       --tms-primary-color: ${widget.primary_color};
       --tms-primary-color-rgb: ${hexToRgb(widget.primary_color)};
-      --tms-secondary-color: ${widget.secondary_color || '#6b7280'};
-      --tms-secondary-color-rgb: ${hexToRgb(widget.secondary_color || '#6b7280')};
+      --tms-secondary-color: ${widget.secondary_color || '#e0e7ff'};
+      --tms-secondary-color-rgb: ${hexToRgb(widget.secondary_color || '#e0e7ff')};
       --tms-background-color: ${widget.background_color || '#ffffff'};
       --tms-background-color-rgb: ${hexToRgb(widget.background_color || '#ffffff')};
       --tms-chat-text-color: ${hexToRgb('#000000')};
@@ -673,7 +673,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
 
     .tms-message-wrapper.visitor .tms-message-time {
       text-align: right;
-      color: #6b7280;
+      color: #e0e7ff;
     }
 
     .tms-message-wrapper.agent .tms-message-time {
@@ -685,7 +685,7 @@ export function generateWidgetCSS(widget: ChatWidget): string {
     .tms-typing-indicator {
       padding: 8px 16px;
       font-size: 13px;
-      color: #6b7280;
+      color: #e0e7ff;
       font-style: italic;
       min-height: 24px;
       display: flex;

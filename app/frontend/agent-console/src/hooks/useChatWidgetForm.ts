@@ -38,8 +38,8 @@ const defaultFormData: CreateChatWidgetRequest = {
   welcome_message: 'Hello! How can we help you today?',
   custom_greeting: 'Hi there! 👋 How can we help you today?',
   away_message: 'We\'re currently away. Leave us a message and we\'ll get back to you!',
-  primary_color: '#3b82f6',
-  secondary_color: '#6b7280',
+  primary_color: '#8b5cf6',
+  secondary_color: '#e0e7ff',
   background_color: '#ffffff',
   position: 'bottom-right',
   widget_shape: 'rounded',
@@ -59,21 +59,29 @@ const defaultFormData: CreateChatWidgetRequest = {
 }
 
 export function useChatWidgetForm() {
-  const { widgetId } = useParams<{ widgetId: string }>()
+  const { widgetId: urlWidgetId } = useParams<{ widgetId: string }>()
+  const [widgetId, setWidgetId] = useState<string | undefined>(urlWidgetId)
   const [domains, setDomains] = useState<DomainValidation[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<CreateChatWidgetRequest>(defaultFormData)
+  const [skipLoad, setSkipLoad] = useState(false)
 
   const loadData = async () => {
+    // Skip loading if widget was created via AI Builder
+    if (skipLoad) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
-      
+
       const domainsData = await apiClient.getDomainValidations()
       setDomains(domainsData.filter(d => d.status === 'verified'))
-      
+
       // If editing, load the widget data
       if (widgetId) {
         const widget = await apiClient.getChatWidget(widgetId)
@@ -84,8 +92,8 @@ export function useChatWidgetForm() {
           welcome_message: widget.welcome_message || 'Hello! How can we help you today?',
           custom_greeting: widget.custom_greeting || 'Hi there! 👋 How can we help you today?',
           away_message: widget.away_message || 'We\'re currently away. Leave us a message and we\'ll get back to you!',
-          primary_color: widget.primary_color || '#3b82f6',
-          secondary_color: widget.secondary_color || '#6b7280',
+          primary_color: widget.primary_color || '#8b5cf6',
+          secondary_color: widget.secondary_color || '#e0e7ff',
           background_color: widget.background_color || '#ffffff',
           position: widget.position || 'bottom-right',
           widget_shape: widget.widget_shape || 'rounded',
@@ -110,6 +118,11 @@ export function useChatWidgetForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const setWidgetIdDynamic = (newWidgetId: string) => {
+    setWidgetId(newWidgetId)
+    setSkipLoad(true)
   }
 
   const submitForm = async () => {
@@ -143,6 +156,13 @@ export function useChatWidgetForm() {
     loadData()
   }, [widgetId])
 
+  // Sync with URL param changes
+  useEffect(() => {
+    if (urlWidgetId !== widgetId) {
+      setWidgetId(urlWidgetId)
+    }
+  }, [urlWidgetId])
+
   return {
     widgetId,
     domains,
@@ -152,6 +172,7 @@ export function useChatWidgetForm() {
     formData,
     updateFormData,
     submitForm,
-    setError
+    setError,
+    setWidgetIdDynamic
   }
 }

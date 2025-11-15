@@ -309,19 +309,19 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                             <div className="flex space-x-1">
                               <div 
                                 className="w-2 h-2 rounded-full animate-bounce"
-                                style={{ backgroundColor: formData.primary_color || '#6b7280' }}
+                                style={{ backgroundColor: formData.primary_color || '#e0e7ff' }}
                               ></div>
                               <div 
                                 className="w-2 h-2 rounded-full animate-bounce"
                                 style={{ 
-                                  backgroundColor: formData.primary_color || '#6b7280',
+                                  backgroundColor: formData.primary_color || '#e0e7ff',
                                   animationDelay: '0.1s'
                                 }}
                               ></div>
                               <div 
                                 className="w-2 h-2 rounded-full animate-bounce"
                                 style={{ 
-                                  backgroundColor: formData.primary_color || '#6b7280',
+                                  backgroundColor: formData.primary_color || '#e0e7ff',
                                   animationDelay: '0.2s'
                                 }}
                               ></div>
@@ -344,7 +344,7 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                             type="button" 
                             className="p-2 rounded hover:bg-opacity-80 transition-colors"
                             style={{ 
-                              color: formData.primary_color || '#6b7280',
+                              color: formData.primary_color || '#e0e7ff',
                               backgroundColor: formData.secondary_color ? `${formData.secondary_color}40` : '#f3f4f6'
                             }}
                           >
@@ -398,7 +398,7 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
             onClick={() => setIsFullScreen(true)}
             className="px-3 py-2 text-xs rounded-md flex items-center gap-1 font-medium transition-all hover:opacity-90"
             style={{
-              backgroundColor: formData.primary_color || '#3b82f6',
+              backgroundColor: formData.primary_color || '#8b5cf6',
               color: 'white'
             }}
           >
@@ -611,19 +611,19 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                                   <div className="flex space-x-1">
                                     <div
                                       className="w-2 h-2 rounded-full animate-bounce"
-                                      style={{ backgroundColor: formData.primary_color || '#6b7280' }}
+                                      style={{ backgroundColor: formData.primary_color || '#e0e7ff' }}
                                     ></div>
                                     <div
                                       className="w-2 h-2 rounded-full animate-bounce"
                                       style={{
-                                        backgroundColor: formData.primary_color || '#6b7280',
+                                        backgroundColor: formData.primary_color || '#e0e7ff',
                                         animationDelay: '0.1s'
                                       }}
                                     ></div>
                                     <div
                                       className="w-2 h-2 rounded-full animate-bounce"
                                       style={{
-                                        backgroundColor: formData.primary_color || '#6b7280',
+                                        backgroundColor: formData.primary_color || '#e0e7ff',
                                         animationDelay: '0.2s'
                                       }}
                                     ></div>
@@ -641,7 +641,7 @@ export function WidgetSimulation({ formData }: WidgetSimulationProps) {
                                   type="button"
                                   className="p-2 rounded hover:bg-opacity-80 transition-colors"
                                   style={{
-                                    color: formData.primary_color || '#6b7280',
+                                    color: formData.primary_color || '#e0e7ff',
                                     backgroundColor: formData.secondary_color ? `${formData.secondary_color}40` : '#f3f4f6'
                                   }}
                                 >

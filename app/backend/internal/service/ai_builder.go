@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 )
 
@@ -145,19 +146,21 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 	var screenshot []byte
 	screenshot, err = s.webScrapingService.CaptureScreenshotWithBrowser(ctx, rootURL, sharedBrowser)
 	if err != nil {
-		s.emit(ctx, events, AIBuilderEvent{
-			Type:    "warning",
-			Stage:   "widget",
-			Message: "Failed to capture screenshot, proceeding with DOM-only theme analysis",
-			Detail:  err.Error(),
-		})
+		logger.DebugCtx(ctx, "Failed to capture screenshot, proceeding with DOM-only theme analysis")
+		// s.emit(ctx, events, AIBuilderEvent{
+		// 	Type:    "warning",
+		// 	Stage:   "widget",
+		// 	Message: "Failed to capture screenshot, proceeding with DOM-only theme analysis",
+		// 	Detail:  err.Error(),
+		// })
 		screenshot = nil // Continue without screenshot
 	} else {
-		s.emit(ctx, events, AIBuilderEvent{
-			Type:    "widget_screenshot_captured",
-			Stage:   "widget",
-			Message: "Website screenshot captured for visual analysis",
-		})
+		logger.DebugCtx(ctx, "Website screenshot captured for visual analysis")
+		// s.emit(ctx, events, AIBuilderEvent{
+		// 	Type:    "widget_screenshot_captured",
+		// 	Stage:   "widget",
+		// 	Message: "Website screenshot captured for visual analysis",
+		// })
 	}
 
 	s.emit(ctx, events, AIBuilderEvent{
@@ -211,6 +214,7 @@ func (s *AIBuilderService) buildWidget(ctx context.Context, tenantID, projectID 
 		Message: "Chat widget is ready",
 		Data: map[string]any{
 			"widget_id": widget.ID.String(),
+			"widget":    widget,
 		},
 	})
 

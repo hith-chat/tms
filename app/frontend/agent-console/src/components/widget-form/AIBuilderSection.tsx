@@ -9,7 +9,8 @@ import {
   Circle,
   Sparkles,
   Database,
-  AlertTriangle
+  AlertTriangle,
+  Wand
 } from 'lucide-react'
 import { apiClient } from '../../lib/api'
 
@@ -262,7 +263,41 @@ export function AIBuilderSection({
     // Handle widget_ready event - store data and update URL
     if (event.type === 'widget_ready' && event.data?.widget_id) {
       setWidgetId(event.data.widget_id)
-      setWidgetThemeData(event.data) // Store for later use
+
+      // Extract complete widget data from backend response
+      const widget = event.data.widget
+      const mappedWidgetData = widget ? {
+        widget_id: event.data.widget_id,
+        name: widget.name || '',
+        domain_url: widget.domain_url || 'hith.chat',
+        welcome_message: widget.welcome_message || 'Hello! How can we help you today?',
+        custom_greeting: widget.custom_greeting || 'Hi there! 👋 How can we help you today?',
+        away_message: widget.away_message || 'We\'re currently away. Leave us a message and we\'ll get back to you!',
+        primary_color: widget.primary_color || '#8b5cf6',
+        secondary_color: widget.secondary_color || '#e0e7ff',
+        background_color: widget.background_color || '#ffffff',
+        position: widget.position || 'bottom-right',
+        widget_shape: widget.widget_shape || 'rounded',
+        chat_bubble_style: widget.chat_bubble_style || 'modern',
+        widget_size: widget.widget_size || 'medium',
+        animation_style: widget.animation_style || 'smooth',
+        agent_name: widget.agent_name || 'Support Agent',
+        agent_avatar_url: widget.agent_avatar_url || '',
+        allow_file_uploads: widget.allow_file_uploads || false,
+        show_agent_avatars: widget.show_agent_avatars !== false,
+        require_email: widget.require_email || false,
+        require_name: widget.require_name || false,
+        sound_enabled: widget.sound_enabled !== false,
+        show_powered_by: widget.show_powered_by !== false,
+        use_ai: widget.use_ai || false,
+        auto_open_delay: widget.auto_open_delay || 0,
+        embed_code: widget.embed_code || ''
+      } : event.data
+
+      setWidgetThemeData(mappedWidgetData) // Store for later use
+
+      // Immediately update parent component with widget data for live preview
+      onThemeGenerated(mappedWidgetData)
 
       // Update URL to /edit/:widgetId without remounting
       navigate(`/chat/widget/edit/${event.data.widget_id}`, { replace: true })
@@ -355,13 +390,9 @@ export function AIBuilderSection({
       {/* URL Input Card */}
       <div className="rounded-lg border border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 p-6 pb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary">
-            <Wand2 className="h-5 w-5 text-white" />
-          </div>
           <div className="flex flex-col space-y-1">
-            <h3 className="text-lg font-semibold gradient-text">AI Widget Builder</h3>
             <p className="text-sm text-muted-foreground">
-              Enter your URL to generate - Chat Widget + Knowledge Base + FAQs
+              Enter URL to generate - Chat Widget + Knowledge Base + FAQs
             </p>
           </div>
         </div>
@@ -370,13 +401,11 @@ export function AIBuilderSection({
           <div className="space-y-4">
             {/* URL Input */}
             <div className="space-y-2">
-              <label htmlFor="website-url" className="text-sm font-medium">
-                Website URL <span className="text-destructive">*</span>
-              </label>
+
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    <Wand className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <input
                     id="website-url"
@@ -411,7 +440,6 @@ export function AIBuilderSection({
                     </>
                   ) : (
                     <>
-                      <Sparkles className="h-4 w-4" />
                       Start Building
                     </>
                   )}

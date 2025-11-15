@@ -848,7 +848,7 @@ func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, theme
 			userMessage,
 		},
 		Temperature: 0.2, // Lower temperature for more consistent color extraction
-		MaxTokens:   800,  // Reduced since we only need 3 colors + metadata
+		MaxTokens:   800, // Reduced since we only need 3 colors + metadata
 	}
 
 	// Make the API call
@@ -990,7 +990,8 @@ Return EXACTLY this JSON structure:
   "chat_bubble_style": "modern",
   "welcome_message": "Hi! How can we help you today?",
   "custom_greeting": "Welcome! We're here to assist you.",
-  "agent_name": "Support Team"
+  "agent_name": "Founder's name or 'Support Agent'",
+  "font_family": "One of the detected font families from the site",
 }
 
 - Return ONLY valid 6-digit HEX codes in uppercase (e.g., #FF5733).

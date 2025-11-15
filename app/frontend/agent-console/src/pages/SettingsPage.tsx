@@ -75,7 +75,7 @@ export function SettingsPage() {
     about: '',
     logo_url: '',
     support_url: '',
-    primary_color: '#3b82f6',
+    primary_color: '#8b5cf6',
     accent_color: '#10b981',
     secondary_color: '#64748b',
     custom_css: '',
