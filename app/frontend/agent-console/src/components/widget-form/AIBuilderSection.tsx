@@ -50,9 +50,10 @@ export function AIBuilderSection({
   const [urlError, setUrlError] = useState<string | null>(null)
   const [events, setEvents] = useState<BuilderEvent[]>([])
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'error'>('idle')
-  const [_widgetId, setWidgetId] = useState<string | null>(null)
+  const [widgetId, setWidgetId] = useState<string | null>(null)
   const [widgetThemeData, setWidgetThemeData] = useState<any>(null)
   const [completedData, setCompletedData] = useState<any>(null)
+  const [isWidgetReady, setIsWidgetReady] = useState(false)
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
@@ -261,6 +262,7 @@ export function AIBuilderSection({
     // Handle widget_ready event - store data and update URL
     if (event.type === 'widget_ready' && event.data?.widget_id) {
       setWidgetId(event.data.widget_id)
+      setIsWidgetReady(true)
 
       // Extract complete widget data from backend response
       const widget = event.data.widget
@@ -297,8 +299,12 @@ export function AIBuilderSection({
       // Immediately update parent component with widget data for live preview
       onThemeGenerated(mappedWidgetData)
 
-      // Update URL to /edit/:widgetId without remounting
-      navigate(`/chat/widget/edit/${event.data.widget_id}`, { replace: true })
+      // Update URL in browser history without navigation (allows task to continue)
+      window.history.replaceState(
+        null,
+        '',
+        `/chat/widget/edit/${event.data.widget_id}`
+      )
     }
 
     // Handle embed_code_ready event
@@ -453,6 +459,31 @@ export function AIBuilderSection({
           </div>
         </div>
       </div>
+
+      {/* Widget Ready Notification - Shows when widget is created while task continues */}
+      {isWidgetReady && widgetId && status === 'running' && (
+        <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/10 dark:border-green-800 shadow-sm p-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-semibold text-green-900 dark:text-green-100">
+                Chat Widget Created!
+              </h4>
+              <p className="text-sm text-green-700 dark:text-green-200 mt-1">
+                Your widget is ready and the live preview has been updated. Knowledge base building continues in the background.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(`/chat/widget/edit/${widgetId}`)}
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700 h-9 px-4 transition-colors"
+            >
+              <Sparkles className="h-4 w-4" />
+              Go to Settings
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Progress Steps */}
       {status !== 'idle' && (
