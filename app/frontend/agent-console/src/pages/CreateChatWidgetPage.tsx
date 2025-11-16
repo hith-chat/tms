@@ -105,6 +105,11 @@ export function CreateChatWidgetPage() {
     setIsAppearanceCollapsed(!isAppearanceCollapsed)
   }
 
+  const handleUrlChange = (url: string) => {
+    // Update form data with new URL for live preview
+    updateFormData({ domain_url: url })
+  }
+
   const copyEmbedCode = () => {
     if (!formData.embed_code) return
     
@@ -161,6 +166,7 @@ export function CreateChatWidgetPage() {
                 onLoadingChange={setAiLoading}
                 onError={setAiError}
                 initialUrl={formData.domain_url}
+                onUrlChange={handleUrlChange}
               />
             )}
 

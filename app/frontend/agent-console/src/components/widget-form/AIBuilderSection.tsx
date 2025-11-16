@@ -19,6 +19,7 @@ interface AIBuilderSectionProps {
   onLoadingChange?: (loading: boolean) => void
   onError?: (error: string | null) => void
   initialUrl?: string
+  onUrlChange?: (url: string) => void
 }
 
 interface BuilderEvent {
@@ -43,7 +44,8 @@ export function AIBuilderSection({
   onThemeGenerated,
   onLoadingChange,
   onError,
-  initialUrl
+  initialUrl,
+  onUrlChange
 }: AIBuilderSectionProps) {
   const navigate = useNavigate()
   const [urlInput, setUrlInput] = useState(initialUrl || '')
@@ -417,8 +419,11 @@ export function AIBuilderSection({
                     type="url"
                     value={urlInput}
                     onChange={(e) => {
-                      setUrlInput(e.target.value)
+                      const newUrl = e.target.value
+                      setUrlInput(newUrl)
                       setUrlError(null)
+                      // Notify parent component of URL change for live preview
+                      onUrlChange?.(newUrl)
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && status === 'idle') {
