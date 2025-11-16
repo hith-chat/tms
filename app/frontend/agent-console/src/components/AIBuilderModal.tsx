@@ -53,7 +53,6 @@ const STAGE_ORDER: Array<{ key: string; label: string }> = [
   { key: 'widget', label: 'Chat Widget' },
   { key: 'scraping', label: 'Discovery' },
   { key: 'indexing', label: 'Indexing' },
-  { key: 'faq', label: 'Knowledge Q&A' },
 ]
 
 export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBuilderModalProps) {
@@ -395,7 +394,7 @@ export function AIBuilderModal({ open, onClose, defaultUrl, onCompleted }: AIBui
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {STAGE_ORDER.map(({ key, label }) => {
               const state = stageStatus.get(key) ?? 'pending'
               return (

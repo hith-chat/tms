@@ -638,6 +638,7 @@ func (s *AIBuilderService) createOrUpdateWidget(ctx context.Context, tenantID, p
 	widget := widgets[0]
 
 	update := &models.UpdateChatWidgetRequest{}
+	update.DomainURL = stringPtr(cfg.DomainURL)
 	update.PrimaryColor = stringPtr(cfg.PrimaryColor)
 	update.SecondaryColor = stringPtr(cfg.SecondaryColor)
 	update.BackgroundColor = stringPtr(cfg.BackgroundColor)

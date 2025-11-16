@@ -92,8 +92,8 @@ func (h *AIBuilderHandler) StreamBuild(c *gin.Context) {
 	// Run builder in background using the stable public builder workflow
 	go func() {
 		defer close(events)
-		// Use BuildWidgetForProject with FAQ generation enabled
-		_, err := h.publicBuilder.BuildWidgetForProject(ctx, tenantID, projectID, urlParam, depth, true, events)
+		// Use BuildWidgetForProject with FAQ generation disabled
+		_, err := h.publicBuilder.BuildWidgetForProject(ctx, tenantID, projectID, urlParam, depth, false, events)
 		if err != nil {
 			// If there's an error but no events were sent, send error event
 			select {

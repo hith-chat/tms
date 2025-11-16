@@ -37,7 +37,6 @@ const STAGE_ORDER: Array<{ key: string; label: string }> = [
   { key: 'widget', label: 'Chat Widget' },
   { key: 'scraping', label: 'Discovery' },
   { key: 'indexing', label: 'Indexing' },
-  { key: 'faq', label: 'Knowledge Q&A' },
 ]
 
 export function AIBuilderSection({
@@ -56,6 +55,7 @@ export function AIBuilderSection({
   const [widgetThemeData, setWidgetThemeData] = useState<any>(null)
   const [completedData, setCompletedData] = useState<any>(null)
   const [isWidgetReady, setIsWidgetReady] = useState(false)
+  const [indexingProgress, setIndexingProgress] = useState<{ current: number; total: number } | null>(null)
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
@@ -75,9 +75,6 @@ export function AIBuilderSection({
 
       case 'embedding_storage':
         return 'indexing'
-
-      case 'faq':
-        return 'faq'
 
       default:
         return backendStage
@@ -106,7 +103,15 @@ export function AIBuilderSection({
     const map = new Map<string, StageStatus>()
     STAGE_ORDER.forEach(({ key }) => map.set(key, 'pending'))
 
+    // Track if stage 3 (indexing) has started to ensure clean transition
+    let stage3Started = false
+
     events.forEach((event) => {
+      // Check if stage 3 has started
+      if (event.type === 'stage_3_started') {
+        stage3Started = true
+      }
+
       if (!event.stage) return
 
       // Map backend stage to frontend stage
@@ -127,7 +132,6 @@ export function AIBuilderSection({
         widget: ['widget_ready', 'theme_generation_completed'],
         scraping: ['stage_2_completed', 'url_extraction_completed'],
         indexing: ['stage_3_completed'],
-        faq: ['faq_ready'],
       }
 
       if (completionEvents[frontendStage]?.includes(event.type)) {
@@ -140,6 +144,11 @@ export function AIBuilderSection({
         map.set(frontendStage, 'active')
       }
     })
+
+    // If stage 3 has started, ensure Discovery is marked complete
+    if (stage3Started && map.get('scraping') === 'active') {
+      map.set('scraping', 'complete')
+    }
 
     return map
   }
@@ -260,11 +269,17 @@ export function AIBuilderSection({
 
   const handleBuilderEvent = (event: BuilderEvent) => {
     setEvents((prev) => [...prev, event])
+    console.log('Received builder event:', event)
 
     // Handle widget_ready event - store data and update URL
     if (event.type === 'widget_ready' && event.data?.widget_id) {
+      console.log('Processing widget_ready event 1')
       setWidgetId(event.data.widget_id)
+      console.log('Processing widget_ready event 2')
       setIsWidgetReady(true)
+      console.log('Processing widget_ready event 3')
+
+      console.log('Widget ready event data:', event.data)
 
       // Extract complete widget data from backend response
       const widget = event.data.widget
@@ -296,10 +311,13 @@ export function AIBuilderSection({
         embed_code: widget.embed_code || ''
       } : event.data
 
+      console.log('Processing widget_ready event 4')
       setWidgetThemeData(mappedWidgetData) // Store for later use
+      console.log('Processing widget_ready event 5')
 
       // Immediately update parent component with widget data for live preview
-      onThemeGenerated(mappedWidgetData)
+      // onThemeGenerated(mappedWidgetData)
+      console.log('Processing widget_ready event 6')
 
       // Update URL in browser history without navigation (allows task to continue)
       // Always append ?page=ai to maintain AI builder mode
@@ -315,13 +333,25 @@ export function AIBuilderSection({
       setWidgetId(event.data.widget_id)
     }
 
+    // Handle storage_progress event for indexing progress counter
+    if (event.type === 'storage_progress' && event.message) {
+      // Extract "page X/Y" from message like "Stored embeddings for page 3/8"
+      const match = event.message.match(/page\s+(\d+)\/(\d+)/i)
+      if (match) {
+        setIndexingProgress({ current: parseInt(match[1]), total: parseInt(match[2]) })
+      }
+    }
+
     // Handle completion - store data but DON'T auto-switch
     if (event.type === 'completed') {
+      console.log('Processing widget_ready event 10', event)
       setStatus('completed')
       setCompletedData(event.data)
       onLoadingChange?.(false)
+      console.log('Processing widget_ready event 11', event)
       // Note: Don't call onThemeGenerated here - let user click "Continue" button
     }
+    console.log('Processing widget_ready event 12', event)
 
     // Handle errors (allow partial success)
     if (event.type === 'error' || event.type?.endsWith('_error')) {
@@ -329,8 +359,7 @@ export function AIBuilderSection({
       const hasCompletedStages = events.some(
         (e) =>
           e.type === 'widget_ready' ||
-          e.type === 'stage_3_completed' ||
-          e.type === 'faq_ready'
+          e.type === 'stage_3_completed'
       )
 
       if (!hasCompletedStages) {
@@ -392,6 +421,14 @@ export function AIBuilderSection({
     return { total: STAGE_ORDER.length, completed, errors }
   }
 
+  const getStageLabel = (stageKey: string, baseLabel: string) => {
+    // Show page counter for indexing stage when it's active
+    if (stageKey === 'indexing' && indexingProgress) {
+      return `${baseLabel} (${indexingProgress.current}/${indexingProgress.total})`
+    }
+    return baseLabel
+  }
+
   return (
     <div className="flex flex-col w-full min-w-0 space-y-6">
       {/* URL Input Card */}
@@ -399,7 +436,7 @@ export function AIBuilderSection({
         <div className="flex items-center gap-3 p-6 pb-4">
           <div className="flex flex-col space-y-1">
             <p className="text-sm text-muted-foreground">
-              Enter URL to generate - Chat Widget + Knowledge Base + FAQs
+              Enter URL to generate - Chat Widget + Knowledge Base
             </p>
           </div>
         </div>
@@ -492,40 +529,53 @@ export function AIBuilderSection({
       )}
 
       {/* Progress Steps */}
-      {status !== 'idle' && (
+      {status !== 'idle' && status !== 'completed' && (
         <div className="rounded-lg border border-border bg-card shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-4">
             <Database className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold">Build Progress</h3>
           </div>
 
-          <div className="space-y-4">
-            {STAGE_ORDER.map((stage) => (
-              <div key={stage.key} className="flex items-center gap-3">
-                {getStatusIcon(stage.key)}
-                <span className={`text-sm font-medium ${getStatusColor(stage.key)}`}>
-                  {stage.label}
-                </span>
-              </div>
-            ))}
+          {/* Stage Summary - Same horizontal grid as Build Complete */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+            {STAGE_ORDER.map((stage) => {
+              const statusMap = stageStatus()
+              const stageState = statusMap.get(stage.key) || 'pending'
+              return (
+                <div
+                  key={stage.key}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-background p-3"
+                >
+                  {getStatusIcon(stage.key)}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-medium truncate">{getStageLabel(stage.key, stage.label)}</span>
+                    <span className={`text-xs ${getStatusColor(stage.key)} capitalize`}>
+                      {stageState}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Event Timeline */}
           {events.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-border">
+            <div className="pt-6 border-t border-border">
               <h4 className="text-sm font-medium mb-3">Activity Log</h4>
               <div
                 ref={timelineRef}
                 className="space-y-2 max-h-48 overflow-y-auto text-xs text-muted-foreground custom-scrollbar"
               >
-                {events.map((event, idx) => (
-                  <div key={`${event.timestamp}-${idx}`} className="flex items-start gap-2">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(event.timestamp || Date.now()).toLocaleTimeString()}
-                    </span>
-                    <span className="flex-1">{event.message || event.type}</span>
-                  </div>
-                ))}
+                {events
+                  .filter((event) => !event.type?.includes('faq')) // Filter out FAQ-related events
+                  .map((event, idx) => (
+                    <div key={`${event.timestamp}-${idx}`} className="flex items-start gap-2">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(event.timestamp || Date.now()).toLocaleTimeString()}
+                      </span>
+                      <span className="flex-1">{event.message || event.type}</span>
+                    </div>
+                  ))}
               </div>
             </div>
           )}
@@ -552,7 +602,7 @@ export function AIBuilderSection({
           </div>
 
           {/* Stage Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
             {STAGE_ORDER.map((stage) => {
               const statusMap = stageStatus()
               const stageState = statusMap.get(stage.key) || 'pending'
@@ -563,7 +613,7 @@ export function AIBuilderSection({
                 >
                   {getStatusIcon(stage.key)}
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-medium truncate">{stage.label}</span>
+                    <span className="text-xs font-medium truncate">{getStageLabel(stage.key, stage.label)}</span>
                     <span className={`text-xs ${getStatusColor(stage.key)} capitalize`}>
                       {stageState}
                     </span>

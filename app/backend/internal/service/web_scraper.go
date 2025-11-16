@@ -1962,12 +1962,7 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 							} else if count > int64(maxURLLimit) {
 								// Limit reached, stop adding URLs
 								shouldAdd = false
-								s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
-									Type:         "info",
-									Message:      fmt.Sprintf("Reached URL limit of %d, stopping extraction", maxURLLimit),
-									CurrentDepth: result.depth,
-									Timestamp:    time.Now(),
-								})
+								logger.GetTxLogger(ctx).Info().Msg("Reached Redis URL limit, stopping further URL additions")
 							}
 						}
 
