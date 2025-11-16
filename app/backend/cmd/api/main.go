@@ -253,6 +253,7 @@ func main() {
 		log.Printf("AI provider %s", cfg.AI.Provider)
 		log.Printf("URL Ranking Model provider %s", cfg.AI.UrlRankingModel)
 		log.Printf("BB AI API Key %s", cfg.AI.APIKey)
+		cfg.AI.ThemeExtractionModel = "blackboxai/anthropic/claude-sonnet-4.5"
 		log.Printf("Theme Extraction Model %s", cfg.AI.ThemeExtractionModel)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)

@@ -300,10 +300,11 @@ export function AIBuilderSection({
       onThemeGenerated(mappedWidgetData)
 
       // Update URL in browser history without navigation (allows task to continue)
+      // Always append ?page=ai to maintain AI builder mode
       window.history.replaceState(
         null,
         '',
-        `/chat/widget/edit/${event.data.widget_id}`
+        `/chat/widget/edit/${event.data.widget_id}?page=ai`
       )
     }
 
@@ -475,7 +476,7 @@ export function AIBuilderSection({
             </div>
             <button
               type="button"
-              onClick={() => navigate(`/chat/widget/edit/${widgetId}`)}
+              onClick={() => navigate(`/chat/widget/edit/${widgetId}?page=ai`)}
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700 h-9 px-4 transition-colors"
             >
               <Sparkles className="h-4 w-4" />

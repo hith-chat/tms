@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, MessageCircle, Globe, Settings, Copy, Trash2, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
 import { apiClient } from '../lib/api'
 import type { ChatWidget } from '../types/chat'
@@ -7,6 +7,7 @@ import type { DomainValidation } from '../lib/api'
 
 export function ChatWidgetsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [widgets, setWidgets] = useState<ChatWidget[]>([])
   const [domains, setDomains] = useState<DomainValidation[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,6 +20,12 @@ export function ChatWidgetsPage() {
 
   // Redirect effect after widgets are loaded
   useEffect(() => {
+    // Skip automatic redirect if ?page=ai is present (direct navigation to AI builder)
+    const pageParam = searchParams.get('page')
+    if (pageParam === 'ai') {
+      return
+    }
+
     if (!loading && widgets.length > 0) {
       // If there are widgets, redirect to the first widget
       navigate(`/chat/widget/edit/${widgets[0].id}`)
@@ -26,7 +33,7 @@ export function ChatWidgetsPage() {
       // If no widgets but domains are verified, redirect to create widget page
       navigate('/chat/widget/create')
     }
-  }, [loading, widgets, domains, navigate])
+  }, [loading, widgets, domains, navigate, searchParams])
 
   const loadData = async () => {
     try {

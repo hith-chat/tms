@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Copy, CheckCircle } from 'lucide-react'
 import { useChatWidgetForm } from '../hooks/useChatWidgetForm'
 import { PageHeader } from '../components/widget-form/PageHeader'
@@ -13,6 +13,7 @@ import { AIBuilderSection } from '../components/widget-form/AIBuilderSection'
 
 export function CreateChatWidgetPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
   const [builderMode, setBuilderMode] = useState<BuilderMode>('manual')
@@ -32,6 +33,13 @@ export function CreateChatWidgetPage() {
     setWidgetIdDynamic
   } = useChatWidgetForm()
 
+  // Initialize builder mode from query parameter
+  useEffect(() => {
+    const pageParam = searchParams.get('page')
+    if (pageParam === 'ai') {
+      setBuilderMode('ai')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,11 +60,11 @@ export function CreateChatWidgetPage() {
     if (theme.widget_id) {
       setWidgetIdDynamic(theme.widget_id)
 
-      // Update URL without navigation to include widget ID
+      // Update URL without navigation to include widget ID and preserve ?page=ai
       window.history.replaceState(
         null,
         '',
-        `/chat/widget/edit/${theme.widget_id}`
+        `/chat/widget/edit/${theme.widget_id}?page=ai`
       )
     }
 
@@ -65,12 +73,28 @@ export function CreateChatWidgetPage() {
     updateFormData(widgetData)
 
     setBuilderMode('manual') // Switch to manual mode to show the generated values
+
+    // Remove ?page=ai when switching to manual mode
+    setSearchParams(params => {
+      params.delete('page')
+      return params
+    })
   }
 
 
   const handleModeChange = (mode: BuilderMode) => {
     setBuilderMode(mode)
     setAiError(null)
+
+    // Update URL query parameter based on mode
+    setSearchParams(params => {
+      if (mode === 'ai') {
+        params.set('page', 'ai')
+      } else {
+        params.delete('page')
+      }
+      return params
+    })
   }
 
   const toggleAgentPersonalizationCollapse = () => {
