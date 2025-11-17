@@ -843,12 +843,12 @@ func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, theme
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    "system",
-				Content: "You are a Color Extraction Agent specializing in analyzing website screenshots and DOM data to extract optimal color schemes for chat widgets. Return only valid JSON with no explanations.",
+				Content: "You are a Website Analysis Agent specializing in extracting brand identity from website screenshots and DOM data. Your job is to analyze the ACTUAL website content visible in the screenshot and provided metadata to generate personalized, contextual chat widget configurations. Never invent or hallucinate information. Base all decisions on visible evidence. Return only valid JSON with no explanations or additional text.",
 			},
 			userMessage,
 		},
-		Temperature: 0.2, // Lower temperature for more consistent color extraction
-		MaxTokens:   800, // Reduced since we only need 3 colors + metadata
+		Temperature: 0.3, // Slightly higher for more creative but still consistent messaging
+		MaxTokens:   1200, // Increased to accommodate detailed contextual messages
 	}
 
 	// Make the API call
@@ -900,13 +900,16 @@ func stripMarkdownCodeBlocks(response string) string {
 
 // buildUnifiedThemePrompt creates a unified prompt for theme extraction that works with or without screenshots
 func (s *AIService) buildUnifiedThemePrompt(themeData ThemeData) string {
-	return fmt.Sprintf(`You are a Color Extraction Agent. You will receive a screenshot of a website and/or extracted DOM data.
-Your task is to analyze ONLY the colors visible and return exactly 3 colors for building a chat widget theme.
+	return fmt.Sprintf(`You are a Website Analysis Agent specializing in extracting brand identity and creating personalized chat widget themes.
 
-The output MUST be pure JSON with NO explanation.
+You will receive:
+1. A SCREENSHOT of the website homepage (if available) - USE THIS AS YOUR PRIMARY SOURCE
+2. Extracted DOM data (brand name, page title, meta description, colors, fonts)
+
+Your task is to analyze the ACTUAL website and create a personalized, context-aware chat widget configuration.
 
 ----------------------------------------------------
-WEBSITE CONTEXT:
+WEBSITE CONTEXT (EXTRACTED FROM ACTUAL SITE):
 ----------------------------------------------------
 - Brand Name: %s
 - Page Title: %s
@@ -916,14 +919,23 @@ WEBSITE CONTEXT:
 - Font Families: %v
 
 ----------------------------------------------------
-EXTRACTION RULES
+CRITICAL RULES - AVOID HALLUCINATION:
+----------------------------------------------------
+1. ONLY use information visible in the screenshot or provided in the website context above
+2. DO NOT invent or assume information not present in the data
+3. DO NOT make up company names, product details, or founder names
+4. If you cannot determine specific information, use professional generic alternatives
+5. Base ALL decisions on ACTUAL visual and contextual evidence
+
+----------------------------------------------------
+COLOR EXTRACTION RULES:
 ----------------------------------------------------
 
 PRIMARY COLOR
 Definition:
-- The main accent or highlight color on the website.
-- Typically the most saturated or visually dominant color.
-- Usually appears in: buttons, CTAs, gradients, brand accents, highlights, or important text.
+- The main accent or highlight color on the website
+- Typically the most saturated or visually dominant color
+- Usually appears in: buttons, CTAs, gradients, brand accents, highlights, or important text
 
 Usage:
 - User chat bubble background
@@ -931,55 +943,125 @@ Usage:
 - Agent's message bubble background (white text on top)
 
 Rules:
-- If the primary accent is a gradient, identify all colors in the gradient.
-- Choose the MOST DOMINANT or VISUALLY STRONGEST color from that gradient.
-- Return only one HEX value.
-- MUST work with WHITE (#FFFFFF) text - ensure minimum 4.5:1 contrast ratio.
+- If the primary accent is a gradient, identify all colors in the gradient
+- Choose the MOST DOMINANT or VISUALLY STRONGEST color from that gradient
+- Return only one HEX value
+- MUST work with WHITE (#FFFFFF) text - ensure minimum 4.5:1 contrast ratio
 
-----------------------------------------------------
 SECONDARY COLOR
 Definition:
-- A lighter or softer supporting UI color that contrasts with the primary color.
-- Found in: secondary accents, pastel sections, light UI surfaces, tag backgrounds, muted gradients.
+- A lighter or softer supporting UI color that contrasts with the primary color
+- Found in: secondary accents, pastel sections, light UI surfaces, tag backgrounds, muted gradients
 
 Usage:
 - AI/Agent message bubble background
 - Black text will be placed on top (so this MUST be a light color)
 
 Rules:
-- If a secondary element uses a gradient, extract the gradient colors.
-- Choose the lightest or most appropriate color that ensures contrast with black text.
-- Return only one HEX value.
-- MUST work with DARK text (#1F2937 or #000000) - ensure minimum 4.5:1 contrast ratio.
+- If a secondary element uses a gradient, extract the gradient colors
+- Choose the lightest or most appropriate color that ensures contrast with black text
+- Return only one HEX value
+- MUST work with DARK text (#1F2937 or #000000) - ensure minimum 4.5:1 contrast ratio
 
-----------------------------------------------------
 BACKGROUND COLOR
 Definition:
-- The dominant background color of the website.
-- Found in: hero section, site background, large layout containers.
+- The dominant background color of the website
+- Found in: hero section, site background, large layout containers
 
 Usage:
 - Overall chat background
 
 Rules:
-- Choose the most visually present background color.
-- Avoid accents or highlight colors.
-- Usually white (#FFFFFF) or very light gray (#F9FAFB, #F3F4F6).
+- Choose the most visually present background color
+- Avoid accents or highlight colors
+- Usually white (#FFFFFF) or very light gray (#F9FAFB, #F3F4F6)
 
 ----------------------------------------------------
-GRADIENT HANDLING RULE
+WELCOME MESSAGE GENERATION RULES:
 ----------------------------------------------------
-If ANY UI element uses a gradient:
-1. Identify all colors in the gradient.
-2. Collapse the gradient into ONE representative HEX by choosing:
-   - The most dominant or saturated color (for PRIMARY)
-   - The lightest color suitable for black text (for SECONDARY)
-3. Do NOT return gradient strings. Return one HEX color only.
+CRITICAL: The welcome message should feel PERSONAL and CONTEXTUAL to this specific website.
+
+Analyze the website screenshot and context to determine:
+1. What is the PRIMARY PURPOSE of this website? (e.g., SaaS product, e-commerce, documentation, blog, service provider)
+2. What VALUE does it offer? (Look for headlines, hero text, product descriptions)
+3. What TONE does the brand use? (Professional, casual, technical, friendly, formal)
+
+Then create a welcome message that:
+- DIRECTLY relates to what the website offers (be specific, not generic)
+- Matches the brand's tone and voice
+- Feels like it was written BY this company FOR their customers
+- Is between 40-100 characters
+- Invites relevant questions about their actual products/services
+
+GOOD Examples (specific to context):
+- For a SaaS product: "Hi! Questions about [Product Name]? I'm here to help!"
+- For e-commerce: "Welcome to [Brand]! Need help finding the perfect [product type]?"
+- For documentation: "Hi! Looking for help with [Product]? Ask me anything!"
+- For services: "Welcome! How can we help with your [service type] needs?"
+
+BAD Examples (too generic):
+- "Hi! How can we help you today?" (TOO GENERIC - could be any website)
+- "Hello! Welcome!" (NO CONTEXT)
+- "How can I assist you?" (NO PERSONALITY OR CONTEXT)
+
+If you cannot determine specific product/service details from the screenshot/context:
+- Use the brand name if available
+- Keep it friendly but don't invent specifics
+- Example: "Hi! Welcome to [Brand Name]. How can we help?"
 
 ----------------------------------------------------
-STRICT OUTPUT FORMAT
+AGENT NAME GENERATION RULES:
 ----------------------------------------------------
-Return EXACTLY this JSON structure:
+CRITICAL: The agent name should be BASED ON ACTUAL WEBSITE INFORMATION.
+
+Look for (in order of priority):
+1. Screenshot evidence: Team member names, "About" section visible, founder names in hero
+2. Meta description or page title mentions of specific people
+3. Brand name references
+
+Generate agent name based on what you ACTUALLY SEE:
+- If you see a founder's name or team member name → Use "[First Name] from [Brand]"
+- If you see the brand name clearly → Use "[Brand] Support" or "[Brand] Team"
+- If you cannot determine any specific information → Use "Support Team"
+
+GOOD Examples (context-based):
+- "Sarah from Acme" (if you see "Sarah" mentioned as founder/team)
+- "Acme Support" (if brand name is clear but no person names)
+- "Support Team" (if minimal information available)
+
+BAD Examples (hallucinated):
+- "John Smith" (when no John Smith is visible)
+- "Founder" (too vague and possibly inaccurate)
+- "CEO" (unless explicitly visible)
+
+DO NOT INVENT NAMES. Use "Support Team" if uncertain.
+
+----------------------------------------------------
+CUSTOM GREETING GENERATION RULES:
+----------------------------------------------------
+This is the FIRST MESSAGE users see when opening the chat. Make it count.
+
+Requirements:
+- Should be MORE DETAILED than welcome_message (100-150 characters)
+- Reflect the website's PURPOSE and VALUE PROPOSITION
+- Sound natural and conversational
+- Encourage engagement by mentioning specific help areas
+
+Structure: [Friendly greeting] + [What you can help with] + [Invitation to ask]
+
+GOOD Examples (contextual):
+- "Welcome to Acme! I can help you with pricing, features, integrations, or getting started with a free trial. What would you like to know?"
+- "Hi there! Whether you need help with your order, product questions, or returns, I'm here to assist. How can I help today?"
+- "Hello! I'm here to answer questions about our API, documentation, integrations, or technical setup. What brings you here?"
+
+BAD Examples (generic):
+- "Welcome! We're here to assist you." (TOO VAGUE)
+- "Hi! Ask me anything!" (NO CONTEXT)
+
+----------------------------------------------------
+STRICT OUTPUT FORMAT:
+----------------------------------------------------
+Return EXACTLY this JSON structure with NO explanations:
 {
   "primary_color": "#RRGGBB",
   "secondary_color": "#RRGGBB",
@@ -988,17 +1070,21 @@ Return EXACTLY this JSON structure:
   "widget_shape": "rounded",
   "widget_size": "medium",
   "chat_bubble_style": "modern",
-  "welcome_message": "Hi! How can we help you today?",
-  "custom_greeting": "Welcome! We're here to assist you.",
-  "agent_name": "Founder's name or 'Support Agent'",
-  "font_family": "One of the detected font families from the site",
+  "welcome_message": "Contextual message based on website purpose (40-100 chars)",
+  "custom_greeting": "Detailed greeting mentioning specific help areas (100-150 chars)",
+  "agent_name": "Name based on actual website info or 'Support Team'",
+  "font_family": "One of the detected font families from the site"
 }
 
-- Return ONLY valid 6-digit HEX codes in uppercase (e.g., #FF5733).
-- No explanations.
-- No additional fields.
-- Ensure PRIMARY works with white text, SECONDARY with dark text.
-- Messages should match brand tone and be under 100 characters.
+VALIDATION CHECKLIST:
+- ✓ All HEX codes are valid 6-digit uppercase (e.g., #FF5733)
+- ✓ PRIMARY works with white text (4.5:1 contrast minimum)
+- ✓ SECONDARY works with dark text (4.5:1 contrast minimum)
+- ✓ welcome_message is SPECIFIC to this website (not generic)
+- ✓ custom_greeting mentions ACTUAL capabilities/services
+- ✓ agent_name is based on VISIBLE information (no hallucination)
+- ✓ Tone matches the brand's actual voice
+- ✓ NO invented details or assumptions
 `,
 		themeData.GetBrandName(),
 		themeData.GetPageTitle(),
