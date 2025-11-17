@@ -776,21 +776,35 @@ func (r *KnowledgeRepository) GetExistingPagesByTenantAndURLs(ctx context.Contex
 
 // CreateScrapedPageWithTenantID creates a new scraped page with tenant_id
 // job_id can be nil for widget-created pages (tracked via widget_knowledge_pages instead)
+// tenant_id tracks which tenant originally created the page (informational only)
+// Pages are global resources that can be shared across tenants via widget_knowledge_pages
 func (r *KnowledgeRepository) CreateScrapedPageWithTenantID(ctx context.Context, page *models.KnowledgeScrapedPage, tenantID uuid.UUID) error {
 	query := `
 		INSERT INTO knowledge_scraped_pages (
 			id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-		)`
+		)
+		ON CONFLICT (url) DO NOTHING`
 
-	_, err := r.db.ExecContext(ctx, query,
+	result, err := r.db.ExecContext(ctx, query,
 		page.ID, page.JobID, tenantID, page.URL, page.Title,
 		page.Content, page.ContentHash, page.TokenCount,
 		page.Embedding, page.Metadata, page.ScrapedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create scraped page: %w", err)
+	}
+
+	// Check if the insert actually happened or was skipped due to conflict
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		// URL already exists, this is expected with global URL sharing
+		logger.Info("URL already exists in database, skipping insert (expected behavior for global URL sharing)")
 	}
 
 	return nil
@@ -894,4 +908,26 @@ func (r *KnowledgeRepository) UpdatePageContentAndEmbedding(ctx context.Context,
 	}
 
 	return nil
+}
+
+// GetExistingPagesByURL retrieves existing pages for a given normalized URL across the entire database
+// Returns all pages with the given URL (should be 0 or 1 due to unique constraint)
+func (r *KnowledgeRepository) GetExistingPagesByURL(ctx context.Context, normalizedURL string) ([]*models.KnowledgeScrapedPage, error) {
+	query := `
+		SELECT id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
+		FROM knowledge_scraped_pages
+		WHERE url = $1
+		ORDER BY scraped_at DESC
+		LIMIT 1`
+
+	var pages []*models.KnowledgeScrapedPage
+	err := r.db.SelectContext(ctx, &pages, query, normalizedURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []*models.KnowledgeScrapedPage{}, nil
+		}
+		return nil, fmt.Errorf("failed to query existing pages by URL: %w", err)
+	}
+
+	return pages, nil
 }

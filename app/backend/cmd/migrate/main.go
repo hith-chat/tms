@@ -78,6 +78,7 @@ func runMigrations(database *db.DB) error {
 		"migrations/031_public_projects.sql",
 		"migrations/032_widget_knowledge_pages_mapping.sql",
 		"migrations/033_add_domain_url_to_chat_widgets.sql",
+		"migrations/034_knowledge_url_unique_constraint.sql",
 	}
 
 	for _, migration := range migrations {
