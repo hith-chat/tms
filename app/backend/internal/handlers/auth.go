@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/bareuptime/tms/internal/logger"
@@ -517,6 +518,8 @@ func (h *AuthHandler) GoogleOAuthLogin(c *gin.Context) {
 
 	// Get OAuth URL
 	url := h.authService.GetGoogleOAuthURL(state)
+
+	fmt.Println("url12 -->", url)
 
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }

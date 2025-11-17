@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 // AuthService handles authentication operations
