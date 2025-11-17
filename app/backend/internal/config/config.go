@@ -26,6 +26,7 @@ type Config struct {
 	Resend        ResendConfig        `mapstructure:"resend"`
 	Maileroo      MailerooConfig      `mapstructure:"maileroo"`
 	Payment       PaymentConfig       `mapstructure:"payment"`
+	OAuth         OAuthConfig         `mapstructure:"oauth"`
 }
 
 // ServerConfig represents server configuration
@@ -207,6 +208,18 @@ type CashfreeConfig struct {
 	WebhookSecret string `mapstructure:"webhook_secret"`
 }
 
+// OAuthConfig represents OAuth configuration
+type OAuthConfig struct {
+	Google GoogleOAuthConfig `mapstructure:"google"`
+}
+
+// GoogleOAuthConfig represents Google OAuth configuration
+type GoogleOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
 // Load loads configuration from environment variables and config files
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
@@ -298,6 +311,11 @@ func Load() (*Config, error) {
 	// CORS configuration bindings
 	viper.BindEnv("cors.allowed_origins", "CORS_ORIGINS")
 	viper.BindEnv("cors.allow_credentials", "CORS_ALLOW_CREDENTIALS")
+
+	// OAuth configuration bindings
+	viper.BindEnv("oauth.google.client_id", "GOOGLE_OAUTH_CLIENT_ID")
+	viper.BindEnv("oauth.google.client_secret", "GOOGLE_OAUTH_CLIENT_SECRET")
+	viper.BindEnv("oauth.google.redirect_url", "GOOGLE_OAUTH_REDIRECT_URL")
 
 	// Read config file (optional)
 	if err := viper.ReadInConfig(); err != nil {
@@ -420,4 +438,9 @@ func setDefaults() {
 	// CORS defaults
 	viper.SetDefault("cors.allowed_origins", []string{"*"})
 	viper.SetDefault("cors.allow_credentials", false)
+
+	// OAuth defaults
+	viper.SetDefault("oauth.google.client_id", "")
+	viper.SetDefault("oauth.google.client_secret", "")
+	viper.SetDefault("oauth.google.redirect_url", "http://localhost:3000/auth/google/callback")
 }

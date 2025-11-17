@@ -768,6 +768,45 @@ class APIClient {
     return response.data
   }
 
+  // Google OAuth endpoints
+  async getGoogleOAuthURL(): Promise<{ auth_url: string; state: string }> {
+    const oauthClient = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const response = await oauthClient.get(`/auth/google/login`)
+    return response.data
+  }
+
+  async handleGoogleCallback(code: string, state: string): Promise<LoginResponse> {
+    const oauthClient = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const response = await oauthClient.get<LoginResponse>(`/auth/google/callback`, {
+      params: { code, state }
+    })
+    
+    // Store tokens like in login
+    if (response.data.access_token) {
+      localStorage.setItem('auth_token', response.data.access_token)
+    }
+    
+    if (response.data.refresh_token) {
+      localStorage.setItem('refresh_token', response.data.refresh_token)
+    }
+
+    this.setTenantId(response.data.user.tenant_id)
+
+    return response.data
+  }
+
   async resendSignupOTP(data: { email: string }): Promise<{ message: string; email: string }> {
     // Create a separate axios instance for resend to avoid the interceptor adding tenant to URL
     const resendClient = axios.create({

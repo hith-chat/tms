@@ -790,3 +790,109 @@ func (s *AuthService) ResendSignupOTP(ctx context.Context, req ResendSignupOTPRe
 
 	return nil
 }
+
+// SignUpWithOAuth handles user registration via OAuth (no OTP verification needed)
+func (s *AuthService) SignUpWithOAuth(ctx context.Context, req SignUpRequest, provider string, providerUserID string) (*LoginResponse, error) {
+	// Check if agent already exists
+	_, err := s.agentRepo.GetByEmailWithoutTenantID(ctx, req.Email)
+	if err == nil {
+		return nil, fmt.Errorf("agent with email %s already exists", req.Email)
+	}
+
+	// Extract domain from email for tenant creation
+	domainNameFromEmail := strings.Split(req.Email, "@")[1]
+
+	// Create Tenant
+	tenantID, _ := uuid.NewUUID()
+	tenant := &db.Tenant{
+		ID:        tenantID,
+		Name:      domainNameFromEmail,
+		KMSKeyID:  domainNameFromEmail,
+		Status:    "active",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err = s.tenantRepo.Create(ctx, tenant)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tenant: %w", err)
+	}
+
+	// Create Project
+	projectID, _ := uuid.NewUUID()
+	project := &db.Project{
+		ID:        projectID,
+		Key:       "default",
+		Name:      "Default",
+		Status:    "active",
+		TenantID:  tenantID,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err = s.projectRepo.Create(ctx, project)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create project: %w", err)
+	}
+
+	// Create agent account (no password for OAuth users)
+	agent := &db.Agent{
+		ID:           uuid.New(),
+		TenantID:     tenantID,
+		Email:        req.Email,
+		Name:         req.Name,
+		Status:       "active",
+		PasswordHash: nil, // OAuth users don't have passwords
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	// Create agent in database
+	err = s.agentRepo.Create(ctx, agent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent: %w", err)
+	}
+
+	// Assign default tenant admin role
+	err = s.rbacService.AssignRole(ctx, agent.ID, agent.TenantID, projectID, models.RoleTenantAdmin)
+	if err != nil {
+		fmt.Printf("Warning: failed to assign default role to agent %s: %v\n", agent.ID, err)
+	}
+
+	// Get role bindings for the new agent
+	roleBindings, err := s.rbacService.GetAgentRoleBindings(ctx, agent.ID, agent.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role bindings: %w", err)
+	}
+
+	// Generate tokens
+	accessToken, err := s.authService.GenerateAccessToken(
+		agent.ID.String(),
+		agent.TenantID.String(),
+		agent.Email,
+		s.convertRoleBindings(roleBindings),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	refreshToken, err := s.authService.GenerateRefreshToken(
+		agent.ID.String(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Send welcome email
+	if err := s.emailProvider.SendSignupWelcomeEmail(ctx, agent.Email, agent.Name); err != nil {
+		fmt.Printf("Warning: failed to send signup welcome email to %s: %v\n", agent.Email, err)
+	}
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Agent:        agent,
+		RoleBindings: s.convertRoleBindings(roleBindings),
+	}, nil
+}

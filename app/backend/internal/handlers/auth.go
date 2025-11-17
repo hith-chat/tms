@@ -16,17 +16,19 @@ import (
 type AuthHandler struct {
 	authService           *service.AuthService
 	publicService         *service.PublicService
+	googleOAuthService    *service.GoogleOAuthService
 	validator             *validator.Validate
 	AiAgentLoginAccessKey string
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService, aiAgentLoginAccessKey string) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, publicService *service.PublicService, googleOAuthService *service.GoogleOAuthService, aiAgentLoginAccessKey string) *AuthHandler {
 	logger.Infof("Initializing AuthHandler - operation: init_handler, ai_agent_key_configured: %v", aiAgentLoginAccessKey != "")
 
 	return &AuthHandler{
 		authService:           authService,
 		publicService:         publicService,
+		googleOAuthService:    googleOAuthService,
 		validator:             validator.New(),
 		AiAgentLoginAccessKey: aiAgentLoginAccessKey,
 	}
@@ -498,5 +500,112 @@ func (h *AuthHandler) ResendSignupOTP(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Verification code resent to your email",
 		"email":   req.Email,
+	})
+}
+
+// GoogleOAuthLogin initiates Google OAuth flow
+// @Summary Initiate Google OAuth login
+// @Description Redirects user to Google OAuth consent screen
+// @Tags Auth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "OAuth URL returned"
+// @Router /v1/auth/google/login [get]
+func (h *AuthHandler) GoogleOAuthLogin(c *gin.Context) {
+	if h.googleOAuthService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Google OAuth is not configured"})
+		return
+	}
+
+	// Generate state token for CSRF protection
+	state, err := h.googleOAuthService.GenerateStateToken()
+	if err != nil {
+		logger.ErrorfCtx(c.Request.Context(), err, "Failed to generate OAuth state token")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initiate OAuth flow"})
+		return
+	}
+
+	// Get OAuth URL
+	authURL := h.googleOAuthService.GetAuthURL(state)
+
+	c.JSON(http.StatusOK, gin.H{
+		"auth_url": authURL,
+		"state":    state,
+	})
+}
+
+// GoogleOAuthCallback handles Google OAuth callback
+// @Summary Handle Google OAuth callback
+// @Description Processes OAuth callback from Google and completes login
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param code query string true "OAuth authorization code"
+// @Param state query string true "OAuth state token"
+// @Success 200 {object} LoginResponse "Successfully authenticated"
+// @Failure 400 {object} map[string]interface{} "Invalid request"
+// @Failure 401 {object} map[string]interface{} "Authentication failed"
+// @Router /v1/auth/google/callback [get]
+func (h *AuthHandler) GoogleOAuthCallback(c *gin.Context) {
+	if h.googleOAuthService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Google OAuth is not configured"})
+		return
+	}
+
+	// Get code and state from query parameters
+	code := c.Query("code")
+	state := c.Query("state")
+
+	if code == "" || state == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing code or state parameter"})
+		return
+	}
+
+	// Validate state token
+	if !h.googleOAuthService.ValidateStateToken(state) {
+		logger.WarnfCtx(c.Request.Context(), "Invalid OAuth state token")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state token"})
+		return
+	}
+
+	// Handle Google login
+	response, err := h.googleOAuthService.HandleGoogleLogin(c.Request.Context(), code)
+	if err != nil {
+		logger.ErrorfCtx(c.Request.Context(), err, "Google OAuth login failed")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Determine primary role
+	primaryRole := models.RoleAgent.String()
+	for _, roles := range response.RoleBindings {
+		for _, role := range roles {
+			if role == models.RoleTenantAdmin.String() {
+				primaryRole = role
+				break
+			}
+			if primaryRole == models.RoleAgent.String() {
+				primaryRole = role
+			}
+		}
+		if primaryRole == models.RoleTenantAdmin.String() {
+			break
+		}
+	}
+
+	logger.InfofCtx(c.Request.Context(), "Google OAuth login successful - user_id: %s, tenant_id: %s, primary_role: %s",
+		response.Agent.ID.String(), response.Agent.TenantID.String(), primaryRole)
+
+	c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  response.AccessToken,
+		RefreshToken: response.RefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600,
+		User: User{
+			ID:       response.Agent.ID.String(),
+			Email:    response.Agent.Email,
+			Name:     response.Agent.Name,
+			Role:     primaryRole,
+			TenantID: response.Agent.TenantID.String(),
+		},
 	})
 }

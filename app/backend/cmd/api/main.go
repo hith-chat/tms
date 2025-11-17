@@ -129,6 +129,16 @@ func main() {
 	}
 
 	authService := service.NewAuthService(agentRepo, rbacService, jwtAuth, redisService, emailProvider, authFeatureFlags, tenantRepo, domainValidationRepo, projectRepo)
+	
+	// Initialize Google OAuth service
+	var googleOAuthService *service.GoogleOAuthService
+	if cfg.OAuth.Google.ClientID != "" && cfg.OAuth.Google.ClientSecret != "" {
+		googleOAuthService = service.NewGoogleOAuthService(&cfg.OAuth.Google, authService)
+		log.Printf("Google OAuth enabled with redirect URL: %s", cfg.OAuth.Google.RedirectURL)
+	} else {
+		log.Printf("Google OAuth disabled - missing client credentials")
+	}
+	
 	projectService := service.NewProjectService(projectRepo)
 	agentService := service.NewAgentService(agentRepo, projectRepo, rbacService)
 	tenantService := service.NewTenantService(tenantRepo, agentRepo, rbacService)
@@ -187,7 +197,7 @@ func main() {
 	rateLimiter := rate.NewRateLimiter(redisService)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService, publicService, cfg.Server.AiAgentLoginAccessKey)
+	authHandler := handlers.NewAuthHandler(authService, publicService, googleOAuthService, cfg.Server.AiAgentLoginAccessKey)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	ticketHandler := handlers.NewTicketHandler(ticketService, messageService)
 	publicHandler := handlers.NewPublicHandler(publicService)
@@ -339,6 +349,10 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		authRoutes.POST("/signup", authHandler.SignUp)
 		authRoutes.POST("/verify-signup-otp", authHandler.VerifySignupOTP)
 		authRoutes.POST("/resend-signup-otp", authHandler.ResendSignupOTP)
+		
+		// Google OAuth routes
+		authRoutes.GET("/google/login", authHandler.GoogleOAuthLogin)
+		authRoutes.GET("/google/callback", authHandler.GoogleOAuthCallback)
 	}
 
 	// Payment routes (protected by auth middleware, no tenant_id in path as payments are global)
