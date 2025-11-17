@@ -500,3 +500,101 @@ func (h *AuthHandler) ResendSignupOTP(c *gin.Context) {
 		"email":   req.Email,
 	})
 }
+
+// GoogleOAuthLogin initiates Google OAuth flow
+// @Summary Start Google OAuth login
+// @Description Redirects user to Google OAuth consent screen
+// @Tags Auth
+// @Produce json
+// @Success 302 {string} string "Redirect to Google OAuth"
+// @Router /v1/auth/google/login [get]
+func (h *AuthHandler) GoogleOAuthLogin(c *gin.Context) {
+	// Generate random state for CSRF protection
+	state := service.GenerateRandomString(32)
+
+	// Store state in session/cookie for validation (using cookie here)
+	c.SetCookie("oauth_state", state, 600, "/", "", false, true)
+
+	// Get OAuth URL
+	url := h.authService.GetGoogleOAuthURL(state)
+
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+// GoogleOAuthCallback handles Google OAuth callback
+// @Summary Handle Google OAuth callback
+// @Description Processes Google OAuth callback and logs in user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param code query string true "OAuth authorization code"
+// @Param state query string true "OAuth state"
+// @Success 200 {object} LoginResponse "Successfully authenticated"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Failure 401 {object} map[string]interface{} "Authentication failed"
+// @Router /v1/auth/google/callback [get]
+func (h *AuthHandler) GoogleOAuthCallback(c *gin.Context) {
+	// Validate state for CSRF protection
+	state := c.Query("state")
+	savedState, err := c.Cookie("oauth_state")
+	if err != nil || state != savedState {
+		logger.WarnfCtx(c.Request.Context(), "Invalid OAuth state: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OAuth state"})
+		return
+	}
+
+	// Clear the state cookie
+	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+
+	// Get authorization code
+	code := c.Query("code")
+	if code == "" {
+		logger.WarnfCtx(c.Request.Context(), "Missing OAuth authorization code")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing authorization code"})
+		return
+	}
+
+	logger.InfofCtx(c.Request.Context(), "Processing Google OAuth callback")
+
+	// Process OAuth callback
+	response, err := h.authService.GoogleOAuthCallback(c.Request.Context(), code)
+	if err != nil {
+		logger.ErrorfCtx(c.Request.Context(), err, "Google OAuth callback failed: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Determine primary role
+	primaryRole := models.RoleAgent.String()
+	for _, roles := range response.RoleBindings {
+		for _, role := range roles {
+			if role == models.RoleTenantAdmin.String() {
+				primaryRole = role
+				break
+			}
+			if primaryRole == models.RoleAgent.String() {
+				primaryRole = role
+			}
+		}
+		if primaryRole == models.RoleTenantAdmin.String() {
+			break
+		}
+	}
+
+	logger.InfofCtx(c.Request.Context(), "Google OAuth login successful - user_id: %s, tenant_id: %s, primary_role: %s",
+		response.Agent.ID.String(), response.Agent.TenantID.String(), primaryRole)
+
+	c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  response.AccessToken,
+		RefreshToken: response.RefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600,
+		User: User{
+			ID:       response.Agent.ID.String(),
+			Email:    response.Agent.Email,
+			Name:     response.Agent.Name,
+			Role:     primaryRole,
+			TenantID: response.Agent.TenantID.String(),
+		},
+	})
+}
