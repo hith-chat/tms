@@ -37,10 +37,11 @@ export function KnowledgePage() {
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
         <Routes>
-          <Route path="/" element={<Navigate to="/knowledge/about-me" replace />} />
+          <Route path="/" element={<Navigate to="/knowledge/kb-urls" replace />} />
           <Route path="/about-me" element={<KnowledgeManagement projectId={currentProjectId} />} />
           <Route path="/kb-jobs" element={<KnowledgeManagement projectId={currentProjectId} />} />
-          <Route path="*" element={<Navigate to="/knowledge/about-me" replace />} />
+          <Route path="/kb-urls" element={<KnowledgeManagement projectId={currentProjectId} />} />
+          <Route path="*" element={<Navigate to="/knowledge/kb-urls" replace />} />
         </Routes>
       </div>
     </div>

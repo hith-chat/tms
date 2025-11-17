@@ -712,3 +712,76 @@ func toJSON(v interface{}) string {
 	}
 	return string(data)
 }
+
+// GetWidgetKnowledgePages retrieves all knowledge pages associated with widgets in a project
+// @Summary Get widget knowledge pages
+// @Description Retrieve all knowledge pages associated with widgets in a project (optionally filtered by widget_id)
+// @Tags knowledge
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id path string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param widget_id query string false "Widget ID (optional filter)"
+// @Success 200 {object} object{pages=[]models.WidgetKnowledgePageWithDetails}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/knowledge/pages [get]
+func (h *KnowledgeHandler) GetWidgetKnowledgePages(c *gin.Context) {
+	projectID := middleware.GetProjectID(c)
+
+	// Optional widget_id filter
+	var widgetID *uuid.UUID
+	if widgetIDStr := c.Query("widget_id"); widgetIDStr != "" {
+		parsed, err := uuid.Parse(widgetIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid widget_id"})
+			return
+		}
+		widgetID = &parsed
+	}
+
+	pages, err := h.knowledgeService.GetWidgetKnowledgePagesByProject(c.Request.Context(), projectID, widgetID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve knowledge pages"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"pages": pages,
+		"count": len(pages),
+	})
+}
+
+// DeleteWidgetKnowledgePageMapping removes a widget-page association
+// @Summary Delete widget knowledge page mapping
+// @Description Remove the association between a widget and a knowledge page (does not delete the page itself)
+// @Tags knowledge
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id path string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param mapping_id path string true "Mapping ID"
+// @Success 200 {object} object{message=string}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/knowledge/pages/{mapping_id} [delete]
+func (h *KnowledgeHandler) DeleteWidgetKnowledgePageMapping(c *gin.Context) {
+	mappingIDStr := c.Param("mapping_id")
+	mappingID, err := uuid.Parse(mappingIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid mapping ID"})
+		return
+	}
+
+	err = h.knowledgeService.DeleteWidgetKnowledgePageMapping(c.Request.Context(), mappingID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete mapping"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Mapping deleted successfully"})
+}

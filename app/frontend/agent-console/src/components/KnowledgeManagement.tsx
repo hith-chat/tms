@@ -4,6 +4,7 @@ import { User, Globe, Loader, CheckCircle, XCircle } from 'lucide-react'
 import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, KnowledgeFAQItem, ScrapedLinkPreview } from '../lib/api'
 import { AboutMeTab } from './knowledge/AboutMeTab'
 import { KnowledgeBaseTab } from './knowledge/KnowledgeBaseTab'
+import { KBUrlsSection } from './knowledge/KBUrlsSection'
 import {
   IndexingProgressState,
   ScrapingProgressState,
@@ -15,7 +16,7 @@ interface KnowledgeManagementProps {
   projectId: string | null
 }
 
-type KnowledgeTab = 'about-me' | 'knowledge-base'
+type KnowledgeTab = 'about-me' | 'knowledge-base' | 'kb-urls'
 
 export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   const navigate = useNavigate()
@@ -26,6 +27,9 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     const path = location.pathname
     if (path.includes('/kb-jobs')) {
       return 'knowledge-base'
+    }
+    if (path.includes('/kb-urls')) {
+      return 'kb-urls'
     }
     return 'about-me' // Default to about-me
   }
@@ -61,7 +65,8 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   // Sidebar tabs
   const tabs = [
     // { id: 'about-me' as KnowledgeTab, name: 'About Me', icon: User, path: '/knowledge/about-me' },
-    { id: 'knowledge-base' as KnowledgeTab, name: 'Scraping Jobs', icon: Globe, path: '/knowledge/kb-jobs' }
+    { id: 'knowledge-base' as KnowledgeTab, name: 'Scraping Jobs', icon: Globe, path: '/knowledge/kb-jobs' },
+    { id: 'kb-urls' as KnowledgeTab, name: 'KB URLs', icon: Globe, path: '/knowledge/kb-urls' }
   ]
 
   // Navigate to tab
@@ -700,6 +705,8 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
             onStartIndexing={startIndexing}
           />
         )
+      case 'kb-urls':
+        return projectId ? <KBUrlsSection projectId={projectId} /> : null
       default:
         return null
     }

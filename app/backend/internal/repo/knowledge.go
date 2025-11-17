@@ -842,6 +842,7 @@ func (r *KnowledgeRepository) CreateScrapedPagesWithTenantID(ctx context.Context
 }
 
 // CreateWidgetKnowledgePageMappings creates associations between a widget and knowledge pages
+// Automatically populates tenant_id and project_id from the widget
 func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Context, widgetID uuid.UUID, pageIDs []uuid.UUID) error {
 	if len(pageIDs) == 0 {
 		return nil
@@ -854,8 +855,10 @@ func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Cont
 	defer tx.Rollback()
 
 	query := `
-		INSERT INTO widget_knowledge_pages (widget_id, page_id)
-		VALUES ($1, $2)
+		INSERT INTO widget_knowledge_pages (widget_id, page_id, tenant_id, project_id)
+		SELECT $1, $2, cw.tenant_id, cw.project_id
+		FROM chat_widgets cw
+		WHERE cw.id = $1
 		ON CONFLICT (widget_id, page_id) DO NOTHING`
 
 	for _, pageID := range pageIDs {
@@ -887,6 +890,55 @@ func (r *KnowledgeRepository) GetWidgetKnowledgePages(ctx context.Context, widge
 	}
 
 	return pages, nil
+}
+
+// GetWidgetKnowledgePagesByProject retrieves all knowledge pages associated with widgets in a project
+// If widgetID is provided, filters to only that widget
+func (r *KnowledgeRepository) GetWidgetKnowledgePagesByProject(ctx context.Context, projectID uuid.UUID, widgetID *uuid.UUID) ([]*models.WidgetKnowledgePageWithDetails, error) {
+	query := `
+		SELECT
+			wkp.id,
+			wkp.widget_id,
+			wkp.page_id,
+			wkp.tenant_id,
+			wkp.project_id,
+			wkp.created_at,
+			ksp.url,
+			ksp.title,
+			ksp.token_count,
+			ksp.scraped_at,
+			ksp.job_id
+		FROM widget_knowledge_pages wkp
+		JOIN knowledge_scraped_pages ksp ON wkp.page_id = ksp.id
+		WHERE wkp.project_id = $1`
+
+	var params []any
+	params = append(params, projectID)
+
+	if widgetID != nil {
+		query += ` AND wkp.widget_id = $2`
+		params = append(params, *widgetID)
+	}
+
+	query += ` ORDER BY wkp.created_at DESC`
+
+	var pages []*models.WidgetKnowledgePageWithDetails
+	err := r.db.SelectContext(ctx, &pages, query, params...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []*models.WidgetKnowledgePageWithDetails{}, nil
+		}
+		return nil, err
+	}
+
+	return pages, nil
+}
+
+// DeleteWidgetKnowledgePageMapping removes the association between a widget and a knowledge page
+func (r *KnowledgeRepository) DeleteWidgetKnowledgePageMapping(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM widget_knowledge_pages WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	return err
 }
 
 // UpdatePageContentAndEmbedding updates an existing page's content, content_hash, and embedding
