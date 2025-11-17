@@ -1,3 +1,4 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { KnowledgeManagement } from '../components/KnowledgeManagement'
 import { PageHeader } from '../components/PageHeader'
 import { Brain } from 'lucide-react'
@@ -35,7 +36,13 @@ export function KnowledgePage() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
-        <KnowledgeManagement projectId={currentProjectId} />
+        <Routes>
+          <Route path="/" element={<Navigate to="/knowledge/kb-urls" replace />} />
+          <Route path="/about-me" element={<KnowledgeManagement projectId={currentProjectId} />} />
+          <Route path="/kb-jobs" element={<KnowledgeManagement projectId={currentProjectId} />} />
+          <Route path="/kb-urls" element={<KnowledgeManagement projectId={currentProjectId} />} />
+          <Route path="*" element={<Navigate to="/knowledge/kb-urls" replace />} />
+        </Routes>
       </div>
     </div>
   )

@@ -776,21 +776,35 @@ func (r *KnowledgeRepository) GetExistingPagesByTenantAndURLs(ctx context.Contex
 
 // CreateScrapedPageWithTenantID creates a new scraped page with tenant_id
 // job_id can be nil for widget-created pages (tracked via widget_knowledge_pages instead)
+// tenant_id tracks which tenant originally created the page (informational only)
+// Pages are global resources that can be shared across tenants via widget_knowledge_pages
 func (r *KnowledgeRepository) CreateScrapedPageWithTenantID(ctx context.Context, page *models.KnowledgeScrapedPage, tenantID uuid.UUID) error {
 	query := `
 		INSERT INTO knowledge_scraped_pages (
 			id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-		)`
+		)
+		ON CONFLICT (url) DO NOTHING`
 
-	_, err := r.db.ExecContext(ctx, query,
+	result, err := r.db.ExecContext(ctx, query,
 		page.ID, page.JobID, tenantID, page.URL, page.Title,
 		page.Content, page.ContentHash, page.TokenCount,
 		page.Embedding, page.Metadata, page.ScrapedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create scraped page: %w", err)
+	}
+
+	// Check if the insert actually happened or was skipped due to conflict
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		// URL already exists, this is expected with global URL sharing
+		logger.Info("URL already exists in database, skipping insert (expected behavior for global URL sharing)")
 	}
 
 	return nil
@@ -828,6 +842,7 @@ func (r *KnowledgeRepository) CreateScrapedPagesWithTenantID(ctx context.Context
 }
 
 // CreateWidgetKnowledgePageMappings creates associations between a widget and knowledge pages
+// Automatically populates tenant_id and project_id from the widget
 func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Context, widgetID uuid.UUID, pageIDs []uuid.UUID) error {
 	if len(pageIDs) == 0 {
 		return nil
@@ -840,8 +855,10 @@ func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Cont
 	defer tx.Rollback()
 
 	query := `
-		INSERT INTO widget_knowledge_pages (widget_id, page_id)
-		VALUES ($1, $2)
+		INSERT INTO widget_knowledge_pages (widget_id, page_id, tenant_id, project_id)
+		SELECT $1, $2, cw.tenant_id, cw.project_id
+		FROM chat_widgets cw
+		WHERE cw.id = $1
 		ON CONFLICT (widget_id, page_id) DO NOTHING`
 
 	for _, pageID := range pageIDs {
@@ -875,6 +892,55 @@ func (r *KnowledgeRepository) GetWidgetKnowledgePages(ctx context.Context, widge
 	return pages, nil
 }
 
+// GetWidgetKnowledgePagesByProject retrieves all knowledge pages associated with widgets in a project
+// If widgetID is provided, filters to only that widget
+func (r *KnowledgeRepository) GetWidgetKnowledgePagesByProject(ctx context.Context, projectID uuid.UUID, widgetID *uuid.UUID) ([]*models.WidgetKnowledgePageWithDetails, error) {
+	query := `
+		SELECT
+			wkp.id,
+			wkp.widget_id,
+			wkp.page_id,
+			wkp.tenant_id,
+			wkp.project_id,
+			wkp.created_at,
+			ksp.url,
+			ksp.title,
+			ksp.token_count,
+			ksp.scraped_at,
+			ksp.job_id
+		FROM widget_knowledge_pages wkp
+		JOIN knowledge_scraped_pages ksp ON wkp.page_id = ksp.id
+		WHERE wkp.project_id = $1`
+
+	var params []any
+	params = append(params, projectID)
+
+	if widgetID != nil {
+		query += ` AND wkp.widget_id = $2`
+		params = append(params, *widgetID)
+	}
+
+	query += ` ORDER BY wkp.created_at DESC`
+
+	var pages []*models.WidgetKnowledgePageWithDetails
+	err := r.db.SelectContext(ctx, &pages, query, params...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []*models.WidgetKnowledgePageWithDetails{}, nil
+		}
+		return nil, err
+	}
+
+	return pages, nil
+}
+
+// DeleteWidgetKnowledgePageMapping removes the association between a widget and a knowledge page
+func (r *KnowledgeRepository) DeleteWidgetKnowledgePageMapping(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM widget_knowledge_pages WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}
+
 // UpdatePageContentAndEmbedding updates an existing page's content, content_hash, and embedding
 // Used when a URL's content has changed - preserves the page ID and original job_id
 func (r *KnowledgeRepository) UpdatePageContentAndEmbedding(ctx context.Context, pageID uuid.UUID, title, content, contentHash string, embedding pgvector.Vector, tokenCount int) error {
@@ -894,4 +960,26 @@ func (r *KnowledgeRepository) UpdatePageContentAndEmbedding(ctx context.Context,
 	}
 
 	return nil
+}
+
+// GetExistingPagesByURL retrieves existing pages for a given normalized URL across the entire database
+// Returns all pages with the given URL (should be 0 or 1 due to unique constraint)
+func (r *KnowledgeRepository) GetExistingPagesByURL(ctx context.Context, normalizedURL string) ([]*models.KnowledgeScrapedPage, error) {
+	query := `
+		SELECT id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
+		FROM knowledge_scraped_pages
+		WHERE url = $1
+		ORDER BY scraped_at DESC
+		LIMIT 1`
+
+	var pages []*models.KnowledgeScrapedPage
+	err := r.db.SelectContext(ctx, &pages, query, normalizedURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []*models.KnowledgeScrapedPage{}, nil
+		}
+		return nil, fmt.Errorf("failed to query existing pages by URL: %w", err)
+	}
+
+	return pages, nil
 }

@@ -75,9 +75,9 @@ export function WebScrapingSection({
                 >
                   <option value={1}>1 level (homepage only)</option>
                   <option value={2}>2 levels</option>
-                  <option value={3}>3 levels</option>
-                  <option value={4}>4 levels</option>
-                  <option value={5}>5 levels (maximum)</option>
+                  {/* <option value={3}>3 levels</option> */}
+                  {/* <option value={4}>4 levels</option> */}
+                  {/* <option value={5}>5 levels (maximum)</option> */}
                 </select>
               </div>
               <div className="flex space-x-3">

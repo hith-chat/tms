@@ -604,6 +604,10 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 				knowledge.POST("/scraping-jobs/:job_id/select-links", knowledgeHandler.SelectScrapingJobLinks)
 				knowledge.GET("/scraping-jobs/:job_id/index/stream", knowledgeHandler.StreamScrapingJobIndex)
 
+				// Widget knowledge pages
+				knowledge.GET("/pages", knowledgeHandler.GetWidgetKnowledgePages)
+				knowledge.DELETE("/pages/:mapping_id", knowledgeHandler.DeleteWidgetKnowledgePageMapping)
+
 				// Knowledge search
 				knowledge.POST("/search", knowledgeHandler.SearchKnowledgeBase)
 				knowledge.GET("/search", knowledgeHandler.SearchKnowledgeBaseGET)

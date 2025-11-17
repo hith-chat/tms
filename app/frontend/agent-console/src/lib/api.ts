@@ -238,6 +238,20 @@ export interface KnowledgeFAQItem {
   updated_at: string
 }
 
+export interface WidgetKnowledgePage {
+  id: string
+  widget_id: string
+  page_id: string
+  tenant_id: string
+  project_id: string
+  url: string
+  title?: string
+  token_count: number
+  scraped_at: string
+  created_at: string
+  job_id?: string
+}
+
 export interface ScrapingJobLinksResponse {
   links: ScrapedLinkPreview[]
   maxSelectableLinks: number
@@ -1369,6 +1383,19 @@ class APIClient {
       `/knowledge/faq`
     )
     return response.data.items || []
+  }
+
+  async getWidgetKnowledgePages(_projectId: string, widgetId?: string): Promise<WidgetKnowledgePage[]> {
+    const params = widgetId ? { widget_id: widgetId } : {}
+    const response: AxiosResponse<{ pages: WidgetKnowledgePage[] }> = await this.client.get(
+      `/knowledge/pages`,
+      { params }
+    )
+    return response.data.pages || []
+  }
+
+  async deleteWidgetKnowledgePageMapping(mappingId: string): Promise<void> {
+    await this.client.delete(`/knowledge/pages/${mappingId}`)
   }
 
   async getScrapingJobLinks(jobId: string): Promise<ScrapingJobLinksResponse> {

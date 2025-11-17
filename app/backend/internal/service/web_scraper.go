@@ -1114,10 +1114,13 @@ func (s *WebScrapingService) StreamIndexing(ctx context.Context, jobID, tenantID
 		tokenCount := s.estimateTokenCount(content)
 		totalTokens += tokenCount
 
+		// Normalize URL before storing
+		normalizedURL := MustNormalizeURL(url)
+
 		page := &models.KnowledgeScrapedPage{
 			ID:         uuid.New(),
 			JobID:      uuid.NullUUID{UUID: jobID, Valid: true},
-			URL:        url,
+			URL:        normalizedURL, // Use normalized URL
 			Content:    content,
 			TokenCount: tokenCount,
 			ScrapedAt:  now,
@@ -2459,7 +2462,18 @@ func (s *WebScrapingService) ScrapePageContent(ctx context.Context, targetURL st
 }
 
 // StorePageInVectorDB stores a scraped page with its embedding in the vector database
+// Normalizes URLs by removing query parameters to ensure uniqueness
 func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, projectID uuid.UUID, url, content string, embedding pgvector.Vector, jobID uuid.UUID) error {
+	// Normalize URL (remove query params, fragment, lowercase, trim trailing slash)
+	normalizedURL, err := NormalizeURL(url)
+	if err != nil {
+		// If URL normalization fails, log but use the original URL trimmed
+		logger.GetTxLogger(ctx).Warn().
+			Str("url", url).
+			Err(err).
+			Msg("Failed to normalize URL, using original")
+		normalizedURL = strings.TrimSpace(url)
+	}
 
 	// Calculate token count
 	tokenCount := len(strings.Fields(content))
@@ -2468,7 +2482,7 @@ func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, 
 	page := &models.KnowledgeScrapedPage{
 		ID:         uuid.New(),
 		JobID:      uuid.NullUUID{UUID: jobID, Valid: true},
-		URL:        url,
+		URL:        normalizedURL, // Use normalized URL
 		Content:    content,
 		TokenCount: tokenCount,
 		ScrapedAt:  time.Now(),
@@ -2486,7 +2500,19 @@ func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, 
 // StorePageInVectorDBWithTenantID stores a scraped page with tenant_id for cross-project deduplication
 // Returns the created page ID
 // Note: Sets job_id to nil for widget-created pages (tracked via widget_knowledge_pages instead)
+// Normalizes URLs by removing query parameters to ensure uniqueness across the database
 func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context, tenantID, projectID uuid.UUID, url, content string, embedding pgvector.Vector, jobID uuid.UUID) (uuid.UUID, error) {
+	// Normalize URL (remove query params, fragment, lowercase, trim trailing slash)
+	normalizedURL, err := NormalizeURL(url)
+	if err != nil {
+		// If URL normalization fails, log but use the original URL trimmed
+		logger.GetTxLogger(ctx).Warn().
+			Str("url", url).
+			Err(err).
+			Msg("Failed to normalize URL, using original")
+		normalizedURL = strings.TrimSpace(url)
+	}
+
 	// Calculate content hash
 	hash := sha256.Sum256([]byte(content))
 	contentHash := fmt.Sprintf("%x", hash)
@@ -2495,7 +2521,7 @@ func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context
 	tokenCount := len(strings.Fields(content))
 
 	// Extract title (first line or URL)
-	title := url
+	title := normalizedURL
 	lines := strings.Split(content, "\n")
 	if len(lines) > 0 && len(lines[0]) > 0 {
 		title = strings.TrimSpace(lines[0])
@@ -2504,12 +2530,45 @@ func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context
 		}
 	}
 
-	// Create a knowledge scraped page record
+	// Check if this URL already exists in the database (by normalized URL)
+	existingPages, err := s.knowledgeRepo.GetExistingPagesByURL(ctx, normalizedURL)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to check for existing page: %w", err)
+	}
+
+	// If page exists with same content, return existing page ID
+	if len(existingPages) > 0 {
+		existingPage := existingPages[0]
+
+		// Check if content has changed
+		if existingPage.ContentHash != nil && *existingPage.ContentHash == contentHash {
+			// Content is the same, reuse existing page
+			logger.GetTxLogger(ctx).Info().
+				Str("url", normalizedURL).
+				Str("existing_page_id", existingPage.ID.String()).
+				Msg("Reusing existing page with same content")
+			return existingPage.ID, nil
+		}
+
+		// Content has changed, update the existing page
+		logger.GetTxLogger(ctx).Info().
+			Str("url", normalizedURL).
+			Str("existing_page_id", existingPage.ID.String()).
+			Msg("Updating existing page with new content")
+
+		err = s.knowledgeRepo.UpdatePageContentAndEmbedding(ctx, existingPage.ID, title, content, contentHash, embedding, tokenCount)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("failed to update existing page: %w", err)
+		}
+		return existingPage.ID, nil
+	}
+
+	// Create a new knowledge scraped page record
 	// job_id is set to nil for widget pages - they're tracked via widget_knowledge_pages
 	page := &models.KnowledgeScrapedPage{
 		ID:          uuid.New(),
 		JobID:       uuid.NullUUID{Valid: false}, // nil for widget pages
-		URL:         url,
+		URL:         normalizedURL, // Use normalized URL
 		Title:       &title,
 		Content:     content,
 		ContentHash: &contentHash,
@@ -2522,6 +2581,11 @@ func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context
 	if err := s.knowledgeRepo.CreateScrapedPageWithTenantID(ctx, page, tenantID); err != nil {
 		return uuid.Nil, fmt.Errorf("failed to store page in vector DB: %w", err)
 	}
+
+	logger.GetTxLogger(ctx).Info().
+		Str("url", normalizedURL).
+		Str("page_id", page.ID.String()).
+		Msg("Created new knowledge page")
 
 	return page.ID, nil
 }

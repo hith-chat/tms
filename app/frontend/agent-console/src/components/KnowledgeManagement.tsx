@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { User, Globe, Loader, CheckCircle, XCircle } from 'lucide-react'
 import { apiClient, KnowledgeDocument, KnowledgeScrapingJob, KnowledgeFAQItem, ScrapedLinkPreview } from '../lib/api'
 import { AboutMeTab } from './knowledge/AboutMeTab'
 import { KnowledgeBaseTab } from './knowledge/KnowledgeBaseTab'
+import { KBUrlsSection } from './knowledge/KBUrlsSection'
 import {
   IndexingProgressState,
   ScrapingProgressState,
@@ -14,11 +16,25 @@ interface KnowledgeManagementProps {
   projectId: string | null
 }
 
-type KnowledgeTab = 'about-me' | 'knowledge-base'
+type KnowledgeTab = 'about-me' | 'knowledge-base' | 'kb-urls'
 
 export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
-  // Active tab state
-  const [activeTab, setActiveTab] = useState<KnowledgeTab>('about-me')
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // Derive active tab from URL
+  const getActiveTabFromPath = (): KnowledgeTab => {
+    const path = location.pathname
+    if (path.includes('/kb-jobs')) {
+      return 'knowledge-base'
+    }
+    if (path.includes('/kb-urls')) {
+      return 'kb-urls'
+    }
+    return 'about-me' // Default to about-me
+  }
+
+  const activeTab = getActiveTabFromPath()
 
   // Data state
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([])
@@ -48,9 +64,15 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
 
   // Sidebar tabs
   const tabs = [
-    { id: 'about-me' as KnowledgeTab, name: 'About Me', icon: User },
-    { id: 'knowledge-base' as KnowledgeTab, name: 'Knowledge Base URLs', icon: Globe }
+    // { id: 'about-me' as KnowledgeTab, name: 'About Me', icon: User, path: '/knowledge/about-me' },
+    { id: 'knowledge-base' as KnowledgeTab, name: 'Scraping Jobs', icon: Globe, path: '/knowledge/kb-jobs' },
+    { id: 'kb-urls' as KnowledgeTab, name: 'KB URLs', icon: Globe, path: '/knowledge/kb-urls' }
   ]
+
+  // Navigate to tab
+  const handleTabChange = (tab: typeof tabs[0]) => {
+    navigate(tab.path)
+  }
 
   // Load data on mount and project change
   useEffect(() => {
@@ -683,6 +705,8 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
             onStartIndexing={startIndexing}
           />
         )
+      case 'kb-urls':
+        return projectId ? <KBUrlsSection projectId={projectId} /> : null
       default:
         return null
     }
@@ -739,7 +763,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab)}
                   className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-md transition-colors focus-visible-ring ${
                     activeTab === tab.id
                       ? 'bg-primary/10 text-primary border-l-2 border-primary'

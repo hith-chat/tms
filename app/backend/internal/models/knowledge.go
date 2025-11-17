@@ -85,6 +85,32 @@ type KnowledgeScrapedPage struct {
 	Metadata    JSONMap          `db:"metadata" json:"metadata"`
 }
 
+// WidgetKnowledgePage represents the association between a widget and a knowledge page
+type WidgetKnowledgePage struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	WidgetID  uuid.UUID `db:"widget_id" json:"widget_id"`
+	PageID    uuid.UUID `db:"page_id" json:"page_id"`
+	TenantID  uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// WidgetKnowledgePageWithDetails represents a widget knowledge page with page details
+type WidgetKnowledgePageWithDetails struct {
+	ID        uuid.UUID  `db:"id" json:"id"`
+	WidgetID  uuid.UUID  `db:"widget_id" json:"widget_id"`
+	PageID    uuid.UUID  `db:"page_id" json:"page_id"`
+	TenantID  uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	ProjectID uuid.UUID  `db:"project_id" json:"project_id"`
+	URL       string     `db:"url" json:"url"`
+	Title     *string    `db:"title" json:"title,omitempty"`
+	TokenCount int       `db:"token_count" json:"token_count"`
+	ScrapedAt time.Time  `db:"scraped_at" json:"scraped_at"`
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	JobID     *uuid.UUID `db:"job_id" json:"job_id,omitempty"`
+}
+
 // KnowledgeSettings represents knowledge base settings for a project
 type KnowledgeSettings struct {
 	ID                  uuid.UUID `db:"id" json:"id"`
