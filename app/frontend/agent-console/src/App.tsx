@@ -76,7 +76,7 @@ function AppContent() {
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/tickets/:id" element={<TicketDetailPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
-                <Route path="/knowledge" element={<KnowledgePage />} />
+                <Route path="/knowledge/*" element={<KnowledgePage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/integrations" element={<IntegrationsPage />} />
