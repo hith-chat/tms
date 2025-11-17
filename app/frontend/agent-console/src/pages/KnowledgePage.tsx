@@ -39,7 +39,7 @@ export function KnowledgePage() {
         <Routes>
           <Route path="/" element={<Navigate to="/knowledge/about-me" replace />} />
           <Route path="/about-me" element={<KnowledgeManagement projectId={currentProjectId} />} />
-          <Route path="/kb-urls" element={<KnowledgeManagement projectId={currentProjectId} />} />
+          <Route path="/kb-jobs" element={<KnowledgeManagement projectId={currentProjectId} />} />
           <Route path="*" element={<Navigate to="/knowledge/about-me" replace />} />
         </Routes>
       </div>

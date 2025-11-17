@@ -24,7 +24,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
   // Derive active tab from URL
   const getActiveTabFromPath = (): KnowledgeTab => {
     const path = location.pathname
-    if (path.includes('/kb-urls')) {
+    if (path.includes('/kb-jobs')) {
       return 'knowledge-base'
     }
     return 'about-me' // Default to about-me
@@ -60,8 +60,8 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
 
   // Sidebar tabs
   const tabs = [
-    { id: 'about-me' as KnowledgeTab, name: 'About Me', icon: User, path: '/knowledge/about-me' },
-    { id: 'knowledge-base' as KnowledgeTab, name: 'Knowledge Base URLs', icon: Globe, path: '/knowledge/kb-urls' }
+    // { id: 'about-me' as KnowledgeTab, name: 'About Me', icon: User, path: '/knowledge/about-me' },
+    { id: 'knowledge-base' as KnowledgeTab, name: 'Scraping Jobs', icon: Globe, path: '/knowledge/kb-jobs' }
   ]
 
   // Navigate to tab
