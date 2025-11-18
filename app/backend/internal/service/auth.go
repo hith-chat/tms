@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/bareuptime/tms/internal/auth"
 	"github.com/bareuptime/tms/internal/db"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/rbac"
 	"github.com/bareuptime/tms/internal/redis"
@@ -1000,4 +1002,81 @@ func GenerateRandomString(length int) string {
 	b := make([]byte, length)
 	rand.Read(b)
 	return base64.URLEncoding.EncodeToString(b)[:length]
+}
+
+// GoogleIDTokenInfo represents the response from Google's tokeninfo endpoint
+type GoogleIDTokenInfo struct {
+	Iss           string `json:"iss"`
+	Azp           string `json:"azp"`
+	Aud           string `json:"aud"`
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified string `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Locale        string `json:"locale"`
+	Iat           string `json:"iat"`
+	Exp           string `json:"exp"`
+}
+
+// GoogleIDTokenCallback verifies a Google ID token from client-side authentication
+func (s *AuthService) GoogleIDTokenCallback(ctx context.Context, idToken string) (*LoginResponse, error) {
+	// Verify the ID token with Google's tokeninfo endpoint
+	tokenInfoURL := fmt.Sprintf("https://oauth2.googleapis.com/tokeninfo?id_token=%s", idToken)
+
+	resp, err := http.Get(tokenInfoURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify ID token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		logger.Errorf("Google token verification failed: %s", string(body))
+		return nil, fmt.Errorf("invalid ID token")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token info response: %w", err)
+	}
+
+	var tokenInfo GoogleIDTokenInfo
+	if err := json.Unmarshal(body, &tokenInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse token info: %w", err)
+	}
+
+	// Verify the token audience matches our client ID
+	if tokenInfo.Aud != s.googleOAuth.ClientID {
+		logger.Warnf("Token audience mismatch: expected %s, got %s", s.googleOAuth.ClientID, tokenInfo.Aud)
+		return nil, fmt.Errorf("invalid token audience")
+	}
+
+	// Verify email is verified
+	if tokenInfo.EmailVerified != "true" {
+		return nil, fmt.Errorf("email not verified with Google")
+	}
+
+	// Check if agent exists
+	agent, err := s.agentRepo.GetByEmailWithoutTenantID(ctx, tokenInfo.Email)
+	if err != nil {
+		// Agent doesn't exist, create new one
+		googleUser := GoogleUserInfo{
+			Email:         tokenInfo.Email,
+			Name:          tokenInfo.Name,
+			Picture:       tokenInfo.Picture,
+			VerifiedEmail: tokenInfo.EmailVerified == "true",
+		}
+		return s.createAgentFromGoogle(ctx, googleUser)
+	}
+
+	// Agent exists, login
+	return s.loginExistingAgent(ctx, agent)
+}
+
+// GetGoogleClientID returns the Google OAuth client ID for frontend use
+func (s *AuthService) GetGoogleClientID() string {
+	return s.googleOAuth.ClientID
 }

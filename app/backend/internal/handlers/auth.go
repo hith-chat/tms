@@ -601,3 +601,99 @@ func (h *AuthHandler) GoogleOAuthCallback(c *gin.Context) {
 		},
 	})
 }
+
+// GoogleIDTokenRequest represents a request to verify a Google ID token
+// @Description Google ID token verification request payload
+type GoogleIDTokenRequest struct {
+	IDToken string `json:"id_token" validate:"required" example:"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."`
+}
+
+// GoogleIDTokenCallback handles client-side Google OAuth token verification
+// @Summary Verify Google ID token (client-side OAuth)
+// @Description Verifies a Google ID token from client-side authentication and logs in or creates user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param tokenRequest body GoogleIDTokenRequest true "Google ID token"
+// @Success 200 {object} LoginResponse "Successfully authenticated"
+// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
+// @Failure 401 {object} map[string]interface{} "Authentication failed"
+// @Router /v1/auth/google/token [post]
+func (h *AuthHandler) GoogleIDTokenCallback(c *gin.Context) {
+	var req GoogleIDTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.WarnfCtx(c.Request.Context(), "Invalid request body for Google token: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		logger.WarnfCtx(c.Request.Context(), "Google token validation failed: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
+		return
+	}
+
+	logger.InfofCtx(c.Request.Context(), "Processing Google ID token callback")
+
+	// Process ID token
+	response, err := h.authService.GoogleIDTokenCallback(c.Request.Context(), req.IDToken)
+	if err != nil {
+		logger.ErrorfCtx(c.Request.Context(), err, "Google ID token callback failed: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Determine primary role
+	primaryRole := models.RoleAgent.String()
+	for _, roles := range response.RoleBindings {
+		for _, role := range roles {
+			if role == models.RoleTenantAdmin.String() {
+				primaryRole = role
+				break
+			}
+			if primaryRole == models.RoleAgent.String() {
+				primaryRole = role
+			}
+		}
+		if primaryRole == models.RoleTenantAdmin.String() {
+			break
+		}
+	}
+
+	logger.InfofCtx(c.Request.Context(), "Google ID token login successful - user_id: %s, tenant_id: %s, primary_role: %s",
+		response.Agent.ID.String(), response.Agent.TenantID.String(), primaryRole)
+
+	c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  response.AccessToken,
+		RefreshToken: response.RefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600,
+		User: User{
+			ID:       response.Agent.ID.String(),
+			Email:    response.Agent.Email,
+			Name:     response.Agent.Name,
+			Role:     primaryRole,
+			TenantID: response.Agent.TenantID.String(),
+		},
+	})
+}
+
+// GoogleClientIDResponse represents the response containing Google client ID
+// @Description Google client ID response
+type GoogleClientIDResponse struct {
+	ClientID string `json:"client_id" example:"123456789-abc.apps.googleusercontent.com"`
+}
+
+// GetGoogleClientID returns the Google OAuth client ID for frontend use
+// @Summary Get Google client ID
+// @Description Returns the Google OAuth client ID for client-side authentication
+// @Tags Auth
+// @Produce json
+// @Success 200 {object} GoogleClientIDResponse "Google client ID"
+// @Router /v1/auth/google/client-id [get]
+func (h *AuthHandler) GetGoogleClientID(c *gin.Context) {
+	clientID := h.authService.GetGoogleClientID()
+	c.JSON(http.StatusOK, GoogleClientIDResponse{
+		ClientID: clientID,
+	})
+}

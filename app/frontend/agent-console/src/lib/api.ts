@@ -693,9 +693,35 @@ class APIClient {
     return response.data
   }
 
+  async loginWithGoogle(idToken: string): Promise<LoginResponse> {
+    // Create a separate axios instance for Google login to avoid the interceptor adding tenant to URL
+    const loginClient = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const response = await loginClient.post<LoginResponse>(`/auth/google/token`, {
+      id_token: idToken
+    })
+
+    if (response.data.access_token) {
+      localStorage.setItem('auth_token', response.data.access_token)
+    }
+
+    if (response.data.refresh_token) {
+      localStorage.setItem('refresh_token', response.data.refresh_token)
+    }
+
+    this.setTenantId(response.data.user.tenant_id)
+
+    return response.data
+  }
+
   async refreshToken(): Promise<RefreshTokenResponse> {
     const refreshToken = localStorage.getItem('refresh_token')
-    
+
     if (!refreshToken) {
       throw new Error('No refresh token available')
     }

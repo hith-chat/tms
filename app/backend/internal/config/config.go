@@ -314,9 +314,9 @@ func Load() (*Config, error) {
 	viper.BindEnv("cors.allow_credentials", "CORS_ALLOW_CREDENTIALS")
 
 	// OAuth configuration bindings
-	viper.BindEnv("oauth.google.client_id", "GOOGLE_OAUTH_CLIENT_ID")
-	viper.BindEnv("oauth.google.client_secret", "GOOGLE_OAUTH_CLIENT_SECRET")
-	viper.BindEnv("oauth.google.redirect_url", "GOOGLE_OAUTH_REDIRECT_URL")
+	viper.BindEnv("oauth.google.client_id", "GOOGLE_CLIENT_ID")
+	viper.BindEnv("oauth.google.client_secret", "GOOGLE_CLIENT_SECRET")
+	viper.BindEnv("oauth.google.redirect_url", "GOOGLE_REDIRECT_URL")
 
 	// Read config file (optional)
 	if err := viper.ReadInConfig(); err != nil {
@@ -445,5 +445,5 @@ func setDefaults() {
 		"https://www.googleapis.com/auth/userinfo.email",
 		"https://www.googleapis.com/auth/userinfo.profile",
 	})
-	viper.SetDefault("oauth.google.redirect_url", "http://localhost:3001/auth/google/callback")
+	viper.SetDefault("oauth.google.redirect_url", "http://localhost:3000/auth/google/callback")
 }

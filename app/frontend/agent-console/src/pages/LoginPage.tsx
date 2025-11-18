@@ -1,7 +1,37 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, Loader2, Shield, Lock, Mail } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+
+// Declare Google Identity Services types
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string
+            callback: (response: { credential: string }) => void
+            auto_select?: boolean
+            cancel_on_tap_outside?: boolean
+          }) => void
+          renderButton: (
+            element: HTMLElement,
+            config: {
+              theme?: 'outline' | 'filled_blue' | 'filled_black'
+              size?: 'large' | 'medium' | 'small'
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
+              shape?: 'rectangular' | 'pill' | 'circle' | 'square'
+              logo_alignment?: 'left' | 'center'
+              width?: number
+            }
+          ) => void
+          prompt: () => void
+        }
+      }
+    }
+  }
+}
 
 // Google Icon SVG Component
 const GoogleIcon = () => (
@@ -63,9 +93,87 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [error, setError] = useState('')
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null)
 
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
+
+  // Fetch Google client ID from backend
+  useEffect(() => {
+    const fetchGoogleClientId = async () => {
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
+        const response = await fetch(`${apiBaseUrl}/auth/google/client-id`)
+        if (response.ok) {
+          const data = await response.json()
+          setGoogleClientId(data.client_id)
+        }
+      } catch (err) {
+        console.error('Failed to fetch Google client ID:', err)
+      }
+    }
+    fetchGoogleClientId()
+  }, [])
+
+  // Handle Google credential response
+  const handleGoogleCredentialResponse = useCallback(async (response: { credential: string }) => {
+    setIsGoogleLoading(true)
+    setError('')
+
+    try {
+      await loginWithGoogle(response.credential)
+    } catch (err) {
+      setError('Google sign-in failed. Please try again.')
+      console.error('Google login error:', err)
+    } finally {
+      setIsGoogleLoading(false)
+    }
+  }, [loginWithGoogle])
+
+  // Initialize Google Identity Services
+  useEffect(() => {
+    if (!googleClientId) return
+
+    // Load Google Identity Services script
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+
+    script.onload = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        })
+
+        // Render the Google Sign-In button
+        const buttonElement = document.getElementById('google-signin-button')
+        if (buttonElement) {
+          window.google.accounts.id.renderButton(buttonElement, {
+            theme: 'outline',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'rectangular',
+            width: 400,
+          })
+        }
+      }
+    }
+
+    document.head.appendChild(script)
+
+    return () => {
+      // Cleanup script on unmount
+      const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
+      if (existingScript) {
+        existingScript.remove()
+      }
+    }
+  }, [googleClientId, handleGoogleCredentialResponse])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,11 +192,6 @@ export function LoginPage() {
   const handleDemoLogin = () => {
     setEmail('admin@acme.com')
     setPassword('password')
-  }
-
-  const handleGoogleLogin = () => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
-    window.location.href = `${apiBaseUrl}/auth/google/login`
   }
 
   return (
@@ -222,18 +325,34 @@ export function LoginPage() {
               </div>
             </div>
 
-            {/* Google Sign-In Button */}
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full mt-4"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              <GoogleIcon />
-              <span className="ml-2">Sign in with Google</span>
-            </Button>
+            {/* Google Sign-In Button Container */}
+            <div className="mt-4 flex justify-center">
+              {isGoogleLoading ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  disabled
+                >
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in with Google...
+                </Button>
+              ) : googleClientId ? (
+                <div id="google-signin-button" className="w-full flex justify-center"></div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  disabled
+                >
+                  <GoogleIcon />
+                  <span className="ml-2">Loading Google Sign-In...</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Demo Credentials */}
