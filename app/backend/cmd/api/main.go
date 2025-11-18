@@ -45,6 +45,8 @@ import (
 	"github.com/rs/zerolog"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 func main() {
@@ -128,7 +130,16 @@ func main() {
 		RequireCorporateEmail: cfg.Features.RequireCorporateEmail,
 	}
 
-	authService := service.NewAuthService(agentRepo, rbacService, jwtAuth, redisService, emailProvider, authFeatureFlags, tenantRepo, domainValidationRepo, projectRepo)
+	// Initialize Google OAuth config
+	googleOAuthConfig := &oauth2.Config{
+		ClientID:     cfg.OAuth.Google.ClientID,
+		ClientSecret: cfg.OAuth.Google.ClientSecret,
+		RedirectURL:  cfg.OAuth.Google.RedirectURL,
+		Scopes:       cfg.OAuth.Google.Scopes,
+		Endpoint:     google.Endpoint,
+	}
+
+	authService := service.NewAuthService(agentRepo, rbacService, jwtAuth, redisService, emailProvider, authFeatureFlags, tenantRepo, domainValidationRepo, projectRepo, googleOAuthConfig)
 	projectService := service.NewProjectService(projectRepo)
 	agentService := service.NewAgentService(agentRepo, projectRepo, rbacService)
 	tenantService := service.NewTenantService(tenantRepo, agentRepo, rbacService)
@@ -255,6 +266,8 @@ func main() {
 		log.Printf("BB AI API Key %s", cfg.AI.APIKey)
 		cfg.AI.ThemeExtractionModel = "blackboxai/anthropic/claude-sonnet-4.5"
 		log.Printf("Theme Extraction Model %s", cfg.AI.ThemeExtractionModel)
+		log.Printf("Google Client ID %s", cfg.OAuth.Google.ClientID)
+		// log.Printf("Google Client  Secret %s", cfg.OAuth.Google.ClientSecret)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -339,6 +352,13 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 		authRoutes.POST("/signup", authHandler.SignUp)
 		authRoutes.POST("/verify-signup-otp", authHandler.VerifySignupOTP)
 		authRoutes.POST("/resend-signup-otp", authHandler.ResendSignupOTP)
+
+		// Google OAuth routes
+		authRoutes.GET("/google/login", authHandler.GoogleOAuthLogin)
+		authRoutes.GET("/google/callback", authHandler.GoogleOAuthCallback)
+		// Client-side Google OAuth (modern approach)
+		authRoutes.POST("/google/token", authHandler.GoogleIDTokenCallback)
+		authRoutes.GET("/google/client-id", authHandler.GetGoogleClientID)
 	}
 
 	// Payment routes (protected by auth middleware, no tenant_id in path as payments are global)

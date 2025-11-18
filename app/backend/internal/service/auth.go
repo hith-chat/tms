@@ -2,18 +2,25 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/bareuptime/tms/internal/auth"
 	"github.com/bareuptime/tms/internal/db"
+	"github.com/bareuptime/tms/internal/logger"
 	"github.com/bareuptime/tms/internal/models"
 	"github.com/bareuptime/tms/internal/rbac"
 	"github.com/bareuptime/tms/internal/redis"
 	"github.com/bareuptime/tms/internal/repo"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
 )
 
 // AuthService handles authentication operations
@@ -27,6 +34,7 @@ type AuthService struct {
 	domainRepo    *repo.DomainValidationRepo
 	tenantRepo    repo.TenantRepository
 	projectRepo   repo.ProjectRepository
+	googleOAuth   *oauth2.Config
 }
 
 // FeatureFlags represents the feature configuration
@@ -35,7 +43,7 @@ type FeatureFlags struct {
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(agentRepo repo.AgentRepository, rbacService *rbac.Service, authService *auth.Service, redisService *redis.Service, emailProvider EmailProvider, featureFlags *FeatureFlags, tenantRepo repo.TenantRepository, domainRepo *repo.DomainValidationRepo, projectRepo repo.ProjectRepository) *AuthService {
+func NewAuthService(agentRepo repo.AgentRepository, rbacService *rbac.Service, authService *auth.Service, redisService *redis.Service, emailProvider EmailProvider, featureFlags *FeatureFlags, tenantRepo repo.TenantRepository, domainRepo *repo.DomainValidationRepo, projectRepo repo.ProjectRepository, googleOAuth *oauth2.Config) *AuthService {
 	return &AuthService{
 		agentRepo:     agentRepo,
 		rbacService:   rbacService,
@@ -46,6 +54,7 @@ func NewAuthService(agentRepo repo.AgentRepository, rbacService *rbac.Service, a
 		tenantRepo:    tenantRepo,
 		domainRepo:    domainRepo,
 		projectRepo:   projectRepo,
+		googleOAuth:   googleOAuth,
 	}
 }
 
@@ -789,4 +798,285 @@ func (s *AuthService) ResendSignupOTP(ctx context.Context, req ResendSignupOTPRe
 	s.redisService.IncrementAttempts(ctx, resendKey, 15*time.Minute)
 
 	return nil
+}
+
+// GoogleUserInfo represents Google user information
+type GoogleUserInfo struct {
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	VerifiedEmail bool   `json:"verified_email"`
+}
+
+// GetGoogleOAuthURL generates the Google OAuth authorization URL
+func (s *AuthService) GetGoogleOAuthURL(state string) string {
+	return s.googleOAuth.AuthCodeURL(state, oauth2.AccessTypeOffline)
+}
+
+// GoogleOAuthCallback handles the Google OAuth callback
+func (s *AuthService) GoogleOAuthCallback(ctx context.Context, code string) (*LoginResponse, error) {
+	// Exchange authorization code for token
+	token, err := s.googleOAuth.Exchange(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
+	}
+
+	// Get user info from Google
+	client := s.googleOAuth.Client(ctx, token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user info response: %w", err)
+	}
+
+	var googleUser GoogleUserInfo
+	if err := json.Unmarshal(body, &googleUser); err != nil {
+		return nil, fmt.Errorf("failed to parse user info: %w", err)
+	}
+
+	// Check if email is verified
+	if !googleUser.VerifiedEmail {
+		return nil, fmt.Errorf("email not verified with Google")
+	}
+
+	// Check if agent exists
+	agent, err := s.agentRepo.GetByEmailWithoutTenantID(ctx, googleUser.Email)
+	if err != nil {
+		// Agent doesn't exist, create new one
+		return s.createAgentFromGoogle(ctx, googleUser)
+	}
+
+	// Agent exists, login
+	return s.loginExistingAgent(ctx, agent)
+}
+
+// createAgentFromGoogle creates a new agent from Google OAuth
+func (s *AuthService) createAgentFromGoogle(ctx context.Context, googleUser GoogleUserInfo) (*LoginResponse, error) {
+	// Extract domain from email
+	domainNameFromEmail := strings.Split(googleUser.Email, "@")[1]
+
+	// Create tenant
+	tenantID, _ := uuid.NewUUID()
+	tenant := &db.Tenant{
+		ID:        tenantID,
+		Name:      domainNameFromEmail,
+		KMSKeyID:  domainNameFromEmail,
+		Status:    "active",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := s.tenantRepo.Create(ctx, tenant)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tenant: %w", err)
+	}
+
+	// Create project
+	projectID, _ := uuid.NewUUID()
+	project := &db.Project{
+		ID:        projectID,
+		Key:       "default",
+		Name:      "Default",
+		Status:    "active",
+		TenantID:  tenantID,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err = s.projectRepo.Create(ctx, project)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create project: %w", err)
+	}
+
+	// Create agent account (no password for OAuth users)
+	agent := &db.Agent{
+		ID:           uuid.New(),
+		TenantID:     tenantID,
+		Email:        googleUser.Email,
+		Name:         googleUser.Name,
+		Status:       "active",
+		PasswordHash: nil, // No password for OAuth users
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	err = s.agentRepo.Create(ctx, agent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent: %w", err)
+	}
+
+	// Assign tenant admin role
+	err = s.rbacService.AssignRole(ctx, agent.ID, agent.TenantID, projectID, models.RoleTenantAdmin)
+	if err != nil {
+		fmt.Printf("Warning: failed to assign default role to agent %s: %v\n", agent.ID, err)
+	}
+
+	// Get role bindings
+	roleBindings, err := s.rbacService.GetAgentRoleBindings(ctx, agent.ID, agent.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role bindings: %w", err)
+	}
+
+	// Generate tokens
+	accessToken, err := s.authService.GenerateAccessToken(
+		agent.ID.String(),
+		agent.TenantID.String(),
+		agent.Email,
+		s.convertRoleBindings(roleBindings),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	refreshToken, err := s.authService.GenerateRefreshToken(
+		agent.ID.String(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Send welcome email
+	if err := s.emailProvider.SendSignupWelcomeEmail(ctx, agent.Email, agent.Name); err != nil {
+		fmt.Printf("Warning: failed to send signup welcome email to %s: %v\n", agent.Email, err)
+	}
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Agent:        agent,
+		RoleBindings: s.convertRoleBindings(roleBindings),
+	}, nil
+}
+
+// loginExistingAgent logs in an existing agent
+func (s *AuthService) loginExistingAgent(ctx context.Context, agent *db.Agent) (*LoginResponse, error) {
+	// Check if agent is active
+	if agent.Status != "active" {
+		return nil, fmt.Errorf("account is not active")
+	}
+
+	// Get role bindings
+	roleBindings, err := s.rbacService.GetAgentRoleBindings(ctx, agent.ID, agent.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role bindings: %w", err)
+	}
+
+	// Generate tokens
+	accessToken, err := s.authService.GenerateAccessToken(
+		agent.ID.String(),
+		agent.TenantID.String(),
+		agent.Email,
+		s.convertRoleBindings(roleBindings),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	refreshToken, err := s.authService.GenerateRefreshToken(
+		agent.ID.String(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Remove password hash from response
+	agent.PasswordHash = nil
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Agent:        agent,
+		RoleBindings: s.convertRoleBindings(roleBindings),
+	}, nil
+}
+
+// GenerateRandomString generates a random string of specified length
+func GenerateRandomString(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)[:length]
+}
+
+// GoogleIDTokenInfo represents the response from Google's tokeninfo endpoint
+type GoogleIDTokenInfo struct {
+	Iss           string `json:"iss"`
+	Azp           string `json:"azp"`
+	Aud           string `json:"aud"`
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified string `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Locale        string `json:"locale"`
+	Iat           string `json:"iat"`
+	Exp           string `json:"exp"`
+}
+
+// GoogleIDTokenCallback verifies a Google ID token from client-side authentication
+func (s *AuthService) GoogleIDTokenCallback(ctx context.Context, idToken string) (*LoginResponse, error) {
+	// Verify the ID token with Google's tokeninfo endpoint
+	tokenInfoURL := fmt.Sprintf("https://oauth2.googleapis.com/tokeninfo?id_token=%s", idToken)
+
+	resp, err := http.Get(tokenInfoURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify ID token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		logger.Errorf("Google token verification failed: %s", string(body))
+		return nil, fmt.Errorf("invalid ID token")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token info response: %w", err)
+	}
+
+	var tokenInfo GoogleIDTokenInfo
+	if err := json.Unmarshal(body, &tokenInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse token info: %w", err)
+	}
+
+	// Verify the token audience matches our client ID
+	if tokenInfo.Aud != s.googleOAuth.ClientID {
+		logger.Warnf("Token audience mismatch: expected %s, got %s", s.googleOAuth.ClientID, tokenInfo.Aud)
+		return nil, fmt.Errorf("invalid token audience")
+	}
+
+	// Verify email is verified
+	if tokenInfo.EmailVerified != "true" {
+		return nil, fmt.Errorf("email not verified with Google")
+	}
+
+	// Check if agent exists
+	agent, err := s.agentRepo.GetByEmailWithoutTenantID(ctx, tokenInfo.Email)
+	if err != nil {
+		// Agent doesn't exist, create new one
+		googleUser := GoogleUserInfo{
+			Email:         tokenInfo.Email,
+			Name:          tokenInfo.Name,
+			Picture:       tokenInfo.Picture,
+			VerifiedEmail: tokenInfo.EmailVerified == "true",
+		}
+		return s.createAgentFromGoogle(ctx, googleUser)
+	}
+
+	// Agent exists, login
+	return s.loginExistingAgent(ctx, agent)
+}
+
+// GetGoogleClientID returns the Google OAuth client ID for frontend use
+func (s *AuthService) GetGoogleClientID() string {
+	return s.googleOAuth.ClientID
 }

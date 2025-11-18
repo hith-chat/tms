@@ -7,6 +7,7 @@ import { AppShell } from './components/AppShell'
 import { useAuth } from './hooks/useAuth'
 import { LoginPage } from './pages/LoginPage'
 import { SignUpPage } from './pages/SignUpPage'
+import { GoogleCallbackPage } from './pages/GoogleCallbackPage'
 import { InboxPage } from './pages/InboxPage'
 import { EmailDetailPage } from './pages/EmailDetailPage'
 import { AddInboxPage } from './pages/AddInboxPage'
@@ -58,6 +59,7 @@ function AppContent() {
       <Route path="/signup" element={
         isAuthenticated ? <Navigate to="/inbox" replace /> : <SignUpPage />
       } />
+      <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
       <Route path="/" element={
         isAuthenticated ? <Navigate to="/inbox" replace /> : <Navigate to="/login" replace />
       } />

@@ -72,20 +72,42 @@ export function useAuth() {
   const login = async (credentials: LoginRequest) => {
     setIsLoading(true)
     setError(null)
-    
+
     try {
       const response = await apiClient.login(credentials)
       setUser(response.user)
       setIsAuthenticated(true)
       localStorage.setItem('user_data', JSON.stringify(response.user))
       apiClient.setTenantId(response.user.tenant_id)
-      
+
       setIsLoading(false)
-      
+
       // Navigate to inbox after successful login
       window.location.assign("/tickets")
     } catch (error: any) {
       setError(error.response?.data?.message || 'Login failed')
+      setIsLoading(false)
+      throw error
+    }
+  }
+
+  const loginWithGoogle = async (idToken: string) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiClient.loginWithGoogle(idToken)
+      setUser(response.user)
+      setIsAuthenticated(true)
+      localStorage.setItem('user_data', JSON.stringify(response.user))
+      apiClient.setTenantId(response.user.tenant_id)
+
+      setIsLoading(false)
+
+      // Navigate to inbox after successful login
+      window.location.assign("/tickets")
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Google login failed')
       setIsLoading(false)
       throw error
     }
@@ -108,6 +130,7 @@ export function useAuth() {
     isLoading,
     error,
     login,
+    loginWithGoogle,
     logout,
     clearError,
   }

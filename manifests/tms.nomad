@@ -255,6 +255,9 @@ MAILEROO_API_KEY={{ .Data.data.MAILEROO_API_KEY }}
 MAILEROO_TIMEOUT_SECONDS={{ .Data.data.MAILEROO_TIMEOUT_SECONDS }}
 AI_API_KEY={{ .Data.data.AI_API_KEY }}
 TMS_API_S2S_KEY={{ .Data.data.TMS_API_S2S_KEY }}
+GOOGLE_CLIENT_ID={{ .Data.data.GOOGLE_CLIENT_ID }}
+GOOGLE_CLIENT_SECRET={{ .Data.data.GOOGLE_CLIENT_SECRET }}
+GOOGLE_REDIRECT_URL={{ .Data.data.GOOGLE_REDIRECT_URL }}
 {{- end }}
 EOH
         destination = "secrets/config.env"
