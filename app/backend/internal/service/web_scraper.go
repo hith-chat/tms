@@ -2461,42 +2461,6 @@ func (s *WebScrapingService) ScrapePageContent(ctx context.Context, targetURL st
 	return content, nil
 }
 
-// StorePageInVectorDB stores a scraped page with its embedding in the vector database
-// Normalizes URLs by removing query parameters to ensure uniqueness
-func (s *WebScrapingService) StorePageInVectorDB(ctx context.Context, tenantID, projectID uuid.UUID, url, content string, embedding pgvector.Vector, jobID uuid.UUID) error {
-	// Normalize URL (remove query params, fragment, lowercase, trim trailing slash)
-	normalizedURL, err := NormalizeURL(url)
-	if err != nil {
-		// If URL normalization fails, log but use the original URL trimmed
-		logger.GetTxLogger(ctx).Warn().
-			Str("url", url).
-			Err(err).
-			Msg("Failed to normalize URL, using original")
-		normalizedURL = strings.TrimSpace(url)
-	}
-
-	// Calculate token count
-	tokenCount := len(strings.Fields(content))
-
-	// Create a knowledge scraped page record
-	page := &models.KnowledgeScrapedPage{
-		ID:         uuid.New(),
-		JobID:      uuid.NullUUID{UUID: jobID, Valid: true},
-		URL:        normalizedURL, // Use normalized URL
-		Content:    content,
-		TokenCount: tokenCount,
-		ScrapedAt:  time.Now(),
-		Embedding:  &embedding,
-	}
-
-	// Store in database
-	if err := s.knowledgeRepo.CreateScrapedPage(page); err != nil {
-		return fmt.Errorf("failed to store page in vector DB: %w", err)
-	}
-
-	return nil
-}
-
 // StorePageInVectorDBWithTenantID stores a scraped page with tenant_id for cross-project deduplication
 // Returns the created page ID
 // Note: Sets job_id to nil for widget-created pages (tracked via widget_knowledge_pages instead)
@@ -2568,7 +2532,7 @@ func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context
 	page := &models.KnowledgeScrapedPage{
 		ID:          uuid.New(),
 		JobID:       uuid.NullUUID{Valid: false}, // nil for widget pages
-		URL:         normalizedURL, // Use normalized URL
+		URL:         normalizedURL,               // Use normalized URL
 		Title:       &title,
 		Content:     content,
 		ContentHash: &contentHash,

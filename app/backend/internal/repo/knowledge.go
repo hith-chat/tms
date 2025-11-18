@@ -316,20 +316,6 @@ func (r *KnowledgeRepository) SaveSelectedLinks(id uuid.UUID, selectedLinks []st
 	return err
 }
 
-// Scraped page operations
-
-func (r *KnowledgeRepository) CreateScrapedPage(page *models.KnowledgeScrapedPage) error {
-	query := `
-		INSERT INTO knowledge_scraped_pages (
-			id, job_id, url, title, content, content_hash, token_count, embedding, metadata
-		) VALUES (
-			:id, :job_id, :url, :title, :content, :content_hash, :token_count, :embedding, :metadata
-		)`
-
-	_, err := r.db.NamedExec(query, page)
-	return err
-}
-
 func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrapedPage) error {
 	logger.Info("Creating scraped pages with content-aware deduplication...")
 	if len(pages) == 0 {
@@ -354,10 +340,10 @@ func (r *KnowledgeRepository) CreateScrapedPages(pages []*models.KnowledgeScrape
 
 		// Get existing URLs, their content hashes, and embeddings for this project
 		type ExistingPage struct {
-			URL         string            `db:"url"`
-			ContentHash *string           `db:"content_hash"`
-			ID          uuid.UUID         `db:"id"`
-			Embedding   *pgvector.Vector  `db:"embedding"`
+			URL         string           `db:"url"`
+			ContentHash *string          `db:"content_hash"`
+			ID          uuid.UUID        `db:"id"`
+			Embedding   *pgvector.Vector `db:"embedding"`
 		}
 
 		var existingPages []ExistingPage

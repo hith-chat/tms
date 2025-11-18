@@ -358,58 +358,6 @@ func (s *PublicAIBuilderService) runEmbeddingWorkers(
 	wg.Wait()
 }
 
-// runStorageWorkers spawns parallel workers to store pages in vector database
-func (s *PublicAIBuilderService) runStorageWorkers(
-	ctx context.Context,
-	tenantID, projectID, jobID uuid.UUID,
-	input <-chan parallelEmbeddedPage,
-	stats *parallelProcessingStats,
-	events chan<- AIBuilderEvent,
-	done chan<- struct{},
-	workerCount int,
-) {
-	defer close(done)
-
-	var wg sync.WaitGroup
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-
-			for embedded := range input {
-				// Skip if embedding failed
-				if embedded.Error != nil {
-					continue
-				}
-
-				// Store in vector database
-				err := s.webScrapingService.StorePageInVectorDB(ctx, tenantID, projectID, embedded.Job.URL, embedded.Content, embedded.Embedding, jobID)
-
-				if err != nil {
-					stats.FailedStores++
-					s.emit(ctx, events, AIBuilderEvent{
-						Type:    "storage_failed",
-						Stage:   "storage",
-						Message: fmt.Sprintf("Failed to store %s in vector DB", embedded.Job.URL),
-						Detail:  err.Error(),
-					})
-				} else {
-					stats.StoredPages++
-					if stats.StoredPages%10 == 0 {
-						s.emit(ctx, events, AIBuilderEvent{
-							Type:    "storage_progress",
-							Stage:   "storage",
-							Message: fmt.Sprintf("Stored %d/%d pages in vector DB", stats.StoredPages, stats.EmbeddedPages),
-						})
-					}
-				}
-			}
-		}(i)
-	}
-
-	wg.Wait()
-}
-
 // BuildWidgetForProject creates an AI widget for the given tenant and project
 // This is the stable workflow that supports FAQ generation
 // Returns the widget ID and any error
