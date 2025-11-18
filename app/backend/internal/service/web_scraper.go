@@ -2484,14 +2484,16 @@ func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context
 	// Calculate token count
 	tokenCount := len(strings.Fields(content))
 
-	// Extract title (first line or URL)
-	title := normalizedURL
-	lines := strings.Split(content, "\n")
-	if len(lines) > 0 && len(lines[0]) > 0 {
-		title = strings.TrimSpace(lines[0])
-		if len(title) > 100 {
-			title = title[:100]
-		}
+	// Extract title using headless browser extractor
+	title, titleErr := s.headlessBrowserExtractor.GetPageTitle(ctx, url)
+	if titleErr != nil || title == "" {
+		// Fallback: use normalized URL if title extraction fails
+		title = normalizedURL
+	}
+
+	// Trim title if too long
+	if len(title) > 100 {
+		title = title[:100]
 	}
 
 	// Check if this URL already exists in the database (by normalized URL)

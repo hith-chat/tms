@@ -67,14 +67,16 @@ func (s *PublicAIBuilderService) scrapeURLsToFiles(
 					continue
 				}
 
-				// Extract title (first line or first 100 chars)
-				title := urlStr
-				lines := strings.Split(content, "\n")
-				if len(lines) > 0 && len(lines[0]) > 0 {
-					title = strings.TrimSpace(lines[0])
-					if len(title) > 100 {
-						title = title[:100]
-					}
+				// Extract title using headless browser extractor
+				title, titleErr := s.webScrapingService.headlessBrowserExtractor.GetPageTitle(ctx, urlStr)
+				if titleErr != nil || title == "" {
+					// Fallback: use URL if title extraction fails
+					title = urlStr
+				}
+
+				// Trim title if too long
+				if len(title) > 100 {
+					title = title[:100]
 				}
 
 				// Generate SHA256 hash of URL for filename
