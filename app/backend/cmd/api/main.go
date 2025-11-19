@@ -82,6 +82,7 @@ func main() {
 	messageRepo := repo.NewTicketMessageRepository(database.DB.DB)
 	projectRepo := repo.NewProjectRepository(database.DB)
 	integrationRepo := repo.NewIntegrationRepository(database.DB)
+	projectIntegrationRepo := repo.NewProjectIntegrationRepository(database.DB)
 	emailRepo := repo.NewEmailRepo(database.DB)
 	apiKeyRepo := repo.NewApiKeyRepository(database.DB)
 	settingsRepo := repo.NewSettingsRepository(database.DB.DB)
@@ -177,6 +178,7 @@ func main() {
 
 	// Integration services
 	integrationService := service.NewIntegrationService(integrationRepo)
+	integrationOAuthService := service.NewIntegrationOAuthService(cfg, redisService, projectIntegrationRepo)
 
 	// Notification service (needs connection manager for WebSocket delivery)
 	notificationService := service.NewNotificationService(notificationRepo, connectionManager)
@@ -230,6 +232,13 @@ func main() {
 	paymentHandler := handlers.NewPaymentHandler(paymentService)
 	aiUsageHandler := handlers.NewAIUsageHandler(aiUsageService, cfg.Server.AiAgentLoginAccessKey)
 
+	// Integration OAuth handler
+	frontendURL := "http://localhost:3000" // Default frontend URL
+	if len(cfg.CORS.AllowedOrigins) > 0 && cfg.CORS.AllowedOrigins[0] != "*" {
+		frontendURL = cfg.CORS.AllowedOrigins[0]
+	}
+	integrationOAuthHandler := handlers.NewIntegrationOAuthHandler(integrationOAuthService, frontendURL)
+
 	// Payment webhook handlers
 	stripeWebhookHandler := handlers.NewStripeWebhookHandler(paymentWebhookRepo, creditsRepo, tenantRepo, cfg.Payment.Stripe.WebhookSecret)
 	cashfreeWebhookHandler := handlers.NewCashfreeWebhookHandler(paymentWebhookRepo, creditsRepo, tenantRepo, cfg.Payment.Cashfree.WebhookSecret)
@@ -245,7 +254,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, aiBuilderHandler, publicAIBuilderHandler, alarmHandler, paymentHandler, aiUsageHandler, stripeWebhookHandler, cashfreeWebhookHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, aiBuilderHandler, publicAIBuilderHandler, alarmHandler, paymentHandler, aiUsageHandler, stripeWebhookHandler, cashfreeWebhookHandler, integrationOAuthHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -290,7 +299,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, aiBuilderHandler *handlers.AIBuilderHandler, publicAIBuilderHandler *handlers.PublicAIBuilderHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, aiUsageHandler *handlers.AIUsageHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, aiBuilderHandler *handlers.AIBuilderHandler, publicAIBuilderHandler *handlers.PublicAIBuilderHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, aiUsageHandler *handlers.AIUsageHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler, integrationOAuthHandler *handlers.IntegrationOAuthHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -330,6 +339,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		// Public URL analysis endpoint
 		publicRoutes.POST("/analyze-url", knowledgeHandler.AnalyzePublicURL)
+
+		// Integration OAuth callback (public, no auth required)
+		publicRoutes.GET("/integrations/slack/callback", integrationOAuthHandler.SlackOAuthCallback)
 	}
 
 	// Public AI widget builder endpoint (with stricter rate limiting: 2 requests per 6 hours per IP)
@@ -539,6 +551,11 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 				// 	webhooks.GET("", integrationHandler.ListWebhookSubscriptions)
 				// 	webhooks.POST("", integrationHandler.CreateWebhookSubscription)
 				// }
+
+				// Project-level integrations (new simplified system)
+				integrations.GET("/project", integrationOAuthHandler.ListProjectIntegrations)
+				integrations.GET("/install/:app_type", integrationOAuthHandler.InstallIntegration)
+				integrations.DELETE("/project/:app_type", integrationOAuthHandler.DeleteProjectIntegration)
 			}
 
 			// Email connectors and mailboxes
