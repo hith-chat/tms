@@ -382,6 +382,21 @@ export function IntegrationsPage() {
   }
 
   const handleInstallIntegration = async (template: IntegrationTemplate) => {
+    // For OAuth integrations, get the OAuth URL and redirect
+    if (template.auth_method === 'oauth') {
+      try {
+        setLoading(true)
+        const response = await apiClient.getIntegrationInstallUrl(template.type)
+        // Redirect to OAuth provider
+        window.location.href = response.oauth_url
+      } catch {
+        setError(`Failed to start ${template.display_name} installation`)
+        setLoading(false)
+      }
+      return
+    }
+
+    // For non-OAuth integrations, show the configuration modal
     setSelectedTemplate(template)
     setShowInstallModal(true)
   }

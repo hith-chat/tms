@@ -70,14 +70,22 @@ func (h *IntegrationOAuthHandler) InstallIntegration(c *gin.Context) {
 	}
 
 	// Get agent ID from context (set by auth middleware)
-	agentID, exists := c.Get("agent_id")
+	var agentUUID uuid.UUID
+	agentIDInterface, exists := c.Get("agent_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "agent_id not found in context"})
 		return
 	}
-	agentUUID, ok := agentID.(uuid.UUID)
+
+	agentIDStr, ok := agentIDInterface.(string)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid agent_id type"})
+		return
+	}
+
+	agentUUID, err = uuid.Parse(agentIDStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid agent_id format"})
 		return
 	}
 
@@ -113,8 +121,8 @@ func (h *IntegrationOAuthHandler) InstallIntegration(c *gin.Context) {
 		return
 	}
 
-	// Redirect to OAuth provider
-	c.Redirect(http.StatusFound, oauthURL)
+	// Return OAuth URL as JSON (frontend will handle redirect)
+	c.JSON(http.StatusOK, gin.H{"oauth_url": oauthURL})
 }
 
 // SlackOAuthCallback handles the Slack OAuth callback

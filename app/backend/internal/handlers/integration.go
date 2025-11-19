@@ -236,7 +236,7 @@ func (h *IntegrationHandler) ListIntegrationCategories(c *gin.Context) {
 					"logo_url":          "https://cdn.brandfetch.io/idSUrLOWbH/theme/dark/symbol.svg",
 					"website_url":       "https://slack.com",
 					"documentation_url": "https://api.slack.com/docs",
-					"auth_method":       "oauth2",
+					"auth_method":       "oauth",
 					"is_featured":       true,
 					"is_active":         true,
 					"sort_order":        1,
@@ -250,7 +250,7 @@ func (h *IntegrationHandler) ListIntegrationCategories(c *gin.Context) {
 					"logo_url":          "https://cdn.brandfetch.io/idS7wJN6pI/theme/dark/symbol.svg",
 					"website_url":       "https://discord.com",
 					"documentation_url": "https://discord.com/developers/docs",
-					"auth_method":       "oauth2",
+					"auth_method":       "oauth",
 					"is_featured":       false,
 					"is_active":         false, // Coming soon
 					"sort_order":        2,
@@ -264,7 +264,7 @@ func (h *IntegrationHandler) ListIntegrationCategories(c *gin.Context) {
 					"logo_url":          "https://cdn.brandfetch.io/idchmboHEZ/theme/dark/symbol.svg",
 					"website_url":       "https://teams.microsoft.com",
 					"documentation_url": "https://docs.microsoft.com/en-us/microsoftteams/",
-					"auth_method":       "oauth2",
+					"auth_method":       "oauth",
 					"is_featured":       false,
 					"is_active":         false, // Coming soon
 					"sort_order":        3,
