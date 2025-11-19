@@ -406,6 +406,38 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
     setScrapingProgress(INITIAL_SCRAPING_STATE)
   }
 
+  // Simplified scraping that directly indexes URLs into knowledge base
+  const scrapeAndIndexURLs = async (url: string, _depth: number) => {
+    if (!projectId) {
+      setError('No project selected')
+      return
+    }
+
+    setScrapingInProgress(true)
+    setError(null)
+
+    try {
+      const result = await apiClient.scrapeURLs([url], false)
+
+      if (result.pages_added > 0) {
+        setSuccessMessage(`Successfully scraped and indexed ${result.pages_added} page(s)`)
+      } else if (result.pages_skipped > 0) {
+        setSuccessMessage(`Page was already indexed recently (${result.pages_skipped} skipped)`)
+      } else {
+        setError('No pages could be scraped from this URL')
+      }
+
+      setTimeout(() => setSuccessMessage(null), 5000)
+      await loadData()
+    } catch (err) {
+      console.error('Scraping error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to scrape URL')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setScrapingInProgress(false)
+    }
+  }
+
   const cancelScrapingStream = () => {
     if (scrapingStreamAbortRef.current) {
       scrapingStreamAbortRef.current.abort()
@@ -694,7 +726,7 @@ export function KnowledgeManagement({ projectId }: KnowledgeManagementProps) {
             maxSelectableLinks={maxSelectableLinks}
             selectedLinkUrls={selectedLinkUrls}
             indexingProgress={indexingProgress}
-            onStartScraping={createScrapingJobWithStream}
+            onStartScraping={scrapeAndIndexURLs}
             onStartLegacyScraping={createScrapingJob}
             onDeleteDocument={deleteDocument}
             onOpenScrapingJobLinks={openScrapingJobLinks}

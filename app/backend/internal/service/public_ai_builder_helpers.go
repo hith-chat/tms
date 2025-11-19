@@ -498,16 +498,16 @@ func (s *PublicAIBuilderService) embedAndStoreTop8(
 		})
 	}
 
-	// STEP 6: Create widget_knowledge_pages mappings
+	// STEP 6: Create project_knowledge_pages mappings
 	s.emit(ctx, events, AIBuilderEvent{
 		Type:    "mapping_in_progress",
 		Stage:   "embedding_storage",
-		Message: "Creating widget-to-page associations...",
+		Message: "Creating project-to-page associations...",
 	})
 
-	err = s.webScrapingService.knowledgeRepo.CreateWidgetKnowledgePageMappings(ctx, widgetID, pageIDs)
+	err = s.webScrapingService.knowledgeRepo.CreateProjectKnowledgePageMappings(ctx, tenantID, projectID, pageIDs)
 	if err != nil {
-		return fmt.Errorf("failed to create widget-page mappings: %w", err)
+		return fmt.Errorf("failed to create project-page mappings: %w", err)
 	}
 
 	logger.GetTxLogger(ctx).Info().

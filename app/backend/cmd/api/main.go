@@ -166,7 +166,7 @@ func main() {
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
 	documentProcessorService := service.NewDocumentProcessorService(knowledgeRepo, embeddingService, "./uploads", cfg.Knowledge.MaxFileSize)
-	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge, redisService.GetClient())
+	webScrapingService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
 	publicURLAnalysisService := service.NewPublicURLAnalysisService(webScrapingService)
 	knowledgeService := service.NewKnowledgeService(knowledgeRepo, embeddingService)
 	aiUsageService := service.NewAIUsageService(creditsRepo)
@@ -617,6 +617,8 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 				// Web scraping
 				knowledge.POST("/scrape", knowledgeHandler.CreateScrapingJob)
 				knowledge.POST("/scrape/stream", knowledgeHandler.CreateScrapingJobWithStream)
+				// Simplified URL scraping (no crawling)
+				knowledge.POST("/scrape-urls", knowledgeHandler.ScrapeURLs)
 				knowledge.GET("/scraping-jobs", knowledgeHandler.ListScrapingJobs)
 				knowledge.GET("/scraping-jobs/:job_id", knowledgeHandler.GetScrapingJob)
 				knowledge.GET("/scraping-jobs/:job_id/pages", knowledgeHandler.GetJobPages)
@@ -624,9 +626,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 				knowledge.POST("/scraping-jobs/:job_id/select-links", knowledgeHandler.SelectScrapingJobLinks)
 				knowledge.GET("/scraping-jobs/:job_id/index/stream", knowledgeHandler.StreamScrapingJobIndex)
 
-				// Widget knowledge pages
-				knowledge.GET("/pages", knowledgeHandler.GetWidgetKnowledgePages)
-				knowledge.DELETE("/pages/:mapping_id", knowledgeHandler.DeleteWidgetKnowledgePageMapping)
+				// Project knowledge pages
+				knowledge.GET("/pages", knowledgeHandler.GetProjectKnowledgePages)
+				knowledge.DELETE("/pages/:mapping_id", knowledgeHandler.DeleteProjectKnowledgePageMapping)
 
 				// Knowledge search
 				knowledge.POST("/search", knowledgeHandler.SearchKnowledgeBase)

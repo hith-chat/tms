@@ -827,9 +827,8 @@ func (r *KnowledgeRepository) CreateScrapedPagesWithTenantID(ctx context.Context
 	return tx.Commit()
 }
 
-// CreateWidgetKnowledgePageMappings creates associations between a widget and knowledge pages
-// Automatically populates tenant_id and project_id from the widget
-func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Context, widgetID uuid.UUID, pageIDs []uuid.UUID) error {
+// CreateProjectKnowledgePageMappings creates associations between a project and knowledge pages
+func (r *KnowledgeRepository) CreateProjectKnowledgePageMappings(ctx context.Context, tenantID, projectID uuid.UUID, pageIDs []uuid.UUID) error {
 	if len(pageIDs) == 0 {
 		return nil
 	}
@@ -841,78 +840,44 @@ func (r *KnowledgeRepository) CreateWidgetKnowledgePageMappings(ctx context.Cont
 	defer tx.Rollback()
 
 	query := `
-		INSERT INTO widget_knowledge_pages (widget_id, page_id, tenant_id, project_id)
-		SELECT $1, $2, cw.tenant_id, cw.project_id
-		FROM chat_widgets cw
-		WHERE cw.id = $1
-		ON CONFLICT (widget_id, page_id) DO NOTHING`
+		INSERT INTO project_knowledge_pages (page_id, tenant_id, project_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (project_id, page_id) DO NOTHING`
 
 	for _, pageID := range pageIDs {
-		_, err := tx.ExecContext(ctx, query, widgetID, pageID)
+		_, err := tx.ExecContext(ctx, query, pageID, tenantID, projectID)
 		if err != nil {
-			return fmt.Errorf("failed to create widget-page mapping: %w", err)
+			return fmt.Errorf("failed to create project-page mapping: %w", err)
 		}
 	}
 
 	return tx.Commit()
 }
 
-// GetWidgetKnowledgePages retrieves all knowledge pages associated with a widget
-func (r *KnowledgeRepository) GetWidgetKnowledgePages(ctx context.Context, widgetID uuid.UUID) ([]*models.KnowledgeScrapedPage, error) {
-	query := `
-		SELECT ksp.*
-		FROM knowledge_scraped_pages ksp
-		JOIN widget_knowledge_pages wkp ON ksp.id = wkp.page_id
-		WHERE wkp.widget_id = $1
-		ORDER BY wkp.created_at DESC`
-
-	var pages []*models.KnowledgeScrapedPage
-	err := r.db.SelectContext(ctx, &pages, query, widgetID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return []*models.KnowledgeScrapedPage{}, nil
-		}
-		return nil, err
-	}
-
-	return pages, nil
-}
-
-// GetWidgetKnowledgePagesByProject retrieves all knowledge pages associated with widgets in a project
-// If widgetID is provided, filters to only that widget
-func (r *KnowledgeRepository) GetWidgetKnowledgePagesByProject(ctx context.Context, projectID uuid.UUID, widgetID *uuid.UUID) ([]*models.WidgetKnowledgePageWithDetails, error) {
+// GetProjectKnowledgePages retrieves all knowledge pages associated with a project
+func (r *KnowledgeRepository) GetProjectKnowledgePages(ctx context.Context, projectID uuid.UUID) ([]*models.ProjectKnowledgePageWithDetails, error) {
 	query := `
 		SELECT
-			wkp.id,
-			wkp.widget_id,
-			wkp.page_id,
-			wkp.tenant_id,
-			wkp.project_id,
-			wkp.created_at,
+			pkp.id,
+			pkp.page_id,
+			pkp.tenant_id,
+			pkp.project_id,
+			pkp.created_at,
 			ksp.url,
 			ksp.title,
 			ksp.token_count,
 			ksp.scraped_at,
 			ksp.job_id
-		FROM widget_knowledge_pages wkp
-		JOIN knowledge_scraped_pages ksp ON wkp.page_id = ksp.id
-		WHERE wkp.project_id = $1`
+		FROM project_knowledge_pages pkp
+		JOIN knowledge_scraped_pages ksp ON pkp.page_id = ksp.id
+		WHERE pkp.project_id = $1
+		ORDER BY pkp.created_at DESC`
 
-	var params []any
-	params = append(params, projectID)
-
-	if widgetID != nil {
-		query += ` AND wkp.widget_id = $2`
-		params = append(params, *widgetID)
-	}
-
-	query += ` ORDER BY wkp.created_at DESC`
-
-	var pages []*models.WidgetKnowledgePageWithDetails
-	err := r.db.SelectContext(ctx, &pages, query, params...)
+	var pages []*models.ProjectKnowledgePageWithDetails
+	err := r.db.SelectContext(ctx, &pages, query, projectID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return []*models.WidgetKnowledgePageWithDetails{}, nil
+			return []*models.ProjectKnowledgePageWithDetails{}, nil
 		}
 		return nil, err
 	}
@@ -920,9 +885,9 @@ func (r *KnowledgeRepository) GetWidgetKnowledgePagesByProject(ctx context.Conte
 	return pages, nil
 }
 
-// DeleteWidgetKnowledgePageMapping removes the association between a widget and a knowledge page
-func (r *KnowledgeRepository) DeleteWidgetKnowledgePageMapping(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM widget_knowledge_pages WHERE id = $1`
+// DeleteProjectKnowledgePageMapping removes the association between a project and a knowledge page
+func (r *KnowledgeRepository) DeleteProjectKnowledgePageMapping(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM project_knowledge_pages WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
@@ -952,7 +917,7 @@ func (r *KnowledgeRepository) UpdatePageContentAndEmbedding(ctx context.Context,
 // Returns all pages with the given URL (should be 0 or 1 due to unique constraint)
 func (r *KnowledgeRepository) GetExistingPagesByURL(ctx context.Context, normalizedURL string) ([]*models.KnowledgeScrapedPage, error) {
 	query := `
-		SELECT id, job_id, tenant_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
+		SELECT id, job_id, url, title, content, content_hash, token_count, embedding, metadata, scraped_at
 		FROM knowledge_scraped_pages
 		WHERE url = $1
 		ORDER BY scraped_at DESC

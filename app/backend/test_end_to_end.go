@@ -36,8 +36,7 @@ func main() {
 	// Create repositories and services
 	knowledgeRepo := repo.NewKnowledgeRepository(database.DB)
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
-	// Pass nil for redis client in this test harness (no Redis required here)
-	webScraperService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge, nil)
+	webScraperService := service.NewWebScrapingService(knowledgeRepo, embeddingService, &cfg.Knowledge)
 
 	// Use existing test tenant and project IDs
 	tenantID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")

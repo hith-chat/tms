@@ -1,3 +1,4 @@
+import { Loader } from 'lucide-react'
 import { KnowledgeDocument, KnowledgeScrapingJob, KnowledgeFAQItem, ScrapedLinkPreview } from '../../lib/api'
 import { WebScrapingSection } from './WebScrapingSection'
 import { ScrapingProgressSection } from './ScrapingProgressSection'
@@ -63,6 +64,21 @@ export function KnowledgeBaseTab(props: KnowledgeBaseTabProps) {
       {/* Scraping Progress Section */}
       {props.scrapingProgress.status !== 'idle' && (
         <ScrapingProgressSection scrapingProgress={props.scrapingProgress} />
+      )}
+
+      {/* Simple Scraping Loading Indicator */}
+      {props.scrapingInProgress && props.scrapingProgress.status === 'idle' && (
+        <div className="border rounded-lg p-6 bg-card">
+          <div className="flex items-center space-x-3">
+            <Loader className="h-5 w-5 animate-spin text-primary" />
+            <div>
+              <h3 className="font-medium text-foreground">Scraping in Progress</h3>
+              <p className="text-sm text-muted-foreground">
+                Fetching and indexing content from URL...
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Web Scraping Section */}

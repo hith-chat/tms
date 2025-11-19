@@ -238,9 +238,8 @@ export interface KnowledgeFAQItem {
   updated_at: string
 }
 
-export interface WidgetKnowledgePage {
+export interface ProjectKnowledgePage {
   id: string
-  widget_id: string
   page_id: string
   tenant_id: string
   project_id: string
@@ -250,6 +249,24 @@ export interface WidgetKnowledgePage {
   scraped_at: string
   created_at: string
   job_id?: string
+}
+
+// Keep alias for backwards compatibility
+export type WidgetKnowledgePage = ProjectKnowledgePage
+
+export interface ScrapeURLsRequest {
+  urls: string[]
+  force_refresh?: boolean
+}
+
+export interface ScrapeURLsResponse {
+  job_id: string
+  status: string
+  total_urls: number
+  pages_added: number
+  pages_skipped: number
+  pages_failed: number
+  message: string
 }
 
 export interface ScrapingJobLinksResponse {
@@ -1435,17 +1452,33 @@ class APIClient {
     return response.data.items || []
   }
 
-  async getWidgetKnowledgePages(_projectId: string, widgetId?: string): Promise<WidgetKnowledgePage[]> {
-    const params = widgetId ? { widget_id: widgetId } : {}
-    const response: AxiosResponse<{ pages: WidgetKnowledgePage[] }> = await this.client.get(
-      `/knowledge/pages`,
-      { params }
+  async getProjectKnowledgePages(_projectId: string): Promise<ProjectKnowledgePage[]> {
+    const response: AxiosResponse<{ pages: ProjectKnowledgePage[] }> = await this.client.get(
+      `/knowledge/pages`
     )
     return response.data.pages || []
   }
 
-  async deleteWidgetKnowledgePageMapping(mappingId: string): Promise<void> {
+  // Alias for backwards compatibility
+  async getWidgetKnowledgePages(_projectId: string, _widgetId?: string): Promise<WidgetKnowledgePage[]> {
+    return this.getProjectKnowledgePages(_projectId)
+  }
+
+  async deleteProjectKnowledgePageMapping(mappingId: string): Promise<void> {
     await this.client.delete(`/knowledge/pages/${mappingId}`)
+  }
+
+  // Alias for backwards compatibility
+  async deleteWidgetKnowledgePageMapping(mappingId: string): Promise<void> {
+    return this.deleteProjectKnowledgePageMapping(mappingId)
+  }
+
+  async scrapeURLs(urls: string[], forceRefresh: boolean = false): Promise<ScrapeURLsResponse> {
+    const response: AxiosResponse<ScrapeURLsResponse> = await this.client.post(
+      `/knowledge/scrape-urls`,
+      { urls, force_refresh: forceRefresh }
+    )
+    return response.data
   }
 
   async getScrapingJobLinks(jobId: string): Promise<ScrapingJobLinksResponse> {

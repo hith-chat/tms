@@ -228,20 +228,20 @@ func (s *KnowledgeService) ListFAQItems(ctx context.Context, tenantID, projectID
 	return items, nil
 }
 
-// GetWidgetKnowledgePagesByProject retrieves all knowledge pages associated with widgets in a project
-func (s *KnowledgeService) GetWidgetKnowledgePagesByProject(ctx context.Context, projectID uuid.UUID, widgetID *uuid.UUID) ([]*models.WidgetKnowledgePageWithDetails, error) {
-	pages, err := s.knowledgeRepo.GetWidgetKnowledgePagesByProject(ctx, projectID, widgetID)
+// GetProjectKnowledgePages retrieves all knowledge pages associated with a project
+func (s *KnowledgeService) GetProjectKnowledgePages(ctx context.Context, projectID uuid.UUID) ([]*models.ProjectKnowledgePageWithDetails, error) {
+	pages, err := s.knowledgeRepo.GetProjectKnowledgePages(ctx, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get widget knowledge pages: %w", err)
+		return nil, fmt.Errorf("failed to get project knowledge pages: %w", err)
 	}
 	return pages, nil
 }
 
-// DeleteWidgetKnowledgePageMapping removes the association between a widget and a knowledge page
-func (s *KnowledgeService) DeleteWidgetKnowledgePageMapping(ctx context.Context, mappingID uuid.UUID) error {
-	err := s.knowledgeRepo.DeleteWidgetKnowledgePageMapping(ctx, mappingID)
+// DeleteProjectKnowledgePageMapping removes the association between a project and a knowledge page
+func (s *KnowledgeService) DeleteProjectKnowledgePageMapping(ctx context.Context, mappingID uuid.UUID) error {
+	err := s.knowledgeRepo.DeleteProjectKnowledgePageMapping(ctx, mappingID)
 	if err != nil {
-		return fmt.Errorf("failed to delete widget knowledge page mapping: %w", err)
+		return fmt.Errorf("failed to delete project knowledge page mapping: %w", err)
 	}
 	return nil
 }

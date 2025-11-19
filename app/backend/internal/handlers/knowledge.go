@@ -713,36 +713,24 @@ func toJSON(v interface{}) string {
 	return string(data)
 }
 
-// GetWidgetKnowledgePages retrieves all knowledge pages associated with widgets in a project
-// @Summary Get widget knowledge pages
-// @Description Retrieve all knowledge pages associated with widgets in a project (optionally filtered by widget_id)
+// GetProjectKnowledgePages retrieves all knowledge pages associated with a project
+// @Summary Get project knowledge pages
+// @Description Retrieve all knowledge pages associated with a project
 // @Tags knowledge
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param tenant_id path string true "Tenant ID"
 // @Param project_id path string true "Project ID"
-// @Param widget_id query string false "Widget ID (optional filter)"
-// @Success 200 {object} object{pages=[]models.WidgetKnowledgePageWithDetails}
+// @Success 200 {object} object{pages=[]models.ProjectKnowledgePageWithDetails}
 // @Failure 400 {object} models.ErrorResponse
 // @Failure 401 {object} models.ErrorResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /v1/tenants/{tenant_id}/projects/{project_id}/knowledge/pages [get]
-func (h *KnowledgeHandler) GetWidgetKnowledgePages(c *gin.Context) {
+func (h *KnowledgeHandler) GetProjectKnowledgePages(c *gin.Context) {
 	projectID := middleware.GetProjectID(c)
 
-	// Optional widget_id filter
-	var widgetID *uuid.UUID
-	if widgetIDStr := c.Query("widget_id"); widgetIDStr != "" {
-		parsed, err := uuid.Parse(widgetIDStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid widget_id"})
-			return
-		}
-		widgetID = &parsed
-	}
-
-	pages, err := h.knowledgeService.GetWidgetKnowledgePagesByProject(c.Request.Context(), projectID, widgetID)
+	pages, err := h.knowledgeService.GetProjectKnowledgePages(c.Request.Context(), projectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve knowledge pages"})
 		return
@@ -754,9 +742,9 @@ func (h *KnowledgeHandler) GetWidgetKnowledgePages(c *gin.Context) {
 	})
 }
 
-// DeleteWidgetKnowledgePageMapping removes a widget-page association
-// @Summary Delete widget knowledge page mapping
-// @Description Remove the association between a widget and a knowledge page (does not delete the page itself)
+// DeleteProjectKnowledgePageMapping removes a project-page association
+// @Summary Delete project knowledge page mapping
+// @Description Remove the association between a project and a knowledge page (does not delete the page itself)
 // @Tags knowledge
 // @Accept json
 // @Produce json
@@ -769,7 +757,7 @@ func (h *KnowledgeHandler) GetWidgetKnowledgePages(c *gin.Context) {
 // @Failure 401 {object} models.ErrorResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /v1/tenants/{tenant_id}/projects/{project_id}/knowledge/pages/{mapping_id} [delete]
-func (h *KnowledgeHandler) DeleteWidgetKnowledgePageMapping(c *gin.Context) {
+func (h *KnowledgeHandler) DeleteProjectKnowledgePageMapping(c *gin.Context) {
 	mappingIDStr := c.Param("mapping_id")
 	mappingID, err := uuid.Parse(mappingIDStr)
 	if err != nil {
@@ -777,11 +765,63 @@ func (h *KnowledgeHandler) DeleteWidgetKnowledgePageMapping(c *gin.Context) {
 		return
 	}
 
-	err = h.knowledgeService.DeleteWidgetKnowledgePageMapping(c.Request.Context(), mappingID)
+	err = h.knowledgeService.DeleteProjectKnowledgePageMapping(c.Request.Context(), mappingID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete mapping"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Mapping deleted successfully"})
+}
+
+// ScrapeURLs handles simplified URL scraping - scrapes exact URLs without crawling
+// @Summary Scrape multiple URLs
+// @Description Scrape provided URLs directly without crawling. Skips URLs scraped within last week unless force_refresh is true.
+// @Tags knowledge
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tenant_id path string true "Tenant ID"
+// @Param project_id path string true "Project ID"
+// @Param request body models.ScrapeURLsRequest true "URLs to scrape"
+// @Success 200 {object} object{job_id=string,status=string,total_urls=int,pages_added=int,pages_skipped=int,pages_failed=int}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /v1/tenants/{tenant_id}/projects/{project_id}/knowledge/scrape-urls [post]
+func (h *KnowledgeHandler) ScrapeURLs(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	projectID := middleware.GetProjectID(c)
+
+	var req models.ScrapeURLsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	if len(req.URLs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one URL is required"})
+		return
+	}
+
+	if len(req.URLs) > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum 50 URLs allowed per request"})
+		return
+	}
+
+	result, err := h.webScraper.ScrapeURLs(c.Request.Context(), tenantID, projectID, req.URLs, req.ForceRefresh)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scrape URLs", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"job_id":        result.JobID,
+		"status":        "completed",
+		"total_urls":    result.TotalURLs,
+		"pages_added":   result.PagesAdded,
+		"pages_skipped": result.PagesSkipped,
+		"pages_failed":  result.PagesFailed,
+		"message":       fmt.Sprintf("Scraped %d URLs: %d added, %d skipped, %d failed", result.TotalURLs, result.PagesAdded, result.PagesSkipped, result.PagesFailed),
+	})
 }

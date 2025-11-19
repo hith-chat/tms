@@ -85,10 +85,9 @@ type KnowledgeScrapedPage struct {
 	Metadata    JSONMap          `db:"metadata" json:"metadata"`
 }
 
-// WidgetKnowledgePage represents the association between a widget and a knowledge page
-type WidgetKnowledgePage struct {
+// ProjectKnowledgePage represents the association between a project and a knowledge page
+type ProjectKnowledgePage struct {
 	ID        uuid.UUID `db:"id" json:"id"`
-	WidgetID  uuid.UUID `db:"widget_id" json:"widget_id"`
 	PageID    uuid.UUID `db:"page_id" json:"page_id"`
 	TenantID  uuid.UUID `db:"tenant_id" json:"tenant_id"`
 	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
@@ -96,19 +95,18 @@ type WidgetKnowledgePage struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// WidgetKnowledgePageWithDetails represents a widget knowledge page with page details
-type WidgetKnowledgePageWithDetails struct {
-	ID        uuid.UUID  `db:"id" json:"id"`
-	WidgetID  uuid.UUID  `db:"widget_id" json:"widget_id"`
-	PageID    uuid.UUID  `db:"page_id" json:"page_id"`
-	TenantID  uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	ProjectID uuid.UUID  `db:"project_id" json:"project_id"`
-	URL       string     `db:"url" json:"url"`
-	Title     *string    `db:"title" json:"title,omitempty"`
-	TokenCount int       `db:"token_count" json:"token_count"`
-	ScrapedAt time.Time  `db:"scraped_at" json:"scraped_at"`
-	CreatedAt time.Time  `db:"created_at" json:"created_at"`
-	JobID     *uuid.UUID `db:"job_id" json:"job_id,omitempty"`
+// ProjectKnowledgePageWithDetails represents a project knowledge page with page details
+type ProjectKnowledgePageWithDetails struct {
+	ID         uuid.UUID  `db:"id" json:"id"`
+	PageID     uuid.UUID  `db:"page_id" json:"page_id"`
+	TenantID   uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	ProjectID  uuid.UUID  `db:"project_id" json:"project_id"`
+	URL        string     `db:"url" json:"url"`
+	Title      *string    `db:"title" json:"title,omitempty"`
+	TokenCount int        `db:"token_count" json:"token_count"`
+	ScrapedAt  time.Time  `db:"scraped_at" json:"scraped_at"`
+	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
+	JobID      *uuid.UUID `db:"job_id" json:"job_id,omitempty"`
 }
 
 // KnowledgeSettings represents knowledge base settings for a project
@@ -138,6 +136,20 @@ type UploadDocumentRequest struct {
 type CreateScrapingJobRequest struct {
 	URL      string `json:"url" binding:"required,url"`
 	MaxDepth int    `json:"max_depth" binding:"min=1,max=5"`
+}
+
+// ScrapeURLsRequest represents a simplified request to scrape multiple URLs directly
+type ScrapeURLsRequest struct {
+	URLs         []string `json:"urls" binding:"required,min=1,max=50,dive,url"`
+	ForceRefresh bool     `json:"force_refresh"` // If true, re-scrape even if < 1 week old
+}
+
+// ScrapeURLsResponse represents the response for the simplified scraping endpoint
+type ScrapeURLsResponse struct {
+	JobID     uuid.UUID `json:"job_id"`
+	Status    string    `json:"status"`
+	TotalURLs int       `json:"total_urls"`
+	Message   string    `json:"message"`
 }
 
 // SelectScrapingLinksRequest captures user-selected URLs for indexing

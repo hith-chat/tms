@@ -1,16 +1,12 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +14,6 @@ import (
 	"github.com/gocolly/colly/v2"
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/bareuptime/tms/internal/config"
 	"github.com/bareuptime/tms/internal/logger"
@@ -30,7 +25,6 @@ type WebScrapingService struct {
 	knowledgeRepo            *repo.KnowledgeRepository
 	embeddingService         *EmbeddingService
 	config                   *config.KnowledgeConfig
-	redisClient              redis.UniversalClient
 	headlessBrowserExtractor *HeadlessBrowserURLExtractor
 }
 
@@ -47,16 +41,6 @@ type discoveredLink struct {
 	Title      string `json:"title,omitempty"`
 	Depth      int    `json:"depth"`
 	TokenCount int    `json:"token_count"`
-}
-
-// URLExtractionRequest represents the request payload for yourgpt.ai URL extraction API
-type URLExtractionRequest struct {
-	URL string `json:"url"`
-}
-
-// URLExtractionResponse represents the response from yourgpt.ai URL extraction API
-type URLExtractionResponse struct {
-	URLs []string `json:"urls"`
 }
 
 type linkDiscoveryResult struct {
@@ -107,7 +91,7 @@ type URLExtractionEvent struct {
 	DepthMetrics *DepthMetrics     `json:"depth_metrics,omitempty"` // Per-depth metrics
 }
 
-func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig, redisClient redis.UniversalClient) *WebScrapingService {
+func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingService *EmbeddingService, cfg *config.KnowledgeConfig) *WebScrapingService {
 	// Initialize headless browser extractor with 30 second timeout
 	headlessExtractor := NewHeadlessBrowserURLExtractor(30*time.Second, "")
 
@@ -115,7 +99,6 @@ func NewWebScrapingService(knowledgeRepo *repo.KnowledgeRepository, embeddingSer
 		knowledgeRepo:            knowledgeRepo,
 		embeddingService:         embeddingService,
 		config:                   cfg,
-		redisClient:              redisClient,
 		headlessBrowserExtractor: headlessExtractor,
 	}
 }
@@ -239,104 +222,9 @@ func (s *WebScrapingService) validateURL(rawURL string) error {
 	return nil
 }
 
-// extractURLsFromAPI attempts to extract URLs using yourgpt.ai API
-func (s *WebScrapingService) extractURLsFromAPI(ctx context.Context, targetURL string) ([]string, error) {
-	requestPayload := URLExtractionRequest{URL: targetURL}
-	jsonData, err := json.Marshal(requestPayload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://yourgpt.ai/api/extractUrls", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers as provided in the curl command
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
-	req.Header.Set("Origin", "https://yourgpt.ai")
-	req.Header.Set("Referer", "https://yourgpt.ai/tools/url-extractor")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var response URLExtractionResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return response.URLs, nil
-}
-
-// extractURLsManually extracts URLs using multiple fallback strategies
-// Priority order: 1. Playwright (headless browser), 2. YourGPT API, 3. Comprehensive (Colly)
+// extractURLsManually extracts URLs using Colly-based comprehensive extraction
 func (s *WebScrapingService) extractURLsManually(ctx context.Context, targetURL string, maxDepth int) ([]discoveredLink, error) {
-	logger.InfofCtx(ctx, "Starting URL extraction - target: %s, max_depth: %d", targetURL, maxDepth)
-
-	// Step 1: Try Playwright headless browser extraction first
-	// logger.DebugCtx(ctx, "Step 1: Attempting Playwright headless browser extraction")
-	// headlessLinks, err := s.extractURLsWithHeadlessBrowser(ctx, targetURL, maxDepth)
-
-	// logger.InfofCtx(ctx, "Playwright headless browser found %d links", len(headlessLinks))
-
-	// if err == nil && len(headlessLinks) > 0 {
-	// 	logger.InfofCtx(ctx, "Playwright extraction successful - found %d links", len(headlessLinks))
-	// 	return headlessLinks, nil
-	// }
-
-	// // Log Playwright failure reason
-	// if err != nil {
-	// 	if strings.Contains(err.Error(), "please install the driver") {
-	// 		logger.WarnCtx(ctx, "Playwright not installed, trying next method")
-	// 	} else {
-	// 		logger.WarnfCtx(ctx, "Playwright extraction failed: %v - trying next method", err)
-	// 	}
-	// }
-
-	// Step 2: Try YourGPT API extraction as second fallback
-	logger.InfoCtx(ctx, "Step 2: Attempting YourGPT API extraction")
-	apiURLs, apiErr := s.extractURLsFromAPI(ctx, targetURL)
-
-	if apiErr == nil && len(apiURLs) > 0 {
-		logger.InfofCtx(ctx, "YourGPT API extraction successful - found %d URLs", len(apiURLs))
-
-		// Convert API URLs to discoveredLink format
-		var apiLinks []discoveredLink
-		for _, urlStr := range apiURLs {
-			apiLinks = append(apiLinks, discoveredLink{
-				URL:        urlStr,
-				Title:      "",
-				Depth:      0,
-				TokenCount: 0, // Will be estimated later if needed
-			})
-		}
-
-		return apiLinks, nil
-	}
-
-	if apiErr != nil {
-		logger.WarnfCtx(ctx, "YourGPT API extraction failed: %v - trying final fallback", apiErr)
-	}
-
-	// Step 3: Final fallback to comprehensive extraction (Colly)
-	logger.InfoCtx(ctx, "Step 3: Falling back to comprehensive extraction (Colly)")
+	logger.InfofCtx(ctx, "Starting URL extraction with Colly - target: %s, max_depth: %d", targetURL, maxDepth)
 	return s.extractURLsComprehensively(ctx, targetURL, maxDepth)
 }
 
@@ -489,6 +377,8 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 		Delay:       s.config.ScrapeRateLimit,
 	})
 	c.AllowURLRevisit = false
+	// Don't return error on bad status codes - we'll handle them in OnError
+	c.IgnoreRobotsTxt = true
 
 	var discoveredLinks []discoveredLink
 	visitedURLs := map[string]bool{targetURL: true}
@@ -550,22 +440,43 @@ func (s *WebScrapingService) extractURLsComprehensively(ctx context.Context, tar
 		}
 	})
 
-	// Error logging
+	// Track if we successfully scraped at least something
+	var initialError error
+
+	// Error logging - but don't fail the whole crawl for individual page errors
 	c.OnError(func(r *colly.Response, err error) {
-		logger.GetTxLogger(ctx).Error().
+		// If this is the initial URL, record the error
+		if r.Request.URL.String() == targetURL && len(discoveredLinks) == 0 {
+			initialError = err
+		}
+		logger.GetTxLogger(ctx).Warn().
 			Str("component", "web_scraper").
 			Str("operation", "colly_error").
 			Str("url", r.Request.URL.String()).
+			Int("status_code", r.StatusCode).
 			Err(err).
 			Msg("Error visiting URL during comprehensive extraction")
 	})
 
 	// Start crawl
 	if err := c.Visit(targetURL); err != nil {
-		return nil, fmt.Errorf("failed to start comprehensive crawl: %w", err)
+		// Log but continue - the OnError callback will capture details
+		logger.GetTxLogger(ctx).Warn().
+			Str("url", targetURL).
+			Err(err).
+			Msg("Initial visit returned error, checking if we got any content")
 	}
 
 	c.Wait()
+
+	// If we got no links and had an initial error, report it
+	if len(discoveredLinks) == 0 && initialError != nil {
+		return nil, fmt.Errorf("failed to scrape URL: %w", initialError)
+	}
+	if len(discoveredLinks) == 0 {
+		return nil, fmt.Errorf("no content could be extracted from URL: %s", targetURL)
+	}
+
 	return discoveredLinks, nil
 }
 
@@ -666,26 +577,25 @@ func (s *WebScrapingService) startScrapingJobWithStreamAndBrowser(ctx context.Co
 		return
 	}
 
-	// Store discovered links in Redis
-	redisKey, persistErr := s.storeDiscoveredLinksInRedis(ctx, job, discoveredLinks)
-	if persistErr != nil {
-		runErr = fmt.Errorf("failed to store discovered links: %w", persistErr)
+	// Mark job as completed with link count (two-phase workflow deprecated - use ScrapeURLs endpoint instead)
+	if err := s.knowledgeRepo.UpdateScrapingJobProgress(job.ID, totalLinks, 0); err != nil {
+		runErr = fmt.Errorf("failed to update job progress: %w", err)
 		return
 	}
 
-	if err := s.knowledgeRepo.MarkJobAwaitingSelection(job.ID, totalLinks, redisKey); err != nil {
-		runErr = fmt.Errorf("failed to mark job awaiting selection: %w", err)
+	if err := s.knowledgeRepo.UpdateScrapingJobStatus(job.ID, "completed", nil); err != nil {
+		runErr = fmt.Errorf("failed to mark job completed: %w", err)
 		return
 	}
 
 	s.sendScrapingEvent(ctx, events, ScrapingEvent{
 		Type:       "completed",
 		JobID:      job.ID,
-		Message:    fmt.Sprintf("Link discovery completed! Found %d links. Ready for review.", totalLinks),
+		Message:    fmt.Sprintf("Link discovery completed! Found %d links.", totalLinks),
 		LinksFound: totalLinks,
 		Timestamp:  time.Now(),
 	})
-	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d, redis_key: %s", job.ID.String(), totalLinks, redisKey)
+	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d", job.ID.String(), totalLinks)
 	runErr = nil
 }
 
@@ -729,83 +639,32 @@ func (s *WebScrapingService) startScrapingJobWithStream(ctx context.Context, job
 		Timestamp: time.Now(),
 	})
 
-	var discoveredLinks []discoveredLink
-
-	// Try API-based URL extraction first
+	// Use Colly-based extraction
 	s.sendScrapingEvent(ctx, events, ScrapingEvent{
 		Type:      "info",
 		JobID:     job.ID,
-		Message:   "Attempting API-based URL extraction...",
+		Message:   "Starting URL discovery with Colly...",
 		URL:       job.URL,
 		Timestamp: time.Now(),
 	})
 
-	apiURLs, apiErr := s.extractURLsFromAPI(ctx, job.URL)
-	if apiErr == nil && len(apiURLs) > 0 {
+	discoveredLinks, extractErr := s.extractURLsManually(ctx, job.URL, job.MaxDepth)
+	if extractErr != nil {
+		runErr = fmt.Errorf("URL extraction failed: %v", extractErr)
+		return
+	}
+
+	for _, link := range discoveredLinks {
 		s.sendScrapingEvent(ctx, events, ScrapingEvent{
-			Type:       "info",
-			JobID:      job.ID,
-			Message:    fmt.Sprintf("API extracted %d URLs successfully", len(apiURLs)),
-			URL:        job.URL,
-			LinksFound: len(apiURLs),
-			Timestamp:  time.Now(),
+			Type:         "link_found",
+			JobID:        job.ID,
+			Message:      fmt.Sprintf("Found link: %s", link.Title),
+			URL:          link.URL,
+			CurrentDepth: link.Depth,
+			MaxDepth:     job.MaxDepth,
+			LinksFound:   len(discoveredLinks),
+			Timestamp:    time.Now(),
 		})
-
-		// Convert API URLs to discoveredLink format
-		for i, url := range apiURLs {
-			if i >= 100 { // Limit to avoid overwhelming
-				break
-			}
-			if err := s.validateURL(url); err != nil {
-				continue // Skip invalid URLs
-			}
-
-			link := discoveredLink{
-				URL:        url,
-				Title:      "", // Will be fetched during indexing
-				Depth:      0,  // API URLs are at depth 0
-				TokenCount: 0,  // Set to 0 as requested for API-extracted URLs
-			}
-			discoveredLinks = append(discoveredLinks, link)
-
-			s.sendScrapingEvent(ctx, events, ScrapingEvent{
-				Type:       "link_found",
-				JobID:      job.ID,
-				Message:    fmt.Sprintf("Found URL from API: %s", url),
-				URL:        url,
-				LinksFound: len(discoveredLinks),
-				Timestamp:  time.Now(),
-			})
-		}
-	} else {
-		// Fallback to manual extraction
-		s.sendScrapingEvent(ctx, events, ScrapingEvent{
-			Type:      "warning",
-			JobID:     job.ID,
-			Message:   fmt.Sprintf("API extraction failed (%v), falling back to manual discovery...", apiErr),
-			URL:       job.URL,
-			Timestamp: time.Now(),
-		})
-
-		manualLinks, manualErr := s.extractURLsManually(ctx, job.URL, job.MaxDepth)
-		if manualErr != nil {
-			runErr = fmt.Errorf("both API and manual URL extraction failed: API error: %v, Manual error: %v", apiErr, manualErr)
-			return
-		}
-
-		discoveredLinks = manualLinks
-		for _, link := range discoveredLinks {
-			s.sendScrapingEvent(ctx, events, ScrapingEvent{
-				Type:         "link_found",
-				JobID:        job.ID,
-				Message:      fmt.Sprintf("Found link: %s", link.Title),
-				URL:          link.URL,
-				CurrentDepth: link.Depth,
-				MaxDepth:     job.MaxDepth,
-				LinksFound:   len(discoveredLinks),
-				Timestamp:    time.Now(),
-			})
-		}
 	}
 
 	totalLinks := len(discoveredLinks)
@@ -814,26 +673,25 @@ func (s *WebScrapingService) startScrapingJobWithStream(ctx context.Context, job
 		return
 	}
 
-	// Store discovered links in Redis with 2-hour expiry
-	redisKey, persistErr := s.storeDiscoveredLinksInRedis(ctx, job, discoveredLinks)
-	if persistErr != nil {
-		runErr = fmt.Errorf("failed to store discovered links: %w", persistErr)
+	// Mark job as completed with link count (two-phase workflow deprecated - use ScrapeURLs endpoint instead)
+	if err := s.knowledgeRepo.UpdateScrapingJobProgress(job.ID, totalLinks, 0); err != nil {
+		runErr = fmt.Errorf("failed to update job progress: %w", err)
 		return
 	}
 
-	if err := s.knowledgeRepo.MarkJobAwaitingSelection(job.ID, totalLinks, redisKey); err != nil {
-		runErr = fmt.Errorf("failed to mark job awaiting selection: %w", err)
+	if err := s.knowledgeRepo.UpdateScrapingJobStatus(job.ID, "completed", nil); err != nil {
+		runErr = fmt.Errorf("failed to mark job completed: %w", err)
 		return
 	}
 
 	s.sendScrapingEvent(ctx, events, ScrapingEvent{
 		Type:       "completed",
 		JobID:      job.ID,
-		Message:    fmt.Sprintf("Link discovery completed! Found %d links. Ready for review.", totalLinks),
+		Message:    fmt.Sprintf("Link discovery completed! Found %d links.", totalLinks),
 		LinksFound: totalLinks,
 		Timestamp:  time.Now(),
 	})
-	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d, redis_key: %s", job.ID.String(), totalLinks, redisKey)
+	logger.InfofCtx(ctx, "Scraping job completed - jobID: %s, total_links: %d", job.ID.String(), totalLinks)
 	runErr = nil
 }
 
@@ -850,46 +708,6 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 	s.startScrapingJobWithStream(ctx, job, events)
 }
 
-func (s *WebScrapingService) storeDiscoveredLinksInRedis(ctx context.Context, job *models.KnowledgeScrapingJob, links []discoveredLink) (string, error) {
-	result := linkDiscoveryResult{
-		JobID:       job.ID,
-		RootURL:     job.URL,
-		MaxDepth:    job.MaxDepth,
-		GeneratedAt: time.Now(),
-		Links:       links,
-	}
-
-	data, err := json.Marshal(result)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize discovered links: %w", err)
-	}
-
-	redisKey := fmt.Sprintf("scraping:links:%s", job.ID)
-	// Store in Redis with 2 hours expiration (short-lived)
-	err = s.redisClient.Set(ctx, redisKey, data, 2*time.Hour).Err()
-	if err != nil {
-		return "", fmt.Errorf("failed to store discovered links in Redis: %w", err)
-	}
-
-	return redisKey, nil
-}
-
-func (s *WebScrapingService) loadDiscoveredLinksFromRedis(ctx context.Context, redisKey string) (*linkDiscoveryResult, error) {
-	data, err := s.redisClient.Get(ctx, redisKey).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return nil, fmt.Errorf("discovered links not found or expired")
-		}
-		return nil, fmt.Errorf("failed to read discovered links from Redis: %w", err)
-	}
-
-	var result linkDiscoveryResult
-	if err := json.Unmarshal([]byte(data), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse discovered links: %w", err)
-	}
-
-	return &result, nil
-}
 
 func (s *WebScrapingService) sendIndexingEvent(ctx context.Context, ch chan<- IndexingEvent, event IndexingEvent) {
 	select {
@@ -910,118 +728,17 @@ func (s *WebScrapingService) sendScrapingEvent(ctx context.Context, ch chan<- Sc
 }
 
 // GetStagedLinks returns the discovered links awaiting user confirmation
+// DEPRECATED: The two-phase workflow (discover -> select -> index) is no longer supported.
+// Use the ScrapeURLs endpoint to directly scrape and index URLs.
 func (s *WebScrapingService) GetStagedLinks(ctx context.Context, jobID, tenantID, projectID uuid.UUID) ([]*models.ScrapedLinkPreview, error) {
-	job, err := s.knowledgeRepo.GetScrapingJob(jobID, tenantID, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load scraping job: %w", err)
-	}
-
-	if job.Status != "awaiting_selection" {
-		return nil, fmt.Errorf("job is not ready for selection (current status: %s)", job.Status)
-	}
-
-	if job.StagingFilePath == nil || *job.StagingFilePath == "" {
-		return nil, fmt.Errorf("discovered links not available for this job yet")
-	}
-
-	discovered, err := s.loadDiscoveredLinksFromRedis(ctx, *job.StagingFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	selectedSet := make(map[string]struct{}, len(job.SelectedLinks))
-	for _, url := range job.SelectedLinks {
-		selectedSet[url] = struct{}{}
-	}
-
-	previews := make([]*models.ScrapedLinkPreview, 0, len(discovered.Links))
-	for _, link := range discovered.Links {
-		preview := &models.ScrapedLinkPreview{
-			URL:            link.URL,
-			Title:          link.Title,
-			Depth:          link.Depth,
-			TokenCount:     link.TokenCount,
-			ContentPreview: "Content will be fetched during indexing",
-		}
-		if _, ok := selectedSet[link.URL]; ok {
-			preview.Selected = true
-		}
-		previews = append(previews, preview)
-	}
-
-	sort.Slice(previews, func(i, j int) bool {
-		if previews[i].Depth == previews[j].Depth {
-			return previews[i].URL < previews[j].URL
-		}
-		return previews[i].Depth < previews[j].Depth
-	})
-
-	return previews, nil
+	return nil, fmt.Errorf("the two-phase scraping workflow is deprecated; use the POST /knowledge/scrape-urls endpoint instead")
 }
 
 // StoreLinkSelection saves the user-selected URLs that should proceed to indexing
+// DEPRECATED: The two-phase workflow (discover -> select -> index) is no longer supported.
+// Use the ScrapeURLs endpoint to directly scrape and index URLs.
 func (s *WebScrapingService) StoreLinkSelection(ctx context.Context, jobID, tenantID, projectID uuid.UUID, urls []string) error {
-	job, err := s.knowledgeRepo.GetScrapingJob(jobID, tenantID, projectID)
-	if err != nil {
-		return fmt.Errorf("failed to load scraping job: %w", err)
-	}
-
-	if job.Status != "awaiting_selection" {
-		return fmt.Errorf("job is not ready for selection (current status: %s)", job.Status)
-	}
-
-	if job.StagingFilePath == nil || *job.StagingFilePath == "" {
-		return fmt.Errorf("discovered links not available for this job")
-	}
-
-	if len(urls) == 0 {
-		return fmt.Errorf("at least one URL must be selected for indexing")
-	}
-
-	// Load discovered links from Redis to validate selection
-	discovered, err := s.loadDiscoveredLinksFromRedis(ctx, *job.StagingFilePath)
-	if err != nil {
-		return err
-	}
-
-	validURLs := make(map[string]struct{}, len(discovered.Links))
-	for _, link := range discovered.Links {
-		validURLs[link.URL] = struct{}{}
-	}
-
-	deduped := make([]string, 0, len(urls))
-	seen := make(map[string]struct{})
-	for _, raw := range urls {
-		candidate := strings.TrimSpace(raw)
-		if candidate == "" {
-			continue
-		}
-		if _, ok := validURLs[candidate]; !ok {
-			return fmt.Errorf("selected URL is not part of discovered links: %s", candidate)
-		}
-		if err := s.validateURL(candidate); err != nil {
-			return fmt.Errorf("invalid URL selected (%s): %w", candidate, err)
-		}
-		if _, exists := seen[candidate]; exists {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		deduped = append(deduped, candidate)
-	}
-
-	if len(deduped) == 0 {
-		return fmt.Errorf("no valid URLs provided for selection")
-	}
-
-	if len(deduped) > maxSelectableLinks {
-		return fmt.Errorf("you can select up to %d links for indexing", maxSelectableLinks)
-	}
-
-	if err := s.knowledgeRepo.SaveSelectedLinks(jobID, deduped); err != nil {
-		return fmt.Errorf("failed to store selected links: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("the two-phase scraping workflow is deprecated; use the POST /knowledge/scrape-urls endpoint instead")
 }
 
 // StreamIndexing processes selected links and streams progress updates via the provided channel
@@ -1726,16 +1443,9 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 	rootHost := parsedTargetURL.Host
 	rootBaseDomain := getBaseDomain(rootHost)
 
-	// Initialize Redis counter for URL limiting (if buildID provided)
+	// URL limit counter (in-memory)
 	const maxURLLimit = 30
-	var redisCounterKey string
-	if buildID != "" {
-		redisCounterKey = fmt.Sprintf("widget:build:%s:url_count", buildID)
-		// Initialize counter to 0 with 1-hour expiry
-		if err := s.redisClient.Set(ctx, redisCounterKey, 0, time.Hour).Err(); err != nil {
-			logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to initialize Redis URL counter")
-		}
-	}
+	var urlCounter int64
 
 	s.sendURLExtractionEvent(ctx, events, URLExtractionEvent{
 		Type:      "started",
@@ -1955,21 +1665,18 @@ func (s *WebScrapingService) ExtractURLsWithStream(ctx context.Context, targetUR
 					mu.Unlock()
 
 					if !alreadyVisited && s.shouldFollowLink(urlInfo.URL, result.url) {
-						// Check Redis counter limit (if buildID is set)
+						// Check URL counter limit
 						shouldAdd := true
-						if redisCounterKey != "" {
-							// Increment counter atomically
-							count, err := s.redisClient.Incr(ctx, redisCounterKey).Result()
-							if err != nil {
-								logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to increment Redis URL counter")
-							} else if count > int64(maxURLLimit) {
-								// Limit reached, stop adding URLs
-								shouldAdd = false
-								logger.GetTxLogger(ctx).Info().Msg("Reached Redis URL limit, stopping further URL additions")
-							}
+						mu.Lock()
+						urlCounter++
+						if urlCounter > int64(maxURLLimit) {
+							shouldAdd = false
 						}
+						mu.Unlock()
 
-						if shouldAdd {
+						if !shouldAdd {
+							logger.GetTxLogger(ctx).Debug().Msg("Reached URL limit, stopping further URL additions")
+						} else {
 							nextLevel = append(nextLevel, urlWorkItem{
 								url:   normalizedDiscoveredURL,
 								depth: result.depth + 1,
@@ -2569,4 +2276,203 @@ func (s *WebScrapingService) UpdatePageInVectorDB(ctx context.Context, pageID uu
 	}
 
 	return nil
+}
+
+// ScrapeURLsResult represents the result of the simplified URL scraping
+type ScrapeURLsResult struct {
+	JobID        uuid.UUID `json:"job_id"`
+	TotalURLs    int       `json:"total_urls"`
+	PagesAdded   int       `json:"pages_added"`
+	PagesSkipped int       `json:"pages_skipped"`
+	PagesFailed  int       `json:"pages_failed"`
+}
+
+// ScrapeURLs performs simplified URL scraping - scrapes exact URLs provided without crawling
+func (s *WebScrapingService) ScrapeURLs(ctx context.Context, tenantID, projectID uuid.UUID, urls []string, forceRefresh bool) (*ScrapeURLsResult, error) {
+	// Create a scraping job to track progress
+	job := &models.KnowledgeScrapingJob{
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		ProjectID: projectID,
+		URL:       urls[0], // Use first URL as primary
+		MaxDepth:  0,       // No crawling
+		Status:    "running",
+		TotalPages: len(urls),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	now := time.Now()
+	job.StartedAt = &now
+
+	if err := s.knowledgeRepo.CreateScrapingJob(job); err != nil {
+		return nil, fmt.Errorf("failed to create scraping job: %w", err)
+	}
+
+	result := &ScrapeURLsResult{
+		JobID:     job.ID,
+		TotalURLs: len(urls),
+	}
+
+	var pageIDs []uuid.UUID
+	oneWeekAgo := time.Now().Add(-7 * 24 * time.Hour)
+
+	for _, urlStr := range urls {
+		// Normalize URL
+		normalizedURL := normalizeURLForDeduplication(urlStr)
+
+		// Check if page exists and was scraped recently
+		existingPages, err := s.knowledgeRepo.GetExistingPagesByURL(ctx, normalizedURL)
+		if err != nil {
+			logger.GetTxLogger(ctx).Error().Err(err).Str("url", urlStr).Msg("Failed to check existing page")
+			result.PagesFailed++
+			continue
+		}
+
+		// If page exists and was scraped within 1 week, skip unless force_refresh
+		if len(existingPages) > 0 && !forceRefresh {
+			existingPage := existingPages[0]
+			if existingPage.ScrapedAt.After(oneWeekAgo) {
+				logger.GetTxLogger(ctx).Info().
+					Str("url", urlStr).
+					Time("scraped_at", existingPage.ScrapedAt).
+					Msg("Skipping URL - scraped within last week")
+				pageIDs = append(pageIDs, existingPage.ID)
+				result.PagesSkipped++
+				continue
+			}
+		}
+
+		// Scrape the page content using Colly
+		content, title, err := s.scrapePageWithColly(ctx, urlStr)
+		if err != nil {
+			logger.GetTxLogger(ctx).Error().Err(err).Str("url", urlStr).Msg("Failed to scrape page")
+			result.PagesFailed++
+			continue
+		}
+
+		// Calculate content hash
+		hash := sha256.Sum256([]byte(content))
+		contentHash := fmt.Sprintf("%x", hash)
+
+		// Check if content changed for existing page
+		if len(existingPages) > 0 {
+			existingPage := existingPages[0]
+			if existingPage.ContentHash != nil && *existingPage.ContentHash == contentHash {
+				// Content unchanged, just update scraped_at timestamp
+				logger.GetTxLogger(ctx).Info().
+					Str("url", urlStr).
+					Msg("Content unchanged, reusing existing embedding")
+				pageIDs = append(pageIDs, existingPage.ID)
+				result.PagesSkipped++
+				continue
+			}
+		}
+
+		// Generate embedding for new/changed content
+		embeddings, err := s.embeddingService.GenerateEmbeddings(ctx, []string{content})
+		if err != nil {
+			logger.GetTxLogger(ctx).Error().Err(err).Str("url", urlStr).Msg("Failed to generate embedding")
+			result.PagesFailed++
+			continue
+		}
+
+		embedding := embeddings[0]
+		tokenCount := len(strings.Fields(content))
+
+		// Store or update the page
+		if len(existingPages) > 0 {
+			// Update existing page
+			existingPage := existingPages[0]
+			if err := s.knowledgeRepo.UpdatePageContentAndEmbedding(ctx, existingPage.ID, title, content, contentHash, embedding, tokenCount); err != nil {
+				logger.GetTxLogger(ctx).Error().Err(err).Str("url", urlStr).Msg("Failed to update page")
+				result.PagesFailed++
+				continue
+			}
+			pageIDs = append(pageIDs, existingPage.ID)
+		} else {
+			// Create new page
+			page := &models.KnowledgeScrapedPage{
+				ID:          uuid.New(),
+				JobID:       uuid.NullUUID{UUID: job.ID, Valid: true},
+				URL:         normalizedURL,
+				Title:       &title,
+				Content:     content,
+				ContentHash: &contentHash,
+				TokenCount:  tokenCount,
+				ScrapedAt:   time.Now(),
+				Embedding:   &embedding,
+			}
+
+			if err := s.knowledgeRepo.CreateScrapedPageWithTenantID(ctx, page, tenantID); err != nil {
+				logger.GetTxLogger(ctx).Error().Err(err).Str("url", urlStr).Msg("Failed to create page")
+				result.PagesFailed++
+				continue
+			}
+			pageIDs = append(pageIDs, page.ID)
+		}
+
+		result.PagesAdded++
+	}
+
+	// Create project_knowledge_pages mappings
+	if len(pageIDs) > 0 {
+		if err := s.knowledgeRepo.CreateProjectKnowledgePageMappings(ctx, tenantID, projectID, pageIDs); err != nil {
+			logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to create project-page mappings")
+			// Don't fail the whole job for this
+		}
+	}
+
+	// Update job progress and status
+	pagesScraped := result.PagesAdded + result.PagesSkipped
+	if err := s.knowledgeRepo.UpdateScrapingJobProgress(job.ID, pagesScraped, result.TotalURLs); err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to update job progress")
+	}
+
+	if err := s.knowledgeRepo.UpdateScrapingJobStatus(job.ID, "completed", nil); err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to update job status")
+	}
+
+	return result, nil
+}
+
+// scrapePageWithColly scrapes a single page and returns content and title
+func (s *WebScrapingService) scrapePageWithColly(ctx context.Context, urlStr string) (string, string, error) {
+	var content, title string
+	var scrapeErr error
+
+	c := colly.NewCollector(
+		colly.UserAgent(s.config.ScrapeUserAgent),
+	)
+
+	c.SetRequestTimeout(30 * time.Second)
+
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		// Get title
+		title = e.ChildText("title")
+		if title == "" {
+			title = e.ChildText("h1")
+		}
+
+		// Extract text content
+		content = s.extractTextContent(e)
+	})
+
+	c.OnError(func(r *colly.Response, err error) {
+		scrapeErr = fmt.Errorf("scraping failed: %w", err)
+	})
+
+	if err := c.Visit(urlStr); err != nil {
+		return "", "", fmt.Errorf("failed to visit URL: %w", err)
+	}
+
+	if scrapeErr != nil {
+		return "", "", scrapeErr
+	}
+
+	if content == "" {
+		return "", "", fmt.Errorf("no content extracted from page")
+	}
+
+	return content, title, nil
 }

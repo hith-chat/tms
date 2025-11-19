@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
 import { ExternalLink, Trash2, Eye, RefreshCw, Loader } from 'lucide-react'
-import { apiClient, WidgetKnowledgePage } from '../../lib/api'
+import { apiClient, ProjectKnowledgePage } from '../../lib/api'
 
 interface KBUrlsSectionProps {
   projectId: string
 }
 
 export function KBUrlsSection({ projectId }: KBUrlsSectionProps) {
-  const [pages, setPages] = useState<WidgetKnowledgePage[]>([])
+  const [pages, setPages] = useState<ProjectKnowledgePage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPage, setSelectedPage] = useState<WidgetKnowledgePage | null>(null)
+  const [selectedPage, setSelectedPage] = useState<ProjectKnowledgePage | null>(null)
   const [showContentModal, setShowContentModal] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -49,7 +49,7 @@ export function KBUrlsSection({ projectId }: KBUrlsSectionProps) {
     }
   }
 
-  const handleViewContent = (page: WidgetKnowledgePage) => {
+  const handleViewContent = (page: ProjectKnowledgePage) => {
     setSelectedPage(page)
     setShowContentModal(true)
   }
@@ -228,8 +228,8 @@ export function KBUrlsSection({ projectId }: KBUrlsSectionProps) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Widget ID</label>
-                  <p className="text-foreground mt-1 font-mono text-xs break-all">{selectedPage.widget_id}</p>
+                  <label className="text-sm font-medium text-muted-foreground">Project ID</label>
+                  <p className="text-foreground mt-1 font-mono text-xs break-all">{selectedPage.project_id}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Page ID</label>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Globe, Loader, Plus } from 'lucide-react'
 
 interface WebScrapingSectionProps {
@@ -9,23 +9,26 @@ interface WebScrapingSectionProps {
 
 export function WebScrapingSection({
   onStartScraping,
-  onStartLegacyScraping,
   scrapingInProgress
 }: WebScrapingSectionProps) {
   const [showForm, setShowForm] = useState(false)
   const [url, setUrl] = useState('')
-  const [depth, setDepth] = useState(3)
+  const depth = 1
+  const wasScrapingRef = useRef(false)
+
+  // Close form and clear URL when scraping completes
+  useEffect(() => {
+    if (wasScrapingRef.current && !scrapingInProgress) {
+      // Scraping just finished
+      setShowForm(false)
+      setUrl('')
+    }
+    wasScrapingRef.current = scrapingInProgress
+  }, [scrapingInProgress])
 
   const handleStartScraping = () => {
     onStartScraping(url, depth)
-    setUrl('')
-    setShowForm(false)
-  }
-
-  const handleLegacyScraping = () => {
-    onStartLegacyScraping(url, depth)
-    setUrl('')
-    setShowForm(false)
+    // Don't close form here - wait for scraping to complete
   }
 
   return (
@@ -63,23 +66,6 @@ export function WebScrapingSection({
                   className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
-              <div>
-                <label htmlFor="max-depth" className="block text-sm font-medium mb-2 text-foreground">
-                  Max Depth
-                </label>
-                <select
-                  id="max-depth"
-                  value={depth}
-                  onChange={(e) => setDepth(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value={1}>1 level (homepage only)</option>
-                  <option value={2}>2 levels</option>
-                  {/* <option value={3}>3 levels</option> */}
-                  {/* <option value={4}>4 levels</option> */}
-                  {/* <option value={5}>5 levels (maximum)</option> */}
-                </select>
-              </div>
               <div className="flex space-x-3">
                 <button
                   onClick={handleStartScraping}
@@ -94,20 +80,14 @@ export function WebScrapingSection({
                   ) : (
                     <>
                       <Globe className="h-4 w-4 mr-2" />
-                      Start Streaming Scrape
+                      Start Scrape
                     </>
                   )}
                 </button>
                 <button
-                  onClick={handleLegacyScraping}
-                  disabled={scrapingInProgress || !url.trim()}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Legacy Scrape
-                </button>
-                <button
                   onClick={() => setShowForm(false)}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  disabled={scrapingInProgress}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Cancel
                 </button>
