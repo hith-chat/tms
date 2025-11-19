@@ -455,7 +455,7 @@ func (s *PublicAIBuilderService) embedAndStoreTop8(
 
 			// Store the new page and get the returned page ID
 			createdPageID, err := s.webScrapingService.StorePageInVectorDBWithTenantID(
-				ctx, tenantID, projectID, ps.URL, ps.Content, embedding, jobID,
+				ctx, tenantID, projectID, ps.URL, ps.Title, ps.Content, embedding, jobID,
 			)
 			if err != nil {
 				logger.GetTxLogger(ctx).Error().

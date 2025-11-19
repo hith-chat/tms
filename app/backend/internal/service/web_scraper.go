@@ -2171,7 +2171,7 @@ func (s *WebScrapingService) ScrapePageContent(ctx context.Context, targetURL st
 // Returns the created page ID
 // Note: Sets job_id to nil for widget-created pages (tracked via widget_knowledge_pages instead)
 // Normalizes URLs by removing query parameters to ensure uniqueness across the database
-func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context, tenantID, projectID uuid.UUID, url, content string, embedding pgvector.Vector, jobID uuid.UUID) (uuid.UUID, error) {
+func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context, tenantID, projectID uuid.UUID, url, title, content string, embedding pgvector.Vector, jobID uuid.UUID) (uuid.UUID, error) {
 	// Normalize URL (remove query params, fragment, lowercase, trim trailing slash)
 	normalizedURL, err := NormalizeURL(url)
 	if err != nil {
@@ -2190,14 +2190,13 @@ func (s *WebScrapingService) StorePageInVectorDBWithTenantID(ctx context.Context
 	// Calculate token count
 	tokenCount := len(strings.Fields(content))
 
-	// Extract title (first line or URL)
-	title := normalizedURL
-	lines := strings.Split(content, "\n")
-	if len(lines) > 0 && len(lines[0]) > 0 {
-		title = strings.TrimSpace(lines[0])
-		if len(title) > 100 {
-			title = title[:100]
-		}
+	// Use provided title, fallback to URL if empty
+	if title == "" {
+		title = normalizedURL
+	}
+	// Truncate title if too long
+	if len(title) > 200 {
+		title = title[:200]
 	}
 
 	// Check if this URL already exists in the database (by normalized URL)
