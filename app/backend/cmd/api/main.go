@@ -276,6 +276,9 @@ func main() {
 		cfg.AI.ThemeExtractionModel = "blackboxai/anthropic/claude-sonnet-4.5"
 		log.Printf("Theme Extraction Model %s", cfg.AI.ThemeExtractionModel)
 		log.Printf("Google Client ID %s", cfg.OAuth.Google.ClientID)
+		log.Printf("Slack Client ID %s", cfg.Slack.ClientID)
+		// log.Printf("Slack Client Secret %s", cfg.Slack.ClientSecret)
+		log.Printf("Slack Redirect URI %s", cfg.Slack.RedirectURI)
 		// log.Printf("Google Client  Secret %s", cfg.OAuth.Google.ClientSecret)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
