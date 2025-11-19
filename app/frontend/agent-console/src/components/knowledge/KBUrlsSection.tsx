@@ -226,16 +226,6 @@ export function KBUrlsSection({ projectId }: KBUrlsSectionProps) {
                   <p className="text-sm text-foreground mt-1">{formatDate(selectedPage.scraped_at)}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Project ID</label>
-                  <p className="text-foreground mt-1 font-mono text-xs break-all">{selectedPage.project_id}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Page ID</label>
-                  <p className="text-foreground mt-1 font-mono text-xs break-all">{selectedPage.page_id}</p>
-                </div>
-              </div>
             </div>
             <div className="p-6 border-t flex justify-end">
               <button
