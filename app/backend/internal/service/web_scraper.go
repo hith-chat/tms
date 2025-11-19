@@ -708,7 +708,6 @@ func (s *WebScrapingService) startScrapingJob(ctx context.Context, job *models.K
 	s.startScrapingJobWithStream(ctx, job, events)
 }
 
-
 func (s *WebScrapingService) sendIndexingEvent(ctx context.Context, ch chan<- IndexingEvent, event IndexingEvent) {
 	select {
 	case <-ctx.Done():
@@ -2291,15 +2290,15 @@ type ScrapeURLsResult struct {
 func (s *WebScrapingService) ScrapeURLs(ctx context.Context, tenantID, projectID uuid.UUID, urls []string, forceRefresh bool) (*ScrapeURLsResult, error) {
 	// Create a scraping job to track progress
 	job := &models.KnowledgeScrapingJob{
-		ID:        uuid.New(),
-		TenantID:  tenantID,
-		ProjectID: projectID,
-		URL:       urls[0], // Use first URL as primary
-		MaxDepth:  0,       // No crawling
-		Status:    "running",
+		ID:         uuid.New(),
+		TenantID:   tenantID,
+		ProjectID:  projectID,
+		URL:        urls[0], // Use first URL as primary
+		MaxDepth:   0,       // No crawling
+		Status:     "running",
 		TotalPages: len(urls),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
 	now := time.Now()
@@ -2439,6 +2438,7 @@ func (s *WebScrapingService) ScrapeURLs(ctx context.Context, tenantID, projectID
 // scrapePageWithColly scrapes a single page and returns content and title
 func (s *WebScrapingService) scrapePageWithColly(ctx context.Context, urlStr string) (string, string, error) {
 	var content, title string
+	var metaContent []string
 	var scrapeErr error
 
 	c := colly.NewCollector(
@@ -2454,8 +2454,48 @@ func (s *WebScrapingService) scrapePageWithColly(ctx context.Context, urlStr str
 			title = e.ChildText("h1")
 		}
 
-		// Extract text content
-		content = s.extractTextContent(e)
+		// Extract meta tags for better content extraction
+		e.ForEach("meta", func(_ int, el *colly.HTMLElement) {
+			name := el.Attr("name")
+			property := el.Attr("property")
+			content := el.Attr("content")
+
+			if content == "" {
+				return
+			}
+
+			// Standard meta tags
+			switch name {
+			case "description", "keywords", "author":
+				metaContent = append(metaContent, content)
+			}
+
+			// Open Graph tags
+			switch property {
+			case "og:title", "og:description", "og:site_name":
+				metaContent = append(metaContent, content)
+			}
+
+			// Twitter tags
+			switch name {
+			case "twitter:title", "twitter:description":
+				metaContent = append(metaContent, content)
+			}
+		})
+
+		// Extract text content from body
+		bodyContent := s.extractTextContent(e)
+
+		// Combine meta content with body content
+		var allContent []string
+		if len(metaContent) > 0 {
+			allContent = append(allContent, strings.Join(metaContent, " "))
+		}
+		if bodyContent != "" {
+			allContent = append(allContent, bodyContent)
+		}
+
+		content = strings.Join(allContent, "\n\n")
 	})
 
 	c.OnError(func(r *colly.Response, err error) {
