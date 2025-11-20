@@ -31,9 +31,9 @@ type ChatRequest struct {
 
 // AgentResponse represents a response from the agent service
 type AgentResponse struct {
-	Type     string            `json:"type"`
-	Content  string            `json:"content,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Type     string         `json:"type"`
+	Content  string         `json:"content,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"` // Changed to any to support nested objects
 }
 
 // NewAgentClient creates a new agent client

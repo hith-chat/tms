@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ type ChatSessionService struct {
 	agentService        *AgentService
 	connectionManager   *websocket.ConnectionManager
 	howlingAlarmService *HowlingAlarmService
+	slackService        *SlackService
 }
 
 func NewChatSessionService(
@@ -37,6 +39,7 @@ func NewChatSessionService(
 	connectionManager *websocket.ConnectionManager,
 	redisService *redis.Service,
 	howlingAlarmService *HowlingAlarmService,
+	slackService *SlackService,
 ) *ChatSessionService {
 	return &ChatSessionService{
 		chatSessionRepo:     chatSessionRepo,
@@ -48,6 +51,7 @@ func NewChatSessionService(
 		agentService:        agentService,
 		connectionManager:   connectionManager,
 		howlingAlarmService: howlingAlarmService,
+		slackService:        slackService,
 	}
 }
 
@@ -243,6 +247,8 @@ func (s *ChatSessionService) SendMessage(ctx context.Context, session *models.Ch
 		req.MessageType = "text"
 	}
 
+	fmt.Println("send message using uuid")
+
 	message, err := s.SendMessageWithUuidDetails(ctx, session.TenantID, session.ProjectID, session.ID, req, authorType, authorID, authorName, connID)
 	if err != nil {
 		return nil, err
@@ -277,6 +283,25 @@ func (s *ChatSessionService) SendMessageWithUuidDetails(ctx context.Context, ten
 
 	if message.Metadata == nil {
 		message.Metadata = make(models.JSONMap)
+	}
+	fmt.Printf("Trying to send message to slack if applicable %s SessionId: %s, || ProjectID: %s || TenantID: %s", authorType, sessionID, projectID, tenantID)
+	// Post to Slack if applicable
+	if !strings.HasPrefix(authorName, "Slack: ") {
+		go func() {
+			// Fetch session to get meta information
+			session, err := s.chatSessionRepo.GetChatSession(ctx, tenantID, projectID, sessionID)
+			if err != nil || session == nil {
+				fmt.Println("slack session not found")
+				return // Silently skip if session not found
+			}
+
+			// Post message to Slack
+			fmt.Println(("slacky slasss"))
+			if err := s.slackService.PostMessageToSlack(ctx, tenantID, projectID, session, req.Content, authorName); err != nil {
+				// Log error but don't fail the message send
+				fmt.Printf("Failed to post message to Slack: %v\n", err)
+			}
+		}()
 	}
 
 	// Avoid dereferencing authorID when it's nil. Use uuid.Nil as a sentinel

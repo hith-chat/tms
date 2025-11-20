@@ -82,6 +82,8 @@ func runMigrations(database *db.DB) error {
 		"migrations/035_add_tenant_project_to_widget_knowledge_pages.sql",
 		"migrations/036_rename_widget_to_project_knowledge_pages.sql",
 		"migrations/037_project_integrations.sql",
+		"migrations/038_add_chat_sessions_meta.sql",
+		"migrations/039_add_slack_columns_to_chat_sessions.sql",
 	}
 
 	for _, migration := range migrations {

@@ -162,7 +162,10 @@ func main() {
 	// Alarm services (Phase 4 implementation) - needed by chat session service
 	howlingAlarmService := service.NewHowlingAlarmService(cfg, connectionManager, alarmRepo)
 
-	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService)
+	// Slack service - needed by chat session service
+	slackService := service.NewSlackService(projectIntegrationRepo, chatSessionRepo, redisService)
+
+	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService, slackService)
 
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
@@ -246,6 +249,9 @@ func main() {
 	// Initialize agent client for Python agent service communication
 	agentClient := service.NewAgentClient(cfg.Knowledge.AiAgentServiceUrl)
 
+	// Slack events handler (requires agentClient and aiService for AI responses)
+	slackEventsHandler := handlers.NewSlackEventsHandler(slackService, chatSessionService, connectionManager, projectIntegrationRepo, chatSessionRepo, agentClient, aiService)
+
 	chatWebSocketHandler := handlers.NewChatWebSocketHandler(chatSessionService, connectionManager, notificationService, aiService, agentClient, jwtAuth)
 	agentWebSocketHandler := handlers.NewAgentWebSocketHandler(chatSessionService, connectionManager, agentService)
 
@@ -254,7 +260,7 @@ func main() {
 	agentWebSocketHandler.SetChatWSHandler(chatWebSocketHandler)
 
 	// Setup router
-	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, aiBuilderHandler, publicAIBuilderHandler, alarmHandler, paymentHandler, aiUsageHandler, stripeWebhookHandler, cashfreeWebhookHandler, integrationOAuthHandler)
+	router := setupRouter(database.DB.DB, jwtAuth, apiKeyRepo, &cfg.CORS, rateLimiter, authHandler, projectHandler, ticketHandler, publicHandler, integrationHandler, emailHandler, emailInboxHandler, agentHandler, customerHandler, apiKeyHandler, settingsHandler, tenantHandler, domainValidationHandler, notificationHandler, chatWidgetHandler, chatSessionHandler, chatWebSocketHandler, agentWebSocketHandler, knowledgeHandler, aiBuilderHandler, publicAIBuilderHandler, alarmHandler, paymentHandler, aiUsageHandler, stripeWebhookHandler, cashfreeWebhookHandler, integrationOAuthHandler, slackEventsHandler)
 
 	// Create HTTP server
 	serverAddr := cfg.Server.Port
@@ -302,7 +308,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, aiBuilderHandler *handlers.AIBuilderHandler, publicAIBuilderHandler *handlers.PublicAIBuilderHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, aiUsageHandler *handlers.AIUsageHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler, integrationOAuthHandler *handlers.IntegrationOAuthHandler) *gin.Engine {
+func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKeyRepository, corsConfig *config.CORSConfig, rateLimiter *rate.RateLimiter, authHandler *handlers.AuthHandler, projectHandler *handlers.ProjectHandler, ticketHandler *handlers.TicketHandler, publicHandler *handlers.PublicHandler, integrationHandler *handlers.IntegrationHandler, emailHandler *handlers.EmailHandler, emailInboxHandler *handlers.EmailInboxHandler, agentHandler *handlers.AgentHandler, customerHandler *handlers.CustomerHandler, apiKeyHandler *handlers.ApiKeyHandler, settingsHandler *handlers.SettingsHandler, tenantHandler *handlers.TenantHandler, domainNameHandler *handlers.DomainNameHandler, notificationHandler *handlers.NotificationHandler, chatWidgetHandler *handlers.ChatWidgetHandler, chatSessionHandler *handlers.ChatSessionHandler, chatWebSocketHandler *handlers.ChatWebSocketHandler, agentWebSocketHandler *handlers.AgentWebSocketHandler, knowledgeHandler *handlers.KnowledgeHandler, aiBuilderHandler *handlers.AIBuilderHandler, publicAIBuilderHandler *handlers.PublicAIBuilderHandler, alarmHandler *handlers.AlarmHandler, paymentHandler *handlers.PaymentHandler, aiUsageHandler *handlers.AIUsageHandler, stripeWebhookHandler *handlers.StripeWebhookHandler, cashfreeWebhookHandler *handlers.CashfreeWebhookHandler, integrationOAuthHandler *handlers.IntegrationOAuthHandler, slackEventsHandler *handlers.SlackEventsHandler) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -345,6 +351,9 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		// Integration OAuth callback (public, no auth required)
 		publicRoutes.GET("/integrations/slack/callback", integrationOAuthHandler.SlackOAuthCallback)
+
+		// Slack events webhook (public, no auth required - called by Slack)
+		publicRoutes.POST("/integrations/slack/events", slackEventsHandler.HandleSlackEvents)
 	}
 
 	// Public AI widget builder endpoint (with stricter rate limiting: 2 requests per 6 hours per IP)

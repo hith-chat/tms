@@ -29,10 +29,12 @@ func (r *SettingsRepository) GetSetting(ctx context.Context, tenantID, projectID
 	var settingValueJSON []byte
 	err := r.db.QueryRowContext(ctx, query, tenantID, projectID, settingKey).Scan(&settingValueJSON)
 	if err != nil {
-		fmt.Println("Error retrieving setting:", err)
 		if err == sql.ErrNoRows {
+			// Setting not found is expected, not an error - return empty gracefully
 			return nil, http.StatusNoContent, fmt.Errorf("setting not found: %s", settingKey)
 		}
+		// Only log actual database errors
+		fmt.Println("Error retrieving setting:", err)
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get setting: %w", err)
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -52,6 +53,10 @@ func (r *ProjectIntegrationRepository) GetByProjectAndType(ctx context.Context, 
 	query := `
 		SELECT * FROM project_integrations
 		WHERE tenant_id = $1 AND project_id = $2 AND integration_type = $3`
+
+	fmt.Println("Querying for integration:", query, tenantID, projectID, integrationType)
+
+	fmt.Println("tenantID ---> ", tenantID, " projectID ---> ", projectID, " integrationType ---> ", integrationType)
 
 	err := r.db.GetContext(ctx, &integration, query, tenantID, projectID, integrationType)
 	if err != nil {

@@ -52,6 +52,10 @@ var slackScopes = []string{
 	"users:read",
 	"users:read.email",
 	"commands",
+	"channels:history",
+	"groups:history",
+	"im:history",
+	"mpim:history",
 }
 
 // GenerateOAuthState generates a state token and stores it in Redis

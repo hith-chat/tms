@@ -172,6 +172,17 @@ func (h *ChatWebSocketHandler) HandleWebSocketPublic(c *gin.Context) {
 			}
 			break
 		}
+
+		// Refresh session state before processing each message
+		// This ensures we have the latest AI settings, agent assignments, etc.
+		refreshedSession, err := h.chatSessionService.GetChatSessionByClientSessionID(c.Request.Context(), clientSessionID)
+		if err != nil || refreshedSession == nil {
+			log.Printf("Failed to refresh session state: %v", err)
+			// Continue with the existing session object as fallback
+		} else {
+			// Use refreshed session with latest state
+			session = refreshedSession
+		}
 		h.handleVisitorMessage(c.Request.Context(), session, msg, connectionID)
 	}
 }
@@ -273,6 +284,8 @@ func (h *ChatWebSocketHandler) processVisitorResponseUsingAi(ctx context.Context
 		},
 	}
 
+	fmt.Println("Using AI to response")
+
 	// Start streaming response from agent service
 	responseChan, errorChan := h.aiAgentClient.ProcessMessageStream(ctx, request)
 
@@ -346,30 +359,6 @@ func (h *ChatWebSocketHandler) sendStreamingResponse(session *models.ChatSession
 	// Use the connection manager's proper messaging system instead of direct WebSocket writes
 	if err := h.connectionManager.DeliverWebSocketMessage(session.ID, message); err != nil {
 		log.Printf("Failed to send streaming chunk via connection manager: %v", err)
-	}
-}
-
-// saveAiAgentMessage saves the complete agent response as a chat message
-func (h *ChatWebSocketHandler) saveAiAgentMessage(ctx context.Context, session *models.ChatSession, content string, connectionID string) {
-	request := &models.SendChatMessageRequest{
-		Content: content,
-	}
-
-	// Save message as agent response
-	_, err := h.chatSessionService.SendMessageWithUuidDetails(
-		ctx,
-		session.TenantID,
-		session.ProjectID,
-		session.ID,
-		request,
-		"ai-agent",
-		nil, // No specific agent UUID for AI agent
-		"AI Agent",
-		connectionID,
-	)
-
-	if err != nil {
-		log.Printf("Failed to save agent message for session %s: %v", session.ID, err)
 	}
 }
 
