@@ -444,18 +444,22 @@ Your approach:
         tenant_id: str = None,
         project_id: str = None,
         metadata: dict = None,
+        message_history: List[Dict[str, str]] = None,
+        use_history: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message and stream response using OpenAI Agents SDK.
-        
+
         Args:
             message: User message
-            session_id: Chat session ID  
+            session_id: Chat session ID
             auth_token: Authentication token from Go service
             tenant_id: Tenant ID
             project_id: Project ID
             metadata: Additional metadata
-            
+            message_history: Conversation history from database (optional)
+            use_history: If True, use provided history instead of internal memory
+
         Yields:
             Response dictionaries for SSE formatting
         """
@@ -476,28 +480,42 @@ Your approach:
             # Set current context for function tools
             self._current_session_id = session_id
             self._current_auth_token = auth_token
-            
-            # Prepare messages for agent (simplified for SSE approach)
-            agent_session.history.append({"role": "user", "content": message})
 
-            logger.info(f"Agent input messages: {agent_session.history}")
+            # Prepare messages for agent
+            # If use_history is True and message_history is provided, use that instead of internal history
+            if use_history and message_history:
+                logger.info(f"Using provided conversation history ({len(message_history)} messages)")
+                # Use the provided history as the conversation context
+                messages_to_send = message_history.copy()
+                # Ensure the current message is included at the end
+                if not messages_to_send or messages_to_send[-1]["content"] != message:
+                    messages_to_send.append({"role": "user", "content": message})
+            else:
+                # Use internal agent session history (default behavior)
+                agent_session.history.append({"role": "user", "content": message})
+                messages_to_send = agent_session.history
+
+            logger.info(f"Agent input messages (use_history={use_history}): {messages_to_send}")
 
             
             try:
                 # Use Runner with the AsyncOpenAI client configured with API key
                 result = await Runner.run(
                     starting_agent=self.support_agent,
-                    input=agent_session.history,
+                    input=messages_to_send,
                     context=agent_session
                 )
-                
+
                 # response_content = ""
-                
+
                 # Get response text
                 response_content = result.final_output or ""
 
                 print(f"Agent response: {result.final_output}")
-                agent_session.history.append({"role": "assistant", "content": str(result.final_output or "")})
+
+                # Only update internal history if not using external history
+                if not use_history:
+                    agent_session.history.append({"role": "assistant", "content": str(result.final_output or "")})
 
                 usage_metrics = None
                 try:

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -360,83 +359,55 @@ func (h *SlackEventsHandler) removeBotMention(text, botUserID string) string {
 }
 
 // processSlackMessageWithAI handles AI agent response for Slack messages
+// slackAIResponseHandler implements AIResponseHandler for Slack
+type slackAIResponseHandler struct {
+	handler *SlackEventsHandler
+	session *models.ChatSession
+}
+
+func (s *slackAIResponseHandler) OnChunk(ctx context.Context, content string) {
+	// Slack doesn't need streaming chunks, we send the complete message at the end
+	logger.GetTxLogger(ctx).Debug().
+		Str("chunk", content).
+		Msg("Received AI response chunk")
+}
+
+func (s *slackAIResponseHandler) OnComplete(ctx context.Context, fullResponse string) error {
+	return s.handler.sendAIResponseToSlack(ctx, s.session, fullResponse)
+}
+
+func (s *slackAIResponseHandler) OnError(ctx context.Context, err error) {
+	logger.GetTxLogger(ctx).Error().
+		Err(err).
+		Str("session_id", s.session.ID.String()).
+		Msg("AI processing error for Slack")
+}
+
 func (h *SlackEventsHandler) processSlackMessageWithAI(ctx context.Context, session *models.ChatSession, content string, userDisplayName string) {
 	logger.GetTxLogger(ctx).Info().
 		Str("session_id", session.ID.String()).
 		Str("message", content).
 		Msg("Processing Slack message with AI")
 
-	// Create agent request
-	request := service.ChatRequest{
-		Message:   content,
-		TenantID:  session.TenantID.String(),
-		ProjectID: session.ProjectID.String(),
-		SessionID: session.ID.String(),
-		UserID:    fmt.Sprintf("slack:%s", userDisplayName),
-		Metadata: map[string]string{
-			"source":    "slack",
-			"widget_id": session.WidgetID.String(),
-			"user_name": userDisplayName,
-		},
+	// Prepare metadata
+	metadata := map[string]string{
+		"source":    "slack",
+		"widget_id": session.WidgetID.String(),
+		"user_name": userDisplayName,
+		"user_id":   fmt.Sprintf("slack:%s", userDisplayName),
 	}
 
-	// Start streaming response from agent service
-	responseChan, errorChan := h.aiAgentClient.ProcessMessageStream(ctx, request)
-
-	var aiResponseContent strings.Builder
-	var hasError bool
-
-	// Handle the streaming response
-	for {
-		select {
-		case response, ok := <-responseChan:
-			if !ok {
-				// Channel closed, finish processing
-				if !hasError && aiResponseContent.Len() > 0 {
-					// Send final AI response to Slack
-					h.sendAIResponseToSlack(ctx, session, aiResponseContent.String())
-				}
-				return
-			}
-
-			// Handle different response types
-			switch response.Type {
-			case "message":
-				logger.GetTxLogger(ctx).Debug().
-					Str("chunk", response.Content).
-					Msg("Received AI response chunk")
-				if response.Content != "" {
-					aiResponseContent.WriteString(response.Content)
-				}
-			case "thinking":
-				// AI is thinking - we could optionally send typing indicator to Slack
-				logger.GetTxLogger(ctx).Debug().Msg("AI is thinking")
-			case "done", "metadata":
-				// Processing complete
-				logger.GetTxLogger(ctx).Info().Msg("AI processing complete")
-			case "error":
-				hasError = true
-				log.Printf("AI agent processing error for session %s: %s", session.ID, response.Content)
-				return
-			}
-
-		case err, ok := <-errorChan:
-			if !ok {
-				return
-			}
-			hasError = true
-			log.Printf("AI Agent client error for session %s: %v", session.ID, err)
-			return
-
-		case <-ctx.Done():
-			log.Printf("Context cancelled for ai-agent processing in session %s", session.ID)
-			return
-		}
+	// Use shared AI processing with Slack-specific handler
+	handler := &slackAIResponseHandler{
+		handler: h,
+		session: session,
 	}
+
+	h.aiService.ProcessAIStreamingResponse(ctx, session, content, metadata, handler, h.aiAgentClient)
 }
 
 // sendAIResponseToSlack sends the AI-generated response back to Slack
-func (h *SlackEventsHandler) sendAIResponseToSlack(ctx context.Context, session *models.ChatSession, aiResponse string) {
+func (h *SlackEventsHandler) sendAIResponseToSlack(ctx context.Context, session *models.ChatSession, aiResponse string) error {
 	logger.GetTxLogger(ctx).Info().
 		Str("session_id", session.ID.String()).
 		Str("response_length", fmt.Sprintf("%d", len(aiResponse))).
@@ -453,7 +424,7 @@ func (h *SlackEventsHandler) sendAIResponseToSlack(ctx context.Context, session 
 	)
 	if err != nil {
 		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to send AI response to Slack")
-		return
+		return err
 	}
 
 	// Also save the AI response to the database
@@ -468,14 +439,16 @@ func (h *SlackEventsHandler) sendAIResponseToSlack(ctx context.Context, session 
 		session.ProjectID,
 		session.ID,
 		messageReq,
-		"agent",
+		"ai",
 		nil,
 		"Hith (AI Assistant)",
 		"",
 	)
 	if err != nil {
 		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to save AI response to database")
+		return err
 	}
 
 	logger.GetTxLogger(ctx).Info().Msg("AI response sent to Slack successfully")
+	return nil
 }

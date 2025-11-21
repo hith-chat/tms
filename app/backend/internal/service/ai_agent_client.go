@@ -21,12 +21,20 @@ type AiAgentClient struct {
 
 // ChatRequest represents a request to the Python agent service
 type ChatRequest struct {
-	Message   string            `json:"message"`
-	TenantID  string            `json:"tenant_id"`
-	ProjectID string            `json:"project_id"`
-	SessionID string            `json:"session_id"`
-	UserID    string            `json:"user_id,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
+	Message        string            `json:"message"`
+	TenantID       string            `json:"tenant_id"`
+	ProjectID      string            `json:"project_id"`
+	SessionID      string            `json:"session_id"`
+	UserID         string            `json:"user_id,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	MessageHistory []ChatMessage     `json:"message_history,omitempty"` // Conversation history
+	UseHistory     bool              `json:"use_history,omitempty"`     // If true, use provided history instead of agent's memory
+}
+
+// ChatMessage represents a single message in the conversation history
+type ChatMessage struct {
+	Role    string `json:"role"`    // "user" or "assistant"
+	Content string `json:"content"` // Message content
 }
 
 // AgentResponse represents a response from the agent service

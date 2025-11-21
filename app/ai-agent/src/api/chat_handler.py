@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+class ChatMessage(BaseModel):
+    """Single message in conversation history."""
+    role: str  # "user" or "assistant"
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     tenant_id: str
@@ -24,6 +30,8 @@ class ChatRequest(BaseModel):
     session_id: str
     user_id: str = None
     metadata: dict = None
+    message_history: list[ChatMessage] = None
+    use_history: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -82,6 +90,11 @@ async def _process_message_stream(request: ChatRequest, auth_token: str) -> Asyn
         # Initialize agent service
         agent_service = AgentService()
         
+        # Convert message history to dict format if provided
+        history_dicts = None
+        if request.message_history:
+            history_dicts = [{"role": msg.role, "content": msg.content} for msg in request.message_history]
+
         # Process message with streaming (now with database session)
         async for response in agent_service.process_message_stream(
             message=request.message,
@@ -89,7 +102,9 @@ async def _process_message_stream(request: ChatRequest, auth_token: str) -> Asyn
             auth_token=auth_token,
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            metadata=request.metadata
+            metadata=request.metadata,
+            message_history=history_dicts,
+            use_history=request.use_history
         ):
             yield _format_sse_message(response)
         
