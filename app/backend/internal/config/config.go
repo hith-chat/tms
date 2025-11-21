@@ -27,6 +27,14 @@ type Config struct {
 	Maileroo      MailerooConfig      `mapstructure:"maileroo"`
 	Payment       PaymentConfig       `mapstructure:"payment"`
 	OAuth         OAuthConfig         `mapstructure:"oauth"`
+	Slack         SlackConfig         `mapstructure:"slack"`
+}
+
+// SlackConfig represents Slack OAuth configuration
+type SlackConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURI  string `mapstructure:"redirect_uri"`
 }
 
 // ServerConfig represents server configuration
@@ -318,6 +326,11 @@ func Load() (*Config, error) {
 	viper.BindEnv("oauth.google.client_secret", "GOOGLE_CLIENT_SECRET")
 	viper.BindEnv("oauth.google.redirect_url", "GOOGLE_REDIRECT_URL")
 
+	// Slack configuration bindings
+	viper.BindEnv("slack.client_id", "SLACK_CLIENT_ID")
+	viper.BindEnv("slack.client_secret", "SLACK_CLIENT_SECRET")
+	viper.BindEnv("slack.redirect_uri", "SLACK_REDIRECT_URI")
+
 	// Read config file (optional)
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -446,4 +459,9 @@ func setDefaults() {
 		"https://www.googleapis.com/auth/userinfo.profile",
 	})
 	viper.SetDefault("oauth.google.redirect_url", "http://localhost:3000/auth/google/callback")
+
+	// Slack defaults
+	viper.SetDefault("slack.client_id", "9933968395767.9943091289283")
+	viper.SetDefault("slack.client_secret", "22c6e79d948b178b5ccb409f00debb60")
+	viper.SetDefault("slack.redirect_uri", "https://autonomic-horacio-pseudobiographically.ngrok-free.dev/api/public/integrations/slack/callback")
 }

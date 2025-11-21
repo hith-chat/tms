@@ -21,17 +21,24 @@ func NewChatSessionRepo(db *sqlx.DB) *ChatSessionRepo {
 	return &ChatSessionRepo{db: db}
 }
 
+// GetDB returns the underlying database connection
+func (r *ChatSessionRepo) GetDB() *sqlx.DB {
+	return r.db
+}
+
 // CreateChatSession creates a new chat session
 func (r *ChatSessionRepo) CreateChatSession(ctx context.Context, session *models.ChatSession) error {
 	query := `
 		INSERT INTO chat_sessions (
 			id, tenant_id, project_id, widget_id, customer_id, ticket_id,
 			status, visitor_info, assigned_agent_id, assigned_at, started_at, ended_at,
-			last_activity_at, created_at, updated_at, client_session_id
+			last_activity_at, created_at, updated_at, client_session_id,
+			slack_thread_ts, slack_channel_id
 		) VALUES (
 			:id, :tenant_id, :project_id, :widget_id, :customer_id, :ticket_id,
 			:status, :visitor_info, :assigned_agent_id, :assigned_at, :started_at, :ended_at,
-			:last_activity_at, :created_at, :updated_at, :client_session_id
+			:last_activity_at, :created_at, :updated_at, :client_session_id,
+			:slack_thread_ts, :slack_channel_id
 		)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, session)
@@ -43,7 +50,8 @@ func (r *ChatSessionRepo) GetChatSession(ctx context.Context, tenantID, projectI
 	query := `
 		SELECT cs.id, cs.tenant_id, cs.project_id, cs.widget_id, cs.customer_id, cs.ticket_id,
 			   cs.status, cs.visitor_info, cs.assigned_agent_id, cs.assigned_at, cs.started_at, cs.ended_at, cs.client_session_id,
-			   cs.last_activity_at, cs.created_at, cs.updated_at,
+			   cs.last_activity_at, cs.created_at, cs.updated_at, cs.meta,
+			   cs.slack_thread_ts, cs.slack_channel_id,
 			   a.name as assigned_agent_name, c.name as customer_name, c.email as customer_email,
 			   cw.name as widget_name, cw.use_ai as use_ai
 		FROM chat_sessions cs
@@ -69,7 +77,8 @@ func (r *ChatSessionRepo) GetChatSessionByID(ctx context.Context, tenantID, sess
 	query := `
 		SELECT cs.id, cs.tenant_id, cs.project_id, cs.widget_id, cs.customer_id, cs.ticket_id,
 			   cs.status, cs.visitor_info, cs.assigned_agent_id, cs.assigned_at, cs.started_at, cs.ended_at, cs.client_session_id,
-			   cs.last_activity_at, cs.created_at, cs.updated_at,
+			   cs.last_activity_at, cs.created_at, cs.updated_at, cs.meta,
+			   cs.slack_thread_ts, cs.slack_channel_id,
 			   a.name as assigned_agent_name, c.name as customer_name, c.email as customer_email,
 			   cw.name as widget_name, cw.use_ai as use_ai
 		FROM chat_sessions cs
@@ -95,7 +104,8 @@ func (r *ChatSessionRepo) GetChatSessionByClientSessionID(ctx context.Context, c
 	query := `
 		SELECT cs.id, cs.tenant_id, cs.project_id, cs.widget_id, cs.customer_id, cs.ticket_id,
 			   cs.status, cs.visitor_info, cs.assigned_agent_id, cs.assigned_at, cs.started_at, cs.ended_at, cs.client_session_id,
-			   cs.last_activity_at, cs.created_at, cs.updated_at,
+			   cs.last_activity_at, cs.created_at, cs.updated_at, cs.meta,
+			   cs.slack_thread_ts, cs.slack_channel_id,
 			   a.name as assigned_agent_name, c.name as customer_name, c.email as customer_email,
 			   cw.name as widget_name, cw.use_ai as use_ai
 		FROM chat_sessions cs
@@ -121,7 +131,8 @@ func (r *ChatSessionRepo) ListChatSessions(ctx context.Context, tenantID, projec
 	baseQuery := `
 		SELECT cs.id, cs.tenant_id, cs.project_id, cs.widget_id, cs.customer_id, cs.ticket_id,
 			   cs.status, cs.visitor_info, cs.assigned_agent_id, cs.assigned_at, cs.started_at, cs.ended_at, cs.client_session_id,
-			   cs.last_activity_at, cs.created_at, cs.updated_at,
+			   cs.last_activity_at, cs.created_at, cs.updated_at, cs.meta,
+			   cs.slack_thread_ts, cs.slack_channel_id,
 			   a.name as assigned_agent_name, c.name as customer_name, c.email as customer_email,
 			   cw.name as widget_name, cw.use_ai as use_ai
 		FROM chat_sessions cs
@@ -181,7 +192,9 @@ func (r *ChatSessionRepo) UpdateChatSession(ctx context.Context, session *models
 			assigned_at = :assigned_at,
 			ended_at = :ended_at,
 			last_activity_at = :last_activity_at,
-			updated_at = :updated_at
+			updated_at = :updated_at,
+			slack_thread_ts = :slack_thread_ts,
+			slack_channel_id = :slack_channel_id
 		WHERE tenant_id = :tenant_id AND project_id = :project_id AND id = :id
 	`
 	_, err := r.db.NamedExecContext(ctx, query, session)
@@ -193,6 +206,48 @@ func (r *ChatSessionRepo) UpdateLastActivity(ctx context.Context, sessionID uuid
 	query := `UPDATE chat_sessions SET last_activity_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, sessionID)
 	return err
+}
+
+// UpdateSessionMeta updates the meta field for a session
+func (r *ChatSessionRepo) UpdateSessionMeta(ctx context.Context, sessionID uuid.UUID, meta models.JSONMap) error {
+	query := `UPDATE chat_sessions SET meta = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, meta, sessionID)
+	return err
+}
+
+// UpdateSlackThreadInfo updates Slack thread information for a session
+func (r *ChatSessionRepo) UpdateSlackThreadInfo(ctx context.Context, sessionID uuid.UUID, threadTS, channelID string) error {
+	query := `UPDATE chat_sessions SET slack_thread_ts = $1, slack_channel_id = $2, updated_at = NOW() WHERE id = $3`
+	_, err := r.db.ExecContext(ctx, query, threadTS, channelID, sessionID)
+	return err
+}
+
+// GetChatSessionBySlackThread finds a chat session by Slack thread information
+func (r *ChatSessionRepo) GetChatSessionBySlackThread(ctx context.Context, threadTS, channelID string) (*models.ChatSession, error) {
+	query := `
+		SELECT cs.id, cs.tenant_id, cs.project_id, cs.widget_id, cs.customer_id, cs.ticket_id,
+			   cs.status, cs.visitor_info, cs.assigned_agent_id, cs.assigned_at, cs.started_at, cs.ended_at, cs.client_session_id,
+			   cs.last_activity_at, cs.created_at, cs.updated_at, cs.meta,
+			   cs.slack_thread_ts, cs.slack_channel_id,
+			   a.name as assigned_agent_name, c.name as customer_name, c.email as customer_email,
+			   cw.name as widget_name, cw.use_ai as use_ai
+		FROM chat_sessions cs
+		LEFT JOIN agents a ON cs.assigned_agent_id = a.id
+		LEFT JOIN customers c ON cs.customer_id = c.id
+		LEFT JOIN chat_widgets cw ON cs.widget_id = cw.id
+		WHERE cs.slack_thread_ts = $1 AND cs.slack_channel_id = $2
+		LIMIT 1
+	`
+
+	var session models.ChatSession
+	err := r.db.GetContext(ctx, &session, query, threadTS, channelID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &session, nil
 }
 
 // ChatSessionFilters for filtering chat sessions

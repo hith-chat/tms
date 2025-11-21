@@ -624,12 +624,74 @@ type ChatSession struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
+	// Integration metadata
+	Meta JSONMap `db:"meta" json:"meta"`
+
+	// Slack integration fields (dedicated columns for performance)
+	SlackThreadTS  *string `db:"slack_thread_ts" json:"slack_thread_ts,omitempty"`
+	SlackChannelID *string `db:"slack_channel_id" json:"slack_channel_id,omitempty"`
+
 	// Joined fields
 	AssignedAgentName *string `db:"assigned_agent_name" json:"assigned_agent_name,omitempty"`
 	CustomerName      *string `db:"customer_name" json:"customer_name,omitempty"`
 	CustomerEmail     *string `db:"customer_email" json:"customer_email,omitempty"`
 	WidgetName        *string `db:"widget_name" json:"widget_name,omitempty"`
 	UseAI             bool    `db:"use_ai" json:"use_ai"`
+}
+
+// SlackSessionMeta represents Slack-specific metadata stored in ChatSession.Meta
+type SlackSessionMeta struct {
+	ThreadTS  string `json:"thread_ts"`  // Slack thread timestamp
+	ChannelID string `json:"channel_id"` // Slack channel ID
+}
+
+// GetSlackMeta extracts Slack metadata from dedicated columns
+func (s *ChatSession) GetSlackMeta() *SlackSessionMeta {
+	// Check dedicated columns first (new approach)
+	if s.SlackThreadTS != nil && s.SlackChannelID != nil && *s.SlackThreadTS != "" && *s.SlackChannelID != "" {
+		return &SlackSessionMeta{
+			ThreadTS:  *s.SlackThreadTS,
+			ChannelID: *s.SlackChannelID,
+		}
+	}
+
+	// Fallback to meta field for backward compatibility
+	if s.Meta == nil {
+		return nil
+	}
+
+	slackData, ok := s.Meta["slack"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	threadTS, _ := slackData["thread_ts"].(string)
+	channelID, _ := slackData["channel_id"].(string)
+
+	if threadTS == "" || channelID == "" {
+		return nil
+	}
+
+	return &SlackSessionMeta{
+		ThreadTS:  threadTS,
+		ChannelID: channelID,
+	}
+}
+
+// SetSlackMeta stores Slack metadata in dedicated columns and meta field
+func (s *ChatSession) SetSlackMeta(threadTS, channelID string) {
+	// Set dedicated columns (primary storage)
+	s.SlackThreadTS = &threadTS
+	s.SlackChannelID = &channelID
+
+	// Also set in meta field for backward compatibility
+	if s.Meta == nil {
+		s.Meta = make(JSONMap)
+	}
+	s.Meta["slack"] = map[string]interface{}{
+		"thread_ts":  threadTS,
+		"channel_id": channelID,
+	}
 }
 
 // ChatMessage represents a message in a chat session

@@ -1060,6 +1060,12 @@ class APIClient {
     return response.data
   }
 
+  // Get OAuth install URL for project-level integrations (new simplified system)
+  async getIntegrationInstallUrl(appType: string): Promise<{ oauth_url: string }> {
+    const response = await this.client.get(`/integrations/install/${appType}`)
+    return response.data
+  }
+
   async handleOAuthCallback(type: string, code: string, state: string): Promise<Integration> {
     const response: AxiosResponse<Integration> = await this.client.post(`/integrations/${type}/oauth/callback`, {
       code,

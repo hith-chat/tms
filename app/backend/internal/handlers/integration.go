@@ -216,20 +216,61 @@ func getProjectID(c *gin.Context) uuid.UUID {
 
 // List integration categories with templates
 func (h *IntegrationHandler) ListIntegrationCategories(c *gin.Context) {
-	featured := false
-	if c.Query("featured") == "true" {
-		featured = true
-	}
-
-	var featuredPtr *bool
-	if c.Query("featured") != "" {
-		featuredPtr = &featured
-	}
-
-	categories, err := h.integrationService.ListCategoriesWithTemplates(c.Request.Context(), featuredPtr)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list integration categories", "details": err.Error()})
-		return
+	// Return static/config-based categories for supported integrations
+	categories := []map[string]interface{}{
+		{
+			"id":           "communication",
+			"name":         "communication",
+			"display_name": "Communication",
+			"description":  "Connect with your team's communication tools",
+			"icon":         "message-square",
+			"sort_order":   1,
+			"is_active":    true,
+			"templates": []map[string]interface{}{
+				{
+					"id":                uuid.New().String(),
+					"type":              "slack",
+					"name":              "slack",
+					"display_name":      "Slack",
+					"description":       "Send notifications and updates to Slack channels",
+					"logo_url":          "https://cdn.brandfetch.io/idSUrLOWbH/theme/dark/symbol.svg",
+					"website_url":       "https://slack.com",
+					"documentation_url": "https://api.slack.com/docs",
+					"auth_method":       "oauth",
+					"is_featured":       true,
+					"is_active":         true,
+					"sort_order":        1,
+				},
+				{
+					"id":                uuid.New().String(),
+					"type":              "discord",
+					"name":              "discord",
+					"display_name":      "Discord",
+					"description":       "Send notifications to Discord servers",
+					"logo_url":          "https://cdn.brandfetch.io/idS7wJN6pI/theme/dark/symbol.svg",
+					"website_url":       "https://discord.com",
+					"documentation_url": "https://discord.com/developers/docs",
+					"auth_method":       "oauth",
+					"is_featured":       false,
+					"is_active":         false, // Coming soon
+					"sort_order":        2,
+				},
+				{
+					"id":                uuid.New().String(),
+					"type":              "microsoft_teams",
+					"name":              "microsoft_teams",
+					"display_name":      "Microsoft Teams",
+					"description":       "Send notifications to Microsoft Teams channels",
+					"logo_url":          "https://cdn.brandfetch.io/idchmboHEZ/theme/dark/symbol.svg",
+					"website_url":       "https://teams.microsoft.com",
+					"documentation_url": "https://docs.microsoft.com/en-us/microsoftteams/",
+					"auth_method":       "oauth",
+					"is_featured":       false,
+					"is_active":         false, // Coming soon
+					"sort_order":        3,
+				},
+			},
+		},
 	}
 
 	c.JSON(http.StatusOK, gin.H{"categories": categories})

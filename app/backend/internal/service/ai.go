@@ -847,7 +847,7 @@ func (s *AIService) GenerateWidgetThemeWithScreenshot(ctx context.Context, theme
 			},
 			userMessage,
 		},
-		Temperature: 0.3, // Slightly higher for more creative but still consistent messaging
+		Temperature: 0.3,  // Slightly higher for more creative but still consistent messaging
 		MaxTokens:   1200, // Increased to accommodate detailed contextual messages
 	}
 
@@ -1346,4 +1346,120 @@ func (s *AIService) CallAIForRanking(ctx context.Context, prompt string) (string
 	}
 
 	return response, nil
+}
+
+// AIResponseHandler defines an interface for handling AI responses differently across channels
+type AIResponseHandler interface {
+	// OnChunk is called for each content chunk received from the AI
+	OnChunk(ctx context.Context, content string)
+	// OnComplete is called when AI finishes with the complete response
+	OnComplete(ctx context.Context, fullResponse string) error
+	// OnError is called if there's an error
+	OnError(ctx context.Context, err error)
+}
+
+// FetchConversationHistory fetches and converts conversation history to AI agent format
+func (ai *AIService) FetchConversationHistory(ctx context.Context, tenantID, projectID, sessionID uuid.UUID) ([]ChatMessage, error) {
+	messages, err := ai.chatSessionService.GetChatMessages(ctx, tenantID, projectID, sessionID, false)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to fetch conversation history")
+		return []ChatMessage{}, nil // Return empty history rather than failing
+	}
+
+	messageHistory := make([]ChatMessage, 0, len(messages))
+	for _, msg := range messages {
+		role := "user"
+		if msg.AuthorType == "agent" || msg.AuthorType == "ai" {
+			role = "assistant"
+		}
+		messageHistory = append(messageHistory, ChatMessage{
+			Role:    role,
+			Content: msg.Content,
+		})
+	}
+
+	logger.GetTxLogger(ctx).Info().
+		Int("message_count", len(messageHistory)).
+		Msg("Fetched conversation history for AI agent")
+
+	return messageHistory, nil
+}
+
+// ProcessAIStreamingResponse handles streaming AI responses with custom handler for different channels
+func (ai *AIService) ProcessAIStreamingResponse(
+	ctx context.Context,
+	session *models.ChatSession,
+	content string,
+	metadata map[string]string,
+	handler AIResponseHandler,
+	aiAgentClient *AiAgentClient,
+) {
+	// Fetch conversation history
+	messageHistory, err := ai.FetchConversationHistory(ctx, session.TenantID, session.ProjectID, session.ID)
+	if err != nil {
+		handler.OnError(ctx, fmt.Errorf("failed to fetch conversation history: %w", err))
+		return
+	}
+
+	// Create agent request with conversation history
+	request := ChatRequest{
+		Message:        content,
+		TenantID:       session.TenantID.String(),
+		ProjectID:      session.ProjectID.String(),
+		SessionID:      session.ID.String(),
+		MessageHistory: messageHistory,
+		UseHistory:     true,
+		Metadata:       metadata,
+	}
+
+	// Start streaming response from agent service
+	responseChan, errorChan := aiAgentClient.ProcessMessageStream(ctx, request)
+
+	var aiResponseContent strings.Builder
+	var hasError bool
+
+	// Handle the streaming response
+	for {
+		select {
+		case response, ok := <-responseChan:
+			if !ok {
+				// Channel closed, finish processing
+				if !hasError && aiResponseContent.Len() > 0 {
+					if err := handler.OnComplete(ctx, aiResponseContent.String()); err != nil {
+						logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to complete AI response")
+					}
+				}
+				return
+			}
+
+			// Handle different response types
+			switch response.Type {
+			case "message":
+				if response.Content != "" {
+					aiResponseContent.WriteString(response.Content)
+					handler.OnChunk(ctx, response.Content)
+				}
+			case "thinking":
+				logger.GetTxLogger(ctx).Debug().Msg("AI is thinking")
+			case "done", "metadata":
+				logger.GetTxLogger(ctx).Info().Msg("AI processing complete")
+			case "error":
+				hasError = true
+				handler.OnError(ctx, fmt.Errorf("AI agent error: %s", response.Content))
+				return
+			}
+
+		case err, ok := <-errorChan:
+			if !ok {
+				return
+			}
+			hasError = true
+			handler.OnError(ctx, err)
+			return
+
+		case <-ctx.Done():
+			logger.GetTxLogger(ctx).Warn().Msg("Context cancelled for AI processing")
+			return
+		}
+	}
 }

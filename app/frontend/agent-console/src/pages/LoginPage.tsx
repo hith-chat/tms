@@ -182,8 +182,14 @@ export function LoginPage() {
 
     try {
       await login({ email, password })
-    } catch (err) {
-      setError('Invalid credentials. Please try again.')
+    } catch (err: any) {
+      const errorData = err?.response?.data || err?.data || err
+      if (errorData?.error === 'Rate limit exceeded') {
+        const retryAfter = Math.ceil(errorData.retry_after || 5)
+        setError(`Too many attempts. Please try again in ${retryAfter} seconds.`)
+      } else {
+        setError('Invalid credentials. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }

@@ -18,6 +18,7 @@ import {
   Brain,
   // Zap,
   Sparkles,
+  Zap,
 } from 'lucide-react'
 import { useTheme } from '../components/ThemeProvider'
 import { useAuth } from '../hooks/useAuth'
@@ -121,7 +122,7 @@ export function AppShell({ children }: AppShellProps) {
     { name: 'Customers', icon: Users, href: '/customers' },
     { name: 'Knowledge', icon: Brain, href: '/knowledge' },
     // { name: 'Analytics', icon: BarChart3, href: '/analytics' },
-    // { name: 'Integrations', icon: Zap, href: '/integrations' },
+    { name: 'Integrations', icon: Zap, href: '/integrations' },
     { name: 'Settings', icon: Settings, href: '/settings' },
   ]
 
