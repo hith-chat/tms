@@ -181,39 +181,18 @@ func (h *SlackEventsHandler) handleSlackThreadReply(ctx context.Context, teamID 
 	isBotMentioned := h.isBotMentioned(event.Text, slackMeta.BotUserID)
 
 	if isBotMentioned && h.aiAgentClient != nil {
-		// Bot is mentioned - trigger AI response
+		// Bot is mentioned - this is an internal AI assistant query
+		// It should ONLY stay in the Slack thread, NOT go to customer or database
 		logger.GetTxLogger(ctx).Info().
 			Str("session_id", session.ID.String()).
 			Str("message", event.Text).
-			Msg("Bot mentioned in Slack - triggering AI response")
+			Msg("Bot mentioned in Slack - triggering internal AI assistant")
 
 		// Remove bot mention from text for cleaner AI processing
 		cleanedText := h.removeBotMention(event.Text, slackMeta.BotUserID)
 
-		// Save the user's message first
-		messageReq := &models.SendChatMessageRequest{
-			Content:     cleanedText,
-			MessageType: "text",
-		}
-
-		_, err := h.chatSessionService.SendMessageWithUuidDetails(
-			ctx,
-			session.TenantID,
-			session.ProjectID,
-			session.ID,
-			messageReq,
-			"visitor", // Mark as visitor to preserve message
-			nil,
-			fmt.Sprintf("Slack: %s", displayName),
-			"",
-		)
-		if err != nil {
-			logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to save Slack message")
-			return
-		}
-
-		// Process with AI
-		go h.processSlackMessageWithAI(ctx, session, cleanedText, displayName)
+		// Process with AI - response stays only in Slack thread
+		go h.processInternalAIQuery(ctx, session, cleanedText, displayName)
 		return
 	}
 
@@ -404,6 +383,147 @@ func (h *SlackEventsHandler) processSlackMessageWithAI(ctx context.Context, sess
 	}
 
 	h.aiService.ProcessAIStreamingResponse(ctx, session, content, metadata, handler, h.aiAgentClient)
+}
+
+// internalAIResponseHandler implements AIResponseHandler for internal Slack AI queries
+// This handler does NOT save to database - it's only for Slack-internal AI assistance
+type internalAIResponseHandler struct {
+	handler     *SlackEventsHandler
+	session     *models.ChatSession
+	userQuery   string
+	displayName string
+}
+
+func (s *internalAIResponseHandler) OnChunk(ctx context.Context, content string) {
+	// Internal queries don't need streaming, just accumulate
+	logger.GetTxLogger(ctx).Debug().
+		Str("chunk", content).
+		Msg("Received internal AI response chunk")
+}
+
+func (s *internalAIResponseHandler) OnComplete(ctx context.Context, fullResponse string) error {
+	// Format response with header/footer to indicate it's an internal AI response
+	formattedResponse := formatInternalAIResponse(s.userQuery, fullResponse, s.displayName)
+	return s.handler.sendInternalAIResponseToSlack(ctx, s.session, formattedResponse)
+}
+
+func (s *internalAIResponseHandler) OnError(ctx context.Context, err error) {
+	logger.GetTxLogger(ctx).Error().
+		Err(err).
+		Str("session_id", s.session.ID.String()).
+		Msg("Internal AI query error")
+}
+
+// formatInternalAIResponse formats the AI response with header/footer for Slack
+func formatInternalAIResponse(query, response, askedBy string) string {
+	return fmt.Sprintf(
+		"*🤖 AI Assistant Response*\n"+
+			"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"+
+			"*Question from %s:*\n> %s\n\n"+
+			"*Answer:*\n%s\n"+
+			"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"+
+			"_This is an internal AI response. It's not visible to the customer._",
+		askedBy, query, response,
+	)
+}
+
+// processInternalAIQuery handles AI queries that stay ONLY in Slack
+// This is triggered when an agent mentions @Hith - it's for internal assistance only
+// The query and response do NOT go to the customer or database
+func (h *SlackEventsHandler) processInternalAIQuery(ctx context.Context, session *models.ChatSession, query string, displayName string) {
+	logger.GetTxLogger(ctx).Info().
+		Str("session_id", session.ID.String()).
+		Str("query", query).
+		Str("asked_by", displayName).
+		Msg("Processing internal AI query (Slack-only)")
+
+	// Fetch conversation history for AI context (read-only, just for context)
+	messageHistory, err := h.aiService.FetchConversationHistory(ctx, session.TenantID, session.ProjectID, session.ID)
+	if err != nil {
+		logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to fetch conversation history for internal query")
+		messageHistory = []service.ChatMessage{}
+	}
+
+	// Create request with conversation context
+	request := service.ChatRequest{
+		Message:        query,
+		TenantID:       session.TenantID.String(),
+		ProjectID:      session.ProjectID.String(),
+		SessionID:      session.ID.String(),
+		UserID:         fmt.Sprintf("slack-internal:%s", displayName),
+		MessageHistory: messageHistory,
+		UseHistory:     true,
+		Metadata: map[string]string{
+			"source":     "slack-internal",
+			"query_type": "agent-assistance",
+			"asked_by":   displayName,
+		},
+	}
+
+	// Start streaming response
+	responseChan, errorChan := h.aiAgentClient.ProcessMessageStream(ctx, request)
+
+	for {
+		select {
+		case response, ok := <-responseChan:
+			if !ok {
+				// Channel closed
+				return
+			}
+
+			switch response.Type {
+			case "message":
+				// response.Content is the complete message, not a buffer
+				if response.Content != "" {
+					formattedResponse := formatInternalAIResponse(query, response.Content, displayName)
+					if err := h.sendInternalAIResponseToSlack(ctx, session, formattedResponse); err != nil {
+						logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to send internal AI response")
+					}
+				}
+			case "error":
+				logger.GetTxLogger(ctx).Error().
+					Str("error", response.Content).
+					Msg("AI error for internal query")
+				return
+			}
+
+		case err, ok := <-errorChan:
+			if !ok {
+				return
+			}
+			logger.GetTxLogger(ctx).Error().Err(err).Msg("AI client error for internal query")
+			return
+
+		case <-ctx.Done():
+			logger.GetTxLogger(ctx).Warn().Msg("Context cancelled for internal AI query")
+			return
+		}
+	}
+}
+
+// sendInternalAIResponseToSlack sends the formatted AI response to Slack ONLY
+// This does NOT save to the database - it's purely for Slack-internal communication
+func (h *SlackEventsHandler) sendInternalAIResponseToSlack(ctx context.Context, session *models.ChatSession, formattedResponse string) error {
+	logger.GetTxLogger(ctx).Info().
+		Str("session_id", session.ID.String()).
+		Msg("Sending internal AI response to Slack (not saving to DB)")
+
+	// Send to Slack thread only - no database, no customer broadcast
+	err := h.slackService.PostMessageToSlack(
+		ctx,
+		session.TenantID,
+		session.ProjectID,
+		session,
+		formattedResponse,
+		"Hith AI",
+	)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to send internal AI response to Slack")
+		return err
+	}
+
+	logger.GetTxLogger(ctx).Info().Msg("Internal AI response sent to Slack successfully")
+	return nil
 }
 
 // sendAIResponseToSlack sends the AI-generated response back to Slack
