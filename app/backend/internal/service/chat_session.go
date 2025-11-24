@@ -27,6 +27,7 @@ type ChatSessionService struct {
 	connectionManager   *websocket.ConnectionManager
 	howlingAlarmService *HowlingAlarmService
 	slackService        *SlackService
+	teamsService        *MicrosoftTeamsService
 }
 
 func NewChatSessionService(
@@ -40,6 +41,7 @@ func NewChatSessionService(
 	redisService *redis.Service,
 	howlingAlarmService *HowlingAlarmService,
 	slackService *SlackService,
+	teamsService *MicrosoftTeamsService,
 ) *ChatSessionService {
 	return &ChatSessionService{
 		chatSessionRepo:     chatSessionRepo,
@@ -52,6 +54,7 @@ func NewChatSessionService(
 		connectionManager:   connectionManager,
 		howlingAlarmService: howlingAlarmService,
 		slackService:        slackService,
+		teamsService:        teamsService,
 	}
 }
 
@@ -300,6 +303,23 @@ func (s *ChatSessionService) SendMessageWithUuidDetails(ctx context.Context, ten
 			if err := s.slackService.PostMessageToSlack(ctx, tenantID, projectID, session, req.Content, authorName); err != nil {
 				// Log error but don't fail the message send
 				fmt.Printf("Failed to post message to Slack: %v\n", err)
+			}
+		}()
+	}
+
+	// Post to Microsoft Teams if applicable
+	if !strings.HasPrefix(authorName, "Teams: ") {
+		go func() {
+			// Fetch session to get meta information
+			session, err := s.chatSessionRepo.GetChatSession(ctx, tenantID, projectID, sessionID)
+			if err != nil || session == nil {
+				return // Silently skip if session not found
+			}
+
+			// Post message to Teams
+			if err := s.teamsService.PostMessageToTeams(ctx, tenantID, projectID, session, req.Content, authorName); err != nil {
+				// Log error but don't fail the message send
+				fmt.Printf("Failed to post message to Teams: %v\n", err)
 			}
 		}()
 	}

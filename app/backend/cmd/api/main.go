@@ -165,7 +165,10 @@ func main() {
 	// Slack service - needed by chat session service
 	slackService := service.NewSlackService(projectIntegrationRepo, chatSessionRepo, redisService)
 
-	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService, slackService)
+	// Microsoft Teams service
+	teamsService := service.NewMicrosoftTeamsService(projectIntegrationRepo)
+
+	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService, slackService, teamsService)
 
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
@@ -279,12 +282,13 @@ func main() {
 		log.Printf("AI provider %s", cfg.AI.Provider)
 		log.Printf("URL Ranking Model provider %s", cfg.AI.UrlRankingModel)
 		log.Printf("BB AI API Key %s", cfg.AI.APIKey)
-		cfg.AI.ThemeExtractionModel = "blackboxai/anthropic/claude-sonnet-4.5"
 		log.Printf("Theme Extraction Model %s", cfg.AI.ThemeExtractionModel)
 		log.Printf("Google Client ID %s", cfg.OAuth.Google.ClientID)
 		log.Printf("Slack Client ID %s", cfg.Slack.ClientID)
 		// log.Printf("Slack Client Secret %s", cfg.Slack.ClientSecret)
 		log.Printf("Slack Redirect URI %s", cfg.Slack.RedirectURI)
+		log.Printf("Discord Client ID %s", cfg.Discord.ClientID)
+		log.Printf("Discord Redirect URI %s", cfg.Discord.RedirectURI)
 		// log.Printf("Google Client  Secret %s", cfg.OAuth.Google.ClientSecret)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
@@ -351,6 +355,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		// Integration OAuth callback (public, no auth required)
 		publicRoutes.GET("/integrations/slack/callback", integrationOAuthHandler.SlackOAuthCallback)
+		publicRoutes.GET("/integrations/discord/callback", integrationOAuthHandler.DiscordOAuthCallback)
 
 		// Slack events webhook (public, no auth required - called by Slack)
 		publicRoutes.POST("/integrations/slack/events", slackEventsHandler.HandleSlackEvents)

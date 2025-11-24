@@ -130,6 +130,68 @@ func SlackMetaFromIntegration(meta IntegrationMeta) (*SlackIntegrationMeta, erro
 	return &slackMeta, nil
 }
 
+// DiscordIntegrationMeta represents the metadata stored for a Discord integration
+type DiscordIntegrationMeta struct {
+	// OAuth tokens
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	Scope        string `json:"scope"`
+
+	// Guild (server) info
+	GuildID   string `json:"guild_id"`
+	GuildName string `json:"guild_name"`
+	GuildIcon string `json:"guild_icon,omitempty"`
+
+	// Bot info
+	BotUserID       string `json:"bot_user_id,omitempty"`
+	BotUsername     string `json:"bot_username,omitempty"`
+	BotDiscriminator string `json:"bot_discriminator,omitempty"`
+
+	// Webhook info (for posting messages)
+	WebhookID    string `json:"webhook_id,omitempty"`
+	WebhookToken string `json:"webhook_token,omitempty"`
+	WebhookURL   string `json:"webhook_url,omitempty"`
+	ChannelID    string `json:"channel_id,omitempty"`
+	ChannelName  string `json:"channel_name,omitempty"`
+
+	// Installation metadata
+	InstalledByAgentID string    `json:"installed_by_agent_id,omitempty"`
+	InstalledAt        time.Time `json:"installed_at"`
+	LastUpdatedAt      time.Time `json:"last_updated_at"`
+}
+
+// ToMeta converts DiscordIntegrationMeta to IntegrationMeta
+func (d *DiscordIntegrationMeta) ToMeta() (IntegrationMeta, error) {
+	data, err := json.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
+
+	var meta IntegrationMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, err
+	}
+
+	return meta, nil
+}
+
+// DiscordMetaFromIntegration extracts DiscordIntegrationMeta from IntegrationMeta
+func DiscordMetaFromIntegration(meta IntegrationMeta) (*DiscordIntegrationMeta, error) {
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	var discordMeta DiscordIntegrationMeta
+	if err := json.Unmarshal(data, &discordMeta); err != nil {
+		return nil, err
+	}
+
+	return &discordMeta, nil
+}
+
 // OAuthStateData represents the data stored in Redis for OAuth state validation
 type OAuthStateData struct {
 	TenantID        uuid.UUID              `json:"tenant_id"`
