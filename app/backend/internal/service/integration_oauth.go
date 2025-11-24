@@ -61,7 +61,8 @@ var slackScopes = []string{
 // Discord OAuth scopes - bot permissions for sending messages to threads
 var discordScopes = []string{
 	"bot",
-	"webhook.incoming",
+	"identify",
+	"guilds",
 }
 
 // Discord bot permissions (bitfield) - Send Messages, Send Messages in Threads, Read Message History, Use Slash Commands
@@ -372,11 +373,66 @@ func (s *IntegrationOAuthService) ExchangeDiscordCode(ctx context.Context, code 
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Fetch guild information if bot was added to a guild
+	if oauthResp.AccessToken != "" {
+		guilds, err := s.fetchDiscordGuilds(ctx, oauthResp.AccessToken)
+		if err != nil {
+			logger.GetTxLogger(ctx).Warn().Err(err).Msg("Failed to fetch Discord guilds")
+		} else if len(guilds) > 0 {
+			// Use the first guild (or the one where bot has permissions)
+			oauthResp.Guild = &struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+				Icon string `json:"icon,omitempty"`
+			}{
+				ID:   guilds[0].ID,
+				Name: guilds[0].Name,
+				Icon: guilds[0].Icon,
+			}
+		}
+	}
+
 	logger.GetTxLogger(ctx).Info().
 		Str("scope", oauthResp.Scope).
 		Msg("Successfully exchanged Discord OAuth code")
 
 	return &oauthResp, nil
+}
+
+// fetchDiscordGuilds fetches the guilds the user is in
+func (s *IntegrationOAuthService) fetchDiscordGuilds(ctx context.Context, accessToken string) ([]struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+}, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://discord.com/api/users/@me/guilds", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch guilds: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("discord api error: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var guilds []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Icon string `json:"icon"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&guilds); err != nil {
+		return nil, fmt.Errorf("failed to parse guilds: %w", err)
+	}
+
+	return guilds, nil
 }
 
 // StoreDiscordIntegration stores the Discord integration in the database
