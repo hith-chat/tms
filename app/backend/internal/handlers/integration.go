@@ -266,7 +266,7 @@ func (h *IntegrationHandler) ListIntegrationCategories(c *gin.Context) {
 					"documentation_url": "https://docs.microsoft.com/en-us/microsoftteams/",
 					"auth_method":       "oauth",
 					"is_featured":       false,
-					"is_active":         false, // Coming soon
+					"is_active":         true, // Now active
 					"sort_order":        3,
 				},
 			},

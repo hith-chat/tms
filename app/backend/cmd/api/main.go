@@ -165,7 +165,10 @@ func main() {
 	// Slack service - needed by chat session service
 	slackService := service.NewSlackService(projectIntegrationRepo, chatSessionRepo, redisService)
 
-	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService, slackService)
+	// Microsoft Teams service
+	teamsService := service.NewMicrosoftTeamsService(projectIntegrationRepo)
+
+	chatSessionService := service.NewChatSessionService(chatSessionRepo, chatMessageRepo, chatWidgetRepo, customerRepo, ticketService, agentService, connectionManager, redisService, howlingAlarmService, slackService, teamsService)
 
 	// Knowledge management services
 	embeddingService := service.NewEmbeddingService(&cfg.Knowledge)
