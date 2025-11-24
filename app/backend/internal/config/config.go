@@ -28,10 +28,18 @@ type Config struct {
 	Payment       PaymentConfig       `mapstructure:"payment"`
 	OAuth         OAuthConfig         `mapstructure:"oauth"`
 	Slack         SlackConfig         `mapstructure:"slack"`
+	Discord       DiscordConfig       `mapstructure:"discord"`
 }
 
 // SlackConfig represents Slack OAuth configuration
 type SlackConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURI  string `mapstructure:"redirect_uri"`
+}
+
+// DiscordConfig represents Discord OAuth configuration
+type DiscordConfig struct {
 	ClientID     string `mapstructure:"client_id"`
 	ClientSecret string `mapstructure:"client_secret"`
 	RedirectURI  string `mapstructure:"redirect_uri"`
@@ -331,6 +339,11 @@ func Load() (*Config, error) {
 	viper.BindEnv("slack.client_secret", "SLACK_CLIENT_SECRET")
 	viper.BindEnv("slack.redirect_uri", "SLACK_REDIRECT_URI")
 
+	// Discord configuration bindings
+	viper.BindEnv("discord.client_id", "DISCORD_CLIENT_ID")
+	viper.BindEnv("discord.client_secret", "DISCORD_CLIENT_SECRET")
+	viper.BindEnv("discord.redirect_uri", "DISCORD_REDIRECT_URI")
+
 	// Read config file (optional)
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -464,4 +477,9 @@ func setDefaults() {
 	viper.SetDefault("slack.client_id", "9933968395767.9943091289283")
 	viper.SetDefault("slack.client_secret", "22c6e79d948b178b5ccb409f00debb60")
 	viper.SetDefault("slack.redirect_uri", "https://autonomic-horacio-pseudobiographically.ngrok-free.dev/api/public/integrations/slack/callback")
+
+	// Discord defaults
+	viper.SetDefault("discord.client_id", "")
+	viper.SetDefault("discord.client_secret", "")
+	viper.SetDefault("discord.redirect_uri", "")
 }

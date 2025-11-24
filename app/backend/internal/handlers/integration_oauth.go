@@ -116,6 +116,8 @@ func (h *IntegrationOAuthHandler) InstallIntegration(c *gin.Context) {
 	switch integrationType {
 	case models.ProjectIntegrationTypeSlack:
 		oauthURL = h.integrationService.GetSlackOAuthURL(stateToken)
+	case models.ProjectIntegrationTypeDiscord:
+		oauthURL = h.integrationService.GetDiscordOAuthURL(stateToken)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OAuth not implemented for this integration type"})
 		return
@@ -189,6 +191,75 @@ func (h *IntegrationOAuthHandler) SlackOAuthCallback(c *gin.Context) {
 
 	// Redirect to frontend dashboard with success
 	c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?integration=slack&status=success")
+}
+
+// DiscordOAuthCallback handles the Discord OAuth callback
+// @Summary Discord OAuth callback
+// @Description Handles the callback from Discord OAuth flow
+// @Tags integrations
+// @Accept json
+// @Produce json
+// @Param code query string true "Authorization code"
+// @Param state query string true "State token"
+// @Param guild_id query string false "Guild ID"
+// @Success 302 {string} string "Redirect to frontend"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/public/integrations/discord/callback [get]
+func (h *IntegrationOAuthHandler) DiscordOAuthCallback(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Check for error from Discord
+	if errParam := c.Query("error"); errParam != "" {
+		errDesc := c.Query("error_description")
+		logger.GetTxLogger(ctx).Error().
+			Str("error", errParam).
+			Str("error_description", errDesc).
+			Msg("Discord OAuth error")
+		c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?error=discord_oauth_denied")
+		return
+	}
+
+	// Get authorization code
+	code := c.Query("code")
+	if code == "" {
+		c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?error=missing_code")
+		return
+	}
+
+	// Get state token
+	stateToken := c.Query("state")
+	if stateToken == "" {
+		c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?error=missing_state")
+		return
+	}
+
+	// Validate state token
+	stateData, err := h.integrationService.ValidateOAuthState(ctx, stateToken)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to validate OAuth state")
+		c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?error=invalid_state")
+		return
+	}
+
+	// Exchange code for tokens
+	oauthResp, err := h.integrationService.ExchangeDiscordCode(ctx, code)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to exchange Discord code")
+		c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?error=token_exchange_failed")
+		return
+	}
+
+	// Store the integration
+	_, err = h.integrationService.StoreDiscordIntegration(ctx, stateData, oauthResp)
+	if err != nil {
+		logger.GetTxLogger(ctx).Error().Err(err).Msg("Failed to store Discord integration")
+		c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?error=storage_failed")
+		return
+	}
+
+	// Redirect to frontend dashboard with success
+	c.Redirect(http.StatusFound, h.frontendURL+"/dashboard?integration=discord&status=success")
 }
 
 // ListProjectIntegrations lists all integrations for a project

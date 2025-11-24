@@ -58,6 +58,15 @@ var slackScopes = []string{
 	"mpim:history",
 }
 
+// Discord OAuth scopes - bot permissions for sending messages to threads
+var discordScopes = []string{
+	"bot",
+	"webhook.incoming",
+}
+
+// Discord bot permissions (bitfield) - Send Messages, Send Messages in Threads, Read Message History, Use Slash Commands
+const discordBotPermissions = "2147485696"
+
 // GenerateOAuthState generates a state token and stores it in Redis
 func (s *IntegrationOAuthService) GenerateOAuthState(
 	ctx context.Context,
@@ -142,6 +151,22 @@ func (s *IntegrationOAuthService) GetSlackOAuthURL(stateToken string) string {
 	params.Set("client_id", s.config.Slack.ClientID)
 	params.Set("scope", strings.Join(slackScopes, ","))
 	params.Set("redirect_uri", s.config.Slack.RedirectURI)
+	params.Set("state", stateToken)
+
+	oauthURL.RawQuery = params.Encode()
+	return oauthURL.String()
+}
+
+// GetDiscordOAuthURL generates the Discord OAuth URL for bot installation
+func (s *IntegrationOAuthService) GetDiscordOAuthURL(stateToken string) string {
+	oauthURL, _ := url.Parse("https://discord.com/api/oauth2/authorize")
+
+	params := url.Values{}
+	params.Set("client_id", s.config.Discord.ClientID)
+	params.Set("scope", strings.Join(discordScopes, " "))
+	params.Set("permissions", discordBotPermissions)
+	params.Set("redirect_uri", s.config.Discord.RedirectURI)
+	params.Set("response_type", "code")
 	params.Set("state", stateToken)
 
 	oauthURL.RawQuery = params.Encode()
@@ -282,6 +307,145 @@ func (s *IntegrationOAuthService) StoreSlackIntegration(
 		Str("project_id", stateData.ProjectID.String()).
 		Str("team_name", oauthResp.Team.Name).
 		Msg("Successfully stored Slack integration")
+
+	return integration, nil
+}
+
+// DiscordOAuthResponse represents the response from Discord OAuth token exchange
+type DiscordOAuthResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+	Scope        string `json:"scope"`
+	Guild        *struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Icon string `json:"icon,omitempty"`
+	} `json:"guild,omitempty"`
+	Webhook *struct {
+		ID        string `json:"id"`
+		Token     string `json:"token"`
+		URL       string `json:"url"`
+		ChannelID string `json:"channel_id"`
+	} `json:"webhook,omitempty"`
+}
+
+// ExchangeDiscordCode exchanges the authorization code for tokens
+func (s *IntegrationOAuthService) ExchangeDiscordCode(ctx context.Context, code string) (*DiscordOAuthResponse, error) {
+	// Build the request
+	data := url.Values{}
+	data.Set("client_id", s.config.Discord.ClientID)
+	data.Set("client_secret", s.config.Discord.ClientSecret)
+	data.Set("code", code)
+	data.Set("grant_type", "authorization_code")
+	data.Set("redirect_uri", s.config.Discord.RedirectURI)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://discord.com/api/oauth2/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Make the request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange code: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error response
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("discord oauth error: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
+	var oauthResp DiscordOAuthResponse
+	if err := json.Unmarshal(body, &oauthResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	logger.GetTxLogger(ctx).Info().
+		Str("scope", oauthResp.Scope).
+		Msg("Successfully exchanged Discord OAuth code")
+
+	return &oauthResp, nil
+}
+
+// StoreDiscordIntegration stores the Discord integration in the database
+func (s *IntegrationOAuthService) StoreDiscordIntegration(
+	ctx context.Context,
+	stateData *models.OAuthStateData,
+	oauthResp *DiscordOAuthResponse,
+) (*models.ProjectIntegration, error) {
+	// Create Discord meta
+	discordMeta := &models.DiscordIntegrationMeta{
+		AccessToken:        oauthResp.AccessToken,
+		RefreshToken:       oauthResp.RefreshToken,
+		TokenType:          oauthResp.TokenType,
+		ExpiresIn:          oauthResp.ExpiresIn,
+		Scope:              oauthResp.Scope,
+		InstalledByAgentID: stateData.AgentID.String(),
+		InstalledAt:        time.Now(),
+		LastUpdatedAt:      time.Now(),
+	}
+
+	// Add guild info if available
+	if oauthResp.Guild != nil {
+		discordMeta.GuildID = oauthResp.Guild.ID
+		discordMeta.GuildName = oauthResp.Guild.Name
+		discordMeta.GuildIcon = oauthResp.Guild.Icon
+	}
+
+	// Add webhook info if available
+	if oauthResp.Webhook != nil {
+		discordMeta.WebhookID = oauthResp.Webhook.ID
+		discordMeta.WebhookToken = oauthResp.Webhook.Token
+		discordMeta.WebhookURL = oauthResp.Webhook.URL
+		discordMeta.ChannelID = oauthResp.Webhook.ChannelID
+	}
+
+	// Convert to generic meta
+	meta, err := discordMeta.ToMeta()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert meta: %w", err)
+	}
+
+	// Create integration record
+	integration := &models.ProjectIntegration{
+		ID:              uuid.New(),
+		TenantID:        stateData.TenantID,
+		ProjectID:       stateData.ProjectID,
+		IntegrationType: models.ProjectIntegrationTypeDiscord,
+		Meta:            meta,
+		Status:          models.ProjectIntegrationStatusActive,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+
+	// Upsert (create or update if exists)
+	if err := s.integrationRepo.Upsert(ctx, integration); err != nil {
+		return nil, fmt.Errorf("failed to store integration: %w", err)
+	}
+
+	guildName := ""
+	if oauthResp.Guild != nil {
+		guildName = oauthResp.Guild.Name
+	}
+
+	logger.GetTxLogger(ctx).Info().
+		Str("integration_id", integration.ID.String()).
+		Str("tenant_id", stateData.TenantID.String()).
+		Str("project_id", stateData.ProjectID.String()).
+		Str("guild_name", guildName).
+		Msg("Successfully stored Discord integration")
 
 	return integration, nil
 }

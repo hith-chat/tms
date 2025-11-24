@@ -285,6 +285,8 @@ func main() {
 		log.Printf("Slack Client ID %s", cfg.Slack.ClientID)
 		// log.Printf("Slack Client Secret %s", cfg.Slack.ClientSecret)
 		log.Printf("Slack Redirect URI %s", cfg.Slack.RedirectURI)
+		log.Printf("Discord Client ID %s", cfg.Discord.ClientID)
+		log.Printf("Discord Redirect URI %s", cfg.Discord.RedirectURI)
 		// log.Printf("Google Client  Secret %s", cfg.OAuth.Google.ClientSecret)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
@@ -351,6 +353,7 @@ func setupRouter(database *sql.DB, jwtAuth *auth.Service, apiKeyRepo repo.ApiKey
 
 		// Integration OAuth callback (public, no auth required)
 		publicRoutes.GET("/integrations/slack/callback", integrationOAuthHandler.SlackOAuthCallback)
+		publicRoutes.GET("/integrations/discord/callback", integrationOAuthHandler.DiscordOAuthCallback)
 
 		// Slack events webhook (public, no auth required - called by Slack)
 		publicRoutes.POST("/integrations/slack/events", slackEventsHandler.HandleSlackEvents)
