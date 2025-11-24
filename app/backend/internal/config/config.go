@@ -474,9 +474,9 @@ func setDefaults() {
 	viper.SetDefault("oauth.google.redirect_url", "http://localhost:3000/auth/google/callback")
 
 	// Slack defaults
-	viper.SetDefault("slack.client_id", "9933968395767.9943091289283")
-	viper.SetDefault("slack.client_secret", "22c6e79d948b178b5ccb409f00debb60")
-	viper.SetDefault("slack.redirect_uri", "https://autonomic-horacio-pseudobiographically.ngrok-free.dev/api/public/integrations/slack/callback")
+	viper.SetDefault("slack.client_id", "")
+	viper.SetDefault("slack.client_secret", "")
+	viper.SetDefault("slack.redirect_uri", "")
 
 	// Discord defaults
 	viper.SetDefault("discord.client_id", "")
